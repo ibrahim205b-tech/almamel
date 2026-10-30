@@ -16,7 +16,7 @@ export default tseslint.config(
   },
   {
     files: ['public/js/**/*.js'],
-    languageOptions: { sourceType: 'script', globals: { window: 'readonly', document: 'readonly', navigator: 'readonly', URL: 'readonly', URLSearchParams: 'readonly', FormData: 'readonly', fetch: 'readonly', location: 'readonly', setTimeout: 'readonly', alert: 'readonly' } },
+    languageOptions: { sourceType: 'script', globals: { window: 'readonly', document: 'readonly', navigator: 'readonly', URL: 'readonly', URLSearchParams: 'readonly', FormData: 'readonly', fetch: 'readonly', location: 'readonly', setTimeout: 'readonly', alert: 'readonly', prompt: 'readonly', confirm: 'readonly', crypto: 'readonly', createImageBitmap: 'readonly', Intl: 'readonly', Uint8Array: 'readonly', Promise: 'readonly' } },
     rules: { 'no-var': 'off' },
   },
 );

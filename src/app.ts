@@ -48,7 +48,7 @@ const PUBLIC_DIR = path.join(import.meta.dirname, '..', 'public');
 
 export function assetVersion(): string {
   const h = crypto.createHash('sha256');
-  for (const f of ['css/app.css', 'js/app.js', 'js/static.js']) h.update(fs.readFileSync(path.join(PUBLIC_DIR, f)));
+  for (const f of ['css/app.css', 'js/app.js', 'js/static.js', 'js/live.js']) h.update(fs.readFileSync(path.join(PUBLIC_DIR, f)));
   return h.digest('hex').slice(0, 10);
 }
 
@@ -67,6 +67,7 @@ export function viewCtx(app: FastifyInstance, req: FastifyRequest, reply: Fastif
   return {
     user: req.user, settings: req.settings, csrf: csrfFor(app, req), path: req.url.split('?')[0], baseUrl: app.cfg.baseUrl,
     v, unread: req.user ? unreadCount(app.db, req.user.id) : 0, flash, staticMode: app.cfg.staticMode,
+    supabaseOrigin: app.cfg.staticMode && app.cfg.supabaseUrl ? new URL(app.cfg.supabaseUrl).origin : undefined,
   };
 }
 

@@ -365,6 +365,11 @@ input[type=file]{font:inherit;padding:10px 0;max-width:100%;width:100%;min-width
 .menu-edit{flex:1;min-width:0}
 .menu-edit summary{cursor:pointer;display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:44px}
 .menu-edit[open] summary{margin-bottom:8px}
+.hp{position:absolute!important;left:-9999px;width:1px;height:1px;overflow:hidden}
+.live-msg:empty{display:none}
+.live-msg{margin-bottom:16px}
+.link{color:var(--board);text-decoration:underline;font:inherit;min-height:44px}
+button[disabled]{opacity:.6;cursor:progress}
 .revisions{list-style:none;padding:0}
 .revisions li{margin-bottom:6px}
 

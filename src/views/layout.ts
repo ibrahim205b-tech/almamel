@@ -13,6 +13,7 @@ export interface ViewCtx {
   v: string; // إصدار الملفات الثابتة لكسر التخزين المؤقت
   unread: number;
   staticMode?: boolean; // نسخة GitHub Pages الثابتة: بلا حسابات ولا نماذج تُرسل للخادم
+  supabaseOrigin?: string; // عند تفعيل Supabase في النسخة الثابتة
   flash?: { kind: 'ok' | 'error'; text: string } | null;
 }
 
@@ -49,7 +50,7 @@ export function layout(ctx: ViewCtx, meta: PageMeta, body: SafeHtml): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-${ctx.staticMode ? raw(`<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; object-src 'none'">`) : ''}
+${ctx.staticMode ? html`<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: ${ctx.supabaseOrigin ?? ''}; font-src 'self'; connect-src 'self' ${ctx.supabaseOrigin ? `${ctx.supabaseOrigin} ${ctx.supabaseOrigin.replace('https://', 'wss://')}` : ''}; form-action 'self'; base-uri 'none'; object-src 'none'">` : ''}
 <title>${title}</title>
 <meta name="description" content="${desc}">
 ${meta.noindex ? raw('<meta name="robots" content="noindex, nofollow">') : ''}
@@ -91,7 +92,9 @@ ${s.announcement ? html`<div class="announce" role="note">${s.announcement}</div
   <nav id="site-menu" class="site-menu" aria-label="الأقسام">
     <div class="wrap menu-inner">
       ${nav(ctx)}
-      ${ctx.staticMode ? html`<ul class="nav-list nav-account"><li><a href="/search">${icon('search')}البحث</a></li><li><a href="/contact">${icon('phone')}تواصل معنا</a></li></ul>` : html`<ul class="nav-list nav-account">
+      ${ctx.staticMode ? html`<ul class="nav-list nav-account"><li><a href="/search">${icon('search')}البحث</a></li>${ctx.supabaseOrigin
+        ? html`<li><a href="/owner">${icon('utensils')}أضف مطعمك أو محلك</a></li><li><a href="/login">${icon('user')}دخول أصحاب المحلات</a></li>`
+        : html`<li><a href="/contact">${icon('phone')}تواصل معنا</a></li>`}</ul>` : html`<ul class="nav-list nav-account">
         ${u ? html`
           ${isStaff(u.role) ? html`<li><a href="/admin">${icon('shield')}لوحة الإدارة</a></li>` : ''}
           <li><a href="/owner/dashboard">${icon('store')}لوحة التحكم</a></li>
@@ -123,7 +126,7 @@ ${body}
       <h2 id="f-links" class="footer-title">روابط</h2>
       <ul class="footer-links">
         <li><a href="/about">عن المنصة</a></li><li><a href="/contact">تواصل معنا</a></li>
-        ${ctx.staticMode ? '' : html`<li><a href="/owner">أضف مطعمك أو محلك</a></li>`}
+        ${ctx.staticMode && !ctx.supabaseOrigin ? '' : html`<li><a href="/owner">أضف مطعمك أو محلك</a></li>`}
         <li><a href="/policies/privacy">سياسة الخصوصية</a></li><li><a href="/policies/terms">شروط الاستخدام</a></li>
         <li><a href="/policies/posting">سياسة النشر</a></li><li><a href="/policies/ads">سياسة الإعلانات</a></li>
         <li><a href="/policies/reports">سياسة البلاغات</a></li>

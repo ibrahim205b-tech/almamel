@@ -6,9 +6,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-  # إعادة بناء يومية حتى تختفي الإعلانات المنتهية تلقائياً
+  # كل ربع ساعة: يُعاد البناء فقط إذا تغيّرت بيانات Supabase (ويبقى المشروع المجاني نشطاً)
   schedule:
-    - cron: '17 0 * * *'
+    - cron: '*/15 * * * *'
 
 permissions:
   contents: read
@@ -23,16 +23,25 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      build: ${{ steps.check.outputs.build }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-      - run: npm ci
+      - id: check
+        name: Check for new content
+        run: node scripts/check-changes.ts
+        env:
+          EVENT: ${{ github.event_name }}
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+      - if: steps.check.outputs.build == 'true'
+        run: npm ci
       # إذا كان مصدر Pages «Deploy from a branch» يُعرض ملف README كنص فقط.
       # هذه الخطوة تحاول تحويل المصدر إلى GitHub Actions تلقائياً.
       - name: Use GitHub Actions as the Pages source
+        if: steps.check.outputs.build == 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -43,17 +52,27 @@ jobs:
             gh api -X PUT "repos/${{ github.repository }}/pages" -f build_type=workflow && echo "Switched to GitHub Actions"
           fi
       - id: pages
+        if: steps.check.outputs.build == 'true'
         uses: actions/configure-pages@v5
+      - if: steps.check.outputs.build == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .cache/supabase-media
+          key: supabase-media-${{ github.run_id }}
+          restore-keys: supabase-media-
       - name: Build static site
+        if: steps.check.outputs.build == 'true'
         run: node scripts/build-static.ts
         env:
           SITE_URL: ${{ steps.pages.outputs.base_url }}
-      - uses: actions/upload-pages-artifact@v3
+      - if: steps.check.outputs.build == 'true'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
   deploy:
     needs: build
+    if: needs.build.outputs.build == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

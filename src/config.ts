@@ -14,6 +14,8 @@ export interface Config {
   adminRequireMfa: boolean;
   staticMode: boolean;
   repo: string; // owner/name على GitHub (لروابط النشر في النسخة الثابتة)
+  supabaseUrl: string; // النسخة الثابتة: مشروع Supabase للنماذج والحسابات (فارغ = غير مفعّل)
+  supabaseAnonKey: string;
 }
 
 const bool = (v: string | undefined, def: boolean) => (v === undefined || v === '' ? def : v === 'true' || v === '1');
@@ -35,7 +37,9 @@ export function loadConfig(overrides: Partial<Config> = {}, env = process.env): 
     cookieSecure: bool(env.COOKIE_SECURE, prod),
     adminRequireMfa: bool(env.ADMIN_REQUIRE_MFA, prod),
     staticMode: false,
-    repo: env.GITHUB_REPOSITORY || 'ibrahim205b-tech/don-t-open',
+    repo: env.GITHUB_REPOSITORY || 'ibrahim205b-tech/almamel',
+    supabaseUrl: '',
+    supabaseAnonKey: '',
     ...overrides,
   };
   if (cfg.sessionSecret.length < 32 || cfg.sessionSecret === 'replace-with-a-long-random-value') {

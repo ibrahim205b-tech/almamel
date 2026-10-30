@@ -20,6 +20,11 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Start PostgreSQL (for the Supabase security tests)
+        run: |
+          sudo systemctl start postgresql
+          sudo -u postgres createuser -s "$USER"
+          chmod o+rx "$HOME" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/supabase" "$GITHUB_WORKSPACE/supabase/test" || true
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
