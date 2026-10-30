@@ -127,8 +127,24 @@
       var box = document.querySelector('[data-publish-out]');
       box.hidden = false;
       document.querySelector('[data-publish-text]').value = text;
-      document.querySelector('[data-publish-link]').href = 'https://github.com/' + pub.getAttribute('data-repo') + '/new/main?filename=' + encodeURIComponent(file) + '&value=' + encodeURIComponent(text);
+      var base = 'https://github.com/' + pub.getAttribute('data-repo') + '/new/main?filename=' + encodeURIComponent(file);
+      var full = base + '&value=' + encodeURIComponent(text);
+      // GitHub يرفض الروابط الطويلة («Your request URL is too long»)، وهذا يحدث مع المنيو الطويل.
+      // عندها يُفتح الملف فارغاً ويُنسخ النص تلقائياً ليُلصق فيه.
+      var long = full.length > 6000;
+      document.querySelector('[data-publish-link]').href = long ? base : full;
+      document.querySelector('[data-publish-link]').dataset.needsPaste = long ? '1' : '';
+      document.querySelector('[data-paste-note]').hidden = !long;
       box.scrollIntoView();
+    });
+    var copyText = function () {
+      var ta = document.querySelector('[data-publish-text]');
+      if (navigator.clipboard) navigator.clipboard.writeText(ta.value).catch(function () {});
+      else { ta.select(); document.execCommand('copy'); }
+    };
+    var link = document.querySelector('[data-publish-link]');
+    if (link) link.addEventListener('click', function () {
+      if (link.dataset.needsPaste) copyText();
     });
     var copy = document.querySelector('[data-copy]');
     if (copy) copy.addEventListener('click', function () {

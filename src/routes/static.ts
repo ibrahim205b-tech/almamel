@@ -124,6 +124,7 @@ export async function staticRoutes(app: FastifyInstance) {
       <div data-publish-out hidden>
         <h2>ملف الإعلان جاهز</h2>
         <ol class="steps"><li>اضغط «حفظ في GitHub»، وراح تنفتح صفحة الملف وفيها النص جاهز.</li><li>انزل لآخر الصفحة واضغط <strong>Commit changes</strong>.</li><li>بعد دقيقة أو دقيقتين حدّث الموقع.</li></ol>
+        <p class="flash flash-ok" data-paste-note hidden>الإعلان طويل (مثل منيو كامل)، لذلك تنفتح صفحة الملف فارغة والنص يُنسخ تلقائياً عند الضغط على «حفظ في GitHub». اضغط داخل مربع الكتابة في GitHub والصق النص (Ctrl+V)، ثم اضغط «Commit changes». إذا لم يُلصق شيء اضغط «نسخ النص» هنا أولاً.</p>
         <p class="btn-row"><a class="btn btn-sign" data-publish-link target="_blank" rel="noopener">حفظ في GitHub</a><button class="btn" type="button" data-copy>نسخ النص</button></p>
         <label for="publish-text">نص الملف</label>
         <textarea id="publish-text" rows="14" dir="ltr" readonly data-publish-text></textarea>
