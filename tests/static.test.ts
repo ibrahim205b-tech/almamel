@@ -45,6 +45,25 @@ test('static build renders every page with the GitHub Pages base path and no ser
   assert.ok(fs.readFileSync(path.join(out, 'sitemap.xml'), 'utf8').includes('https://user.github.io/almamel/businesses/5'));
 });
 
+test('whatsapp-style menus become sections, prices and sizes, with a cart on the page', async () => {
+  const { parseMenuText } = await import('../src/static/menu-text.ts');
+  const r = parseMenuText(['🍽️ *منيو المطعم*', '📞 للطلب واتساب: 07700000000', '🍗 *الكنتاكي*', '• كنتاكي 3 قطع — 5,000', '🍕 *البيتزا*',
+    '• بيتزا لحم: صغير 5,000 / وسط 7,000', 'تكة | 6000 | حار', '• صنف بلا سعر']);
+  assert.equal(r.error, undefined);
+  assert.deepEqual(r.items.map((i) => [i.section, i.name, i.price]), [
+    ['الكنتاكي', 'كنتاكي 3 قطع', 5000], ['البيتزا', 'بيتزا لحم (صغير)', 5000], ['البيتزا', 'بيتزا لحم (وسط)', 7000],
+    ['البيتزا', 'تكة', 6000], ['البيتزا', 'صنف بلا سعر', null]]);
+  assert.ok(parseMenuText(['x | abc']).error);
+
+  const dir = fixture();
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'almamel-out-'));
+  write(dir, 'm.md', `---\nid: 7\ntype: business\ntitle: "مطعم السلة"\ncategory: "مطاعم"\ndate: ${today}\nphone: "07701234567"\naddress: "شارع"\nmenu:\n  - "*المشويات*"\n  - "• نفر كباب — 12,000"\n---\n`);
+  await buildStatic({ siteUrl: 'https://u.github.io/r', contentDir: dir, outDir: out, repo: 'u/r', quiet: true });
+  const page = fs.readFileSync(path.join(out, 'businesses/7/index.html'), 'utf8');
+  assert.ok(page.includes('data-cart') && page.includes('data-name="نفر كباب"') && page.includes('data-price="12000"'));
+  assert.ok(page.includes('المشويات'));
+});
+
 test('invalid listing files stop the build with clear messages', async () => {
   const dir = fixture();
   write(dir, 'bad1.md', `---\nid: 1\ntype: job\ntitle: "x"\ncategory: "غير موجود"\ndate: ${today}\n---\n`);

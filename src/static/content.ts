@@ -9,6 +9,7 @@ import { storeImage } from '../lib/images.ts';
 import { parsePostForm, reindex } from '../domain/posts.ts';
 import { cleanSetting, saveSettings } from '../domain/settings.ts';
 import { TYPES, isPostType, type PostType } from '../domain/types.ts';
+import { parseMenuText, type MenuLine } from './menu-text.ts';
 
 export interface ContentResult { published: number; skipped: string[]; errors: string[] }
 
@@ -106,17 +107,13 @@ export async function loadContent(db: DB, contentDir: string, uploadDir: string,
     }
     if (imgError) { fail(imgError); continue; }
 
-    const menu: { name: string; price: number | null; note: string }[] = [];
+    let menu: MenuLine[] = [];
     if (fm.menu !== undefined) {
       if (type !== 'business') { fail('menu للمحلات فقط'); continue; }
       const lines = Array.isArray(fm.menu) ? fm.menu.map(str) : str(fm.menu).split('\n');
-      for (const line of lines.map((l) => l.trim()).filter(Boolean).slice(0, 100)) {
-        const [name, price = '', note = ''] = line.split('|').map((x) => x.trim());
-        const p = price.replace(/[,\s٬]/g, '').replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660));
-        if (name.length < 2 || name.length > 80 || (p && !/^\d{1,10}$/.test(p))) { imgError = `صنف غير صالح: ${line}`; break; }
-        menu.push({ name, price: p ? Number(p) : null, note: note.slice(0, 200) });
-      }
-      if (imgError) { fail(imgError); continue; }
+      const parsed = parseMenuText(lines);
+      if (parsed.error) { fail(parsed.error); continue; }
+      menu = parsed.items;
     }
 
     db.transaction(() => {
@@ -127,7 +124,7 @@ export async function loadContent(db: DB, contentDir: string, uploadDir: string,
       if (fm.verified === true && (type === 'business' || type === 'help')) db.prepare('UPDATE posts SET verified = 1, verified_by = ?, verified_at = ? WHERE id = ?').run(sys, publishedAt, id);
       if (fm.official === true && type === 'community') db.prepare('UPDATE posts SET is_official = 1, verified_by = ? WHERE id = ?').run(sys, id);
       images.forEach((im, i) => db.prepare('INSERT INTO post_images (post_id, file, thumb, width, height, sort) VALUES (?, ?, ?, ?, ?, ?)').run(id, im.file, im.thumb, im.width, im.height, i));
-      menu.forEach((it, i) => db.prepare('INSERT INTO post_items (post_id, name, price, note, sort) VALUES (?, ?, ?, ?, ?)').run(id, it.name, it.price, it.note, i));
+      menu.forEach((it, i) => db.prepare('INSERT INTO post_items (post_id, name, price, note, section, sort) VALUES (?, ?, ?, ?, ?, ?)').run(id, it.name, it.price, it.note, it.section, i));
       if (fm.featured === true) db.prepare("INSERT INTO featured_listings (post_id, placement, starts_at, ends_at, created_by) VALUES (?, 'home', ?, ?, ?)").run(id, publishedAt, expiresAt ?? publishedAt + 365 * 86400, sys);
       reindex(db, id);
     })();

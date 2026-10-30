@@ -108,7 +108,7 @@ export async function staticRoutes(app: FastifyInstance) {
         <div data-for="property" hidden>${select({ name: 'offer', label: 'نوع العرض', required: true, value: 'sale', options: [['sale', 'بيع'], ['rent', 'إيجار']] })}</div>
         <div data-for="market" hidden>${select({ name: 'condition', label: 'الحالة', required: true, value: 'used', options: [['used', 'مستعمل'], ['new', 'جديد']] })}</div>
         ${TYPE_KEYS.map((t) => typeFields[t].length ? html`<div data-for="${t}" hidden>${typeFields[t].map(([k, l]) => field({ name: `${t}_${k}`, label: l, required: true }))}</div>` : '')}
-        <div data-for="business" hidden>${textarea({ name: 'menu', label: 'قائمة الأسعار', required: false, rows: 4, hint: 'كل صنف بسطر: الاسم | السعر. مثال: تكة لحم | 6000' })}</div>
+        <div data-for="business" hidden>${textarea({ name: 'menu', label: 'قائمة الأسعار', required: false, rows: 8, hint: 'كل صنف بسطر: «الاسم | السعر» مثل «تكة لحم | 6000»، أو الصق المنيو بصيغة واتساب: سطر القسم «*المشويات*» ثم «• نفر كباب — 12,000». الأحجام: «• بيتزا: صغير 5,000 / وسط 7,000».' })}</div>
         ${textarea({ name: 'body', label: 'الوصف', required: false, rows: 6, max: 4000 })}
         ${field({ name: 'phone', label: 'رقم التواصل', type: 'tel', dir: 'ltr', required: false, attrs: 'inputmode="tel"' })}
         ${checkbox({ name: 'show_phone', label: 'إظهار الرقم', checked: true })}

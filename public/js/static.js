@@ -153,4 +153,102 @@
       copy.textContent = 'تم النسخ';
     });
   }
+  // ---------- سلة الطلب في قائمة المحل ----------
+  var shop = document.querySelector('[data-cart]');
+  if (shop) {
+    var KEY = 'cart-' + shop.getAttribute('data-shop-id');
+    var load = function () { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
+    var save = function () { try { localStorage.setItem(KEY, JSON.stringify(cart)); } catch { /* التخزين غير متاح */ } };
+    var cart = load(); // name -> {p: السعر أو null, q: الكمية}
+    var fmt = function (n) { return Number(n).toLocaleString('en-US') + ' د.ع'; };
+    var count = function () { return Object.keys(cart).reduce(function (s, k) { return s + cart[k].q; }, 0); };
+    var total = function () { return Object.keys(cart).reduce(function (s, k) { return s + (cart[k].p || 0) * cart[k].q; }, 0); };
+    var priced = function () { return Object.keys(cart).every(function (k) { return cart[k].p !== null; }); };
+
+    var bar = el('button', 'cart-bar'); bar.type = 'button'; bar.hidden = true;
+    var panel = el('div', 'cart-panel'); panel.hidden = true;
+    panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true'); panel.setAttribute('aria-label', 'سلة الطلب');
+    var card = el('div', 'cart-card');
+    var head = el('div', 'cart-head'); head.appendChild(el('h2', '', 'طلبك من ' + shop.getAttribute('data-shop')));
+    var close = el('button', 'btn btn-sm', 'إغلاق'); close.type = 'button'; head.appendChild(close);
+    var list = el('ul', 'cart-list');
+    var sum = el('p', 'cart-sum');
+    var nameF = el('input'); nameF.placeholder = 'اسمك (اختياري)'; nameF.autocomplete = 'name';
+    var addrF = el('textarea'); addrF.rows = 2; addrF.placeholder = 'العنوان أو أقرب نقطة دالة (للتوصيل)';
+    var noteF = el('textarea'); noteF.rows = 2; noteF.placeholder = 'ملاحظات (اختياري)';
+    var send = el('a', 'btn btn-wa btn-block cart-send'); send.target = '_blank'; send.rel = 'noopener';
+    send.appendChild(iconEl('whatsapp', 'i')); send.appendChild(document.createTextNode('أرسل الطلب عبر واتساب'));
+    var clear = el('button', 'btn btn-sm cart-clear', 'إفراغ السلة'); clear.type = 'button';
+    try { var saved = JSON.parse(localStorage.getItem('cart-customer')) || {}; nameF.value = saved.n || ''; addrF.value = saved.a || ''; } catch { /* لا شيء */ }
+    [head, list, sum, nameF, addrF, noteF, send, clear].forEach(function (x) { card.appendChild(x); });
+    panel.appendChild(card);
+    document.body.appendChild(bar); document.body.appendChild(panel);
+
+    var message = function () {
+      var lines = ['مرحبا، طلب جديد من دليل المعامل — ' + shop.getAttribute('data-shop'), ''];
+      Object.keys(cart).forEach(function (k) {
+        var it = cart[k];
+        lines.push('• ' + it.q + ' × ' + k + (it.p !== null ? ' = ' + fmt(it.p * it.q) : ''));
+      });
+      lines.push('', 'المجموع: ' + fmt(total()) + (priced() ? '' : ' (بعض الأصناف حسب الطلب)'));
+      if (nameF.value.trim()) lines.push('الاسم: ' + nameF.value.trim());
+      if (addrF.value.trim()) lines.push('العنوان: ' + addrF.value.trim());
+      if (noteF.value.trim()) lines.push('ملاحظات: ' + noteF.value.trim());
+      return lines.join('\n');
+    };
+    var refresh = function () {
+      var n = count();
+      bar.hidden = !n;
+      bar.textContent = '';
+      bar.appendChild(iconEl('cart', 'i'));
+      bar.appendChild(el('span', 'cart-bar-n', String(n)));
+      bar.appendChild(el('span', 'cart-bar-t', 'عرض الطلب'));
+      bar.appendChild(el('b', '', fmt(total())));
+      list.textContent = '';
+      Object.keys(cart).forEach(function (k) {
+        var it = cart[k], li = el('li', 'cart-line');
+        var info = el('div', 'cart-info'); info.appendChild(el('b', '', k));
+        info.appendChild(el('span', 'muted', it.p !== null ? fmt(it.p * it.q) : 'حسب الطلب'));
+        var qty = el('div', 'cart-qty');
+        var plus = el('button', 'btn btn-sm', '+'); plus.type = 'button'; plus.setAttribute('aria-label', 'زيادة ' + k);
+        var minus = el('button', 'btn btn-sm', '−'); minus.type = 'button'; minus.setAttribute('aria-label', 'إنقاص ' + k);
+        plus.addEventListener('click', function () { it.q++; save(); refresh(); });
+        minus.addEventListener('click', function () { it.q--; if (it.q <= 0) delete cart[k]; save(); refresh(); if (!count()) panel.hidden = true; });
+        qty.appendChild(plus); qty.appendChild(el('b', '', String(it.q))); qty.appendChild(minus);
+        li.appendChild(info); li.appendChild(qty); list.appendChild(li);
+      });
+      sum.textContent = 'المجموع: ' + fmt(total());
+      send.href = shop.getAttribute('data-wa') + '?text=' + encodeURIComponent(message());
+      Array.prototype.forEach.call(shop.querySelectorAll('[data-add]'), function (a) {
+        var q = cart[a.getAttribute('data-name')];
+        a.lastChild.textContent = q ? 'أضف (' + q.q + ')' : 'أضف';
+        a.classList.toggle('in-cart', !!q);
+      });
+    };
+    Array.prototype.forEach.call(shop.querySelectorAll('[data-add]'), function (a) {
+      a.removeAttribute('target');
+      a.lastChild.textContent = 'أضف';
+      a.setAttribute('aria-label', 'أضف ' + a.getAttribute('data-name') + ' إلى السلة');
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        var k = a.getAttribute('data-name'), p = a.getAttribute('data-price');
+        if (!cart[k]) cart[k] = { p: p === '' ? null : Number(p), q: 0 };
+        cart[k].q++;
+        save(); refresh();
+        bar.classList.remove('bump'); void bar.offsetWidth; bar.classList.add('bump');
+      });
+    });
+    [nameF, addrF, noteF].forEach(function (f) { f.addEventListener('input', function () { send.href = shop.getAttribute('data-wa') + '?text=' + encodeURIComponent(message()); }); });
+    bar.addEventListener('click', function () { panel.hidden = false; close.focus(); });
+    close.addEventListener('click', function () { panel.hidden = true; bar.focus(); });
+    panel.addEventListener('click', function (e) { if (e.target === panel) panel.hidden = true; });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !panel.hidden) panel.hidden = true; });
+    clear.addEventListener('click', function () { cart = {}; save(); refresh(); panel.hidden = true; });
+    send.addEventListener('click', function () {
+      try { localStorage.setItem('cart-customer', JSON.stringify({ n: nameF.value.trim(), a: addrF.value.trim() })); } catch { /* لا شيء */ }
+      cart = {}; save(); noteF.value = '';
+      setTimeout(function () { refresh(); panel.hidden = true; }, 300);
+    });
+    refresh();
+  }
 })();

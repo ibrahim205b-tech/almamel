@@ -313,9 +313,13 @@ function menuSection(x: DetailData, phone: string | null): SafeHtml {
   const groups = new Map<string, ItemRow[]>();
   for (const it of x.items) groups.set(it.section || (food ? 'الأصناف' : 'المنتجات'), [...(groups.get(it.section || (food ? 'الأصناف' : 'المنتجات')) ?? []), it]);
   const sections = [...groups.entries()];
-  const order = (it: ItemRow) => phone && x.post.whatsapp && it.available
-    ? html`<a class="btn btn-sm btn-wa" href="${waLink(phone)}?text=${encodeURIComponent(`مرحبا، أريد أطلب: ${it.name}${it.price !== null ? ` (${fmtPrice(it.price)})` : ''} — من دليل المعامل`)}" target="_blank" rel="noopener" aria-label="اطلب ${it.name} عبر واتساب">${icon('whatsapp', 'i i-sm')}اطلب</a>` : '';
-  return html`<section class="menu-block" aria-labelledby="h-menu">
+  const canOrder = !!(phone && x.post.whatsapp);
+  // في النسخة الثابتة يحوّل static.js زر «اطلب» إلى «أضف» للسلة، ويُرسل الطلب كاملاً برسالة واحدة.
+  const order = (it: ItemRow) => canOrder && it.available
+    ? html`<a class="btn btn-sm btn-wa" href="${waLink(phone!)}?text=${encodeURIComponent(`مرحبا، أريد أطلب: ${it.name}${it.price !== null ? ` (${fmtPrice(it.price)})` : ''} — من دليل المعامل`)}" target="_blank" rel="noopener" aria-label="اطلب ${it.name} عبر واتساب" data-add data-name="${it.name}" data-price="${it.price ?? ''}">${icon('whatsapp', 'i i-sm')}اطلب</a>` : '';
+  const cartAttrs = canOrder && x.staticMode
+    ? raw(` data-cart data-wa="${waLink(phone!)}" data-shop="${escAttr(x.post.title)}" data-shop-id="${x.post.id}"`) : raw('');
+  return html`<section class="menu-block" aria-labelledby="h-menu"${cartAttrs}>
     <h2 id="h-menu">${food ? 'قائمة الطعام' : 'المنتجات والأسعار'}</h2>
     ${sections.length > 1 ? html`<nav class="menu-tabs" aria-label="أقسام القائمة">${sections.map(([name], i) => html`<a href="#menu-${i}">${name}</a>`)}</nav>` : ''}
     ${sections.map(([name, items], i) => html`<div class="menu-group" id="menu-${i}">
@@ -371,4 +375,9 @@ export function policyPage(title: string, text: string): SafeHtml {
     const head = lines.filter((l) => !l.startsWith('- '));
     return html`${head.length === 1 && items.length ? html`<h2>${head[0]}</h2>` : head.length ? html`<p>${head.join(' ')}</p>` : ''}${items.length ? html`<ul>${items.map((l) => html`<li>${l.slice(2)}</li>`)}</ul>` : ''}`;
   })}</div></div>`;
+}
+
+/** للسمات المبنية يدوياً داخل raw. */
+function escAttr(v: string): string {
+  return v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
