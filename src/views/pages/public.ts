@@ -246,9 +246,9 @@ export function detailPage(x: DetailData): SafeHtml {
           ${x.summary.n ? html`<span class="badge">${stars(x.summary.avg ?? 0)} ${fmtNumber(x.summary.avg ?? 0)} من ${fmtNumber(x.summary.n)} تقييم</span>` : ''}
         </div>
       </header>
-      ${x.images.length ? html`<div class="gallery">${x.images.map((im, i) => html`<a href="${mediaUrl(im.file)}" class="${i === 0 ? 'g-main' : ''}"><img src="${mediaUrl(i === 0 ? im.file : im.thumb)}" alt="صورة ${i + 1} من ${x.images.length} لـ ${p.title}" width="${i === 0 ? im.width : 480}" height="${i === 0 ? im.height : 360}" ${i ? raw('loading="lazy"') : raw('fetchpriority="high"')} decoding="async"></a>`)}</div>` : ''}
       <div class="detail-grid">
         <div class="detail-main">
+          ${x.images.length ? html`<div class="gallery gallery-n${Math.min(x.images.length, 3)}">${x.images.map((im, i) => html`<a href="${mediaUrl(im.file)}" class="${i === 0 ? 'g-main' : ''}"><img src="${mediaUrl(i === 0 ? im.file : im.thumb)}" alt="صورة ${i + 1} من ${x.images.length} لـ ${p.title}" width="${i === 0 ? im.width : 480}" height="${i === 0 ? im.height : 360}" ${i ? raw('loading="lazy"') : raw('fetchpriority="high"')} decoding="async"></a>`)}</div>` : ''}
           ${p.body ? html`<section aria-labelledby="h-desc"><h2 id="h-desc">التفاصيل</h2><div class="prose">${paragraphs(p.body)}</div></section>` : ''}
           ${p.type === 'job' && d.requirements ? html`<section><h2>الشروط</h2><div class="prose">${paragraphs(String(d.requirements))}</div></section>` : ''}
           ${p.type === 'business' && d.services ? html`<section><h2>الخدمات</h2><div class="prose">${paragraphs(String(d.services))}</div></section>` : ''}

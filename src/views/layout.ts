@@ -75,6 +75,7 @@ ${meta.head ?? ''}
 </head>
 <body class="${meta.bodyClass ?? ''}">
 <a class="skip" href="#main">انتقل إلى المحتوى</a>
+<div class="creator-bar"><div class="wrap"><span>المُنشئ: <strong>إبراهيم علي</strong></span></div></div>
 ${s.announcement ? html`<div class="announce" role="note">${s.announcement}</div>` : ''}
 <header class="site-header">
   <div class="wrap header-row">
@@ -83,7 +84,7 @@ ${s.announcement ? html`<div class="announce" role="note">${s.announcement}</div
       <span class="brand-name">${s.site_name}</span>
     </a>
     <div class="header-actions">
-      ${canPost ? html`<a class="btn btn-sign" href="/submit">${icon('plus')}<span>أضف إعلانك</span></a>` : ''}
+      ${canPost ? html`<a class="btn btn-sign" href="/submit" aria-label="أضف إعلانك">${icon('plus')}<span>أضف إعلانك</span></a>` : ''}
       <a class="btn-icon menu-toggle" href="#site-menu" role="button" aria-expanded="false" aria-controls="site-menu">${icon('menu')}<span class="sr">القائمة</span></a>
     </div>
   </div>
