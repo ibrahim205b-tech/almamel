@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { assignableRoles, can, canManageUser, type Permission } from '../auth/rbac.ts';
 import { destroyUserSessions } from '../auth/sessions.ts';
@@ -34,7 +36,7 @@ const MENU: [string, string, string, Permission][] = [
   ['/admin/queue', 'مراجعة المنشورات', 'list', 'posts.moderate'],
   ['/admin/reviews', 'التقييمات', 'star', 'reviews.moderate'],
   ['/admin/reports', 'البلاغات', 'flag', 'reports.handle'],
-  ['/admin/claims', 'طلبات الملكية', 'store', 'claims.review'],
+  ['/admin/claims', 'طلبات أصحاب المحلات', 'store', 'claims.review'],
   ['/admin/users', 'المستخدمون', 'user', 'users.manage'],
   ['/admin/catalog', 'التصنيفات والمناطق', 'tag', 'catalog.manage'],
   ['/admin/featured', 'الإعلانات المميزة', 'badge', 'featured.manage'],
@@ -170,9 +172,11 @@ export async function adminRoutes(app: FastifyInstance) {
         </section>
         <aside class="review-side">
           <section class="panel"><h2>صاحب المنشور</h2>
+            ${p.guest_name ? html`<p><strong>${p.guest_name}</strong> (زائر بلا حساب)</p><p dir="ltr" class="end"><a href="tel:${p.contact_phone ?? ''}">${p.contact_phone ?? '-'}</a></p><p class="muted">${fmtNumber(db.prepare('SELECT count(*) FROM posts WHERE ip_hash = ?').pluck().get(p.ip_hash) as number)} إعلان من نفس الشبكة</p>` : html`
             <p><strong>${author.name}</strong> (${ROLE_LABEL[author.role]})${author.status !== 'active' ? html` <span class="status status-rejected">${author.status === 'disabled' ? 'معطّل' : 'محذوف'}</span>` : ''}</p>
             <p dir="ltr" class="end">${author.phone}</p>
             <p class="muted">حساب منذ ${fmtDate(author.created_at)}، ${fmtNumber(author.posts)} منشور، ${fmtNumber(author.rejected)} مرفوض</p>
+            `}
             ${owner ? html`<p>المالك المعتمد: ${owner.name} <span dir="ltr">${owner.phone}</span></p>` : ''}
           </section>
           ${acts.length ? html`<section class="panel"><h2>القرار</h2>
@@ -305,18 +309,42 @@ export async function adminRoutes(app: FastifyInstance) {
 
   app.get('/admin/claims', (req, reply) => {
     if (needPermission(req, reply, 'claims.review')) return;
-    const rows = db.prepare(`SELECT c.*, u.name, u.phone, p.title, p.contact_phone FROM business_claims c JOIN users u ON u.id = c.user_id JOIN posts p ON p.id = c.post_id
-      WHERE c.status = 'pending' ORDER BY c.id`).all() as { id: number; post_id: number; message: string; created_at: number; name: string; phone: string; title: string; contact_phone: string | null }[];
+    const rows = db.prepare(`SELECT c.*, u.name, u.phone, u.created_at AS user_created, p.title, p.contact_phone, p.status AS post_status, p.details,
+        cat.name AS category_name, a.name AS area_name
+      FROM business_claims c JOIN users u ON u.id = c.user_id JOIN posts p ON p.id = c.post_id
+      JOIN categories cat ON cat.id = p.category_id JOIN areas a ON a.id = p.area_id
+      WHERE c.status = 'pending' ORDER BY c.id`).all() as { id: number; post_id: number; message: string; created_at: number; name: string; phone: string; user_created: number;
+        title: string; contact_phone: string | null; business_phone: string | null; proof_file: string | null; post_status: PostStatus; details: string; category_name: string; area_name: string }[];
     const csrf = csrfInput(req);
-    return shell(req, reply, 'طلبات ملكية الأنشطة', html`<p class="hint">اعتمد المالك فقط بعد التحقق، مثلاً بالاتصال على رقم المحل المسجل ومطابقة الاسم.</p>
-      ${rows.length ? html`<ul class="cards-admin">${rows.map((c) => html`<li class="panel">
-        <p><a href="/admin/posts/${c.post_id}">${c.title}</a>، رقم المحل المسجل: <span dir="ltr">${c.contact_phone ?? '-'}</span></p>
-        <p>الطالب: ${c.name} <span dir="ltr">${c.phone}</span> <span class="muted">${fmtDateTime(c.created_at)}</span></p>
-        <p>${c.message}</p>
+    return shell(req, reply, 'طلبات أصحاب المحلات', html`<p class="hint">اعتمد المالك فقط بعد التحقق، مثلاً بالاتصال على رقم المحل ومطابقة الاسم، أو زيارة المحل. الاعتماد ينشر صفحة المحل الجديدة ويعطي صاحبها لوحة التحكم.</p>
+      ${rows.length ? html`<ul class="cards-admin">${rows.map((c) => {
+        const d = JSON.parse(c.details) as Record<string, string>;
+        return html`<li class="panel claim-card">
+        <div class="claim-grid">
+          <div>
+            <h2><a href="/admin/posts/${c.post_id}">${c.title}</a> ${c.post_status === 'pending' ? html`<span class="status status-pending">محل جديد</span>` : html`<span class="status status-published">موجود بالدليل</span>`}</h2>
+            <p>${c.category_name}، ${c.area_name}${d.address ? `، ${d.address}` : ''}</p>
+            <p>رقم المحل: <a href="tel:${c.business_phone ?? c.contact_phone ?? ''}" dir="ltr">${c.business_phone ?? c.contact_phone ?? '-'}</a></p>
+            <p>صاحب الطلب: <strong>${c.name}</strong> <a href="tel:${c.phone}" dir="ltr">${c.phone}</a> <span class="muted">(حساب منذ ${fmtDate(c.user_created)})</span></p>
+            <p class="note">${c.message}</p>
+          </div>
+          ${c.proof_file ? html`<a href="/admin/proof/${c.proof_file}" target="_blank" class="proof"><img src="/admin/proof/${c.proof_file}" alt="صورة إثبات مرفوعة من صاحب الطلب" width="220" height="165"></a>` : html`<p class="muted">بدون صورة إثبات</p>`}
+        </div>
         <form method="post" action="/admin/claims/${c.id}" class="form compact">${csrf}
-          ${field({ name: 'note', label: 'ملاحظة (تصل للطالب عند الرفض)', max: 500 })}
-          <div class="btn-row"><button class="btn btn-primary" type="submit" name="decision" value="approve">اعتماد المالك</button><button class="btn" type="submit" name="decision" value="reject">رفض</button></div>
-        </form></li>`)}</ul>` : html`<p class="empty-inline">${icon('check', 'i i-sm')}ما كو طلبات معلقة.</p>`}`);
+          ${field({ name: 'note', label: 'ملاحظة (تصل لصاحب الطلب عند الرفض)', max: 500 })}
+          <div class="btn-row"><button class="btn btn-primary" type="submit" name="decision" value="approve">${c.post_status === 'pending' ? 'تم التحقق: اعتماد ونشر المحل' : 'تم التحقق: اعتماد المالك'}</button><button class="btn" type="submit" name="decision" value="reject">رفض</button></div>
+        </form></li>`;
+      })}</ul>` : html`<p class="empty-inline">${icon('check', 'i i-sm')}ما كو طلبات معلقة.</p>`}`);
+  });
+
+  // صورة إثبات الملكية: خاصة، لا تُخدم إلا لمن يراجع الطلبات
+  app.get('/admin/proof/:file', (req, reply) => {
+    if (needPermission(req, reply, 'claims.review')) return;
+    const file = (req.params as { file: string }).file;
+    if (!/^[0-9a-f]{32}\.webp$/.test(file) || !db.prepare('SELECT 1 FROM business_claims WHERE proof_file = ?').get(file)) return reply.callNotFound();
+    const full = path.join(app.cfg.uploadDir, 'private', file);
+    if (!fs.existsSync(full)) return reply.callNotFound();
+    return reply.header('Content-Type', 'image/webp').header('Cache-Control', 'private, no-store').send(fs.createReadStream(full));
   });
 
   app.post('/admin/claims/:id', (req, reply) => {

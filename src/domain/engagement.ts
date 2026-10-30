@@ -3,6 +3,7 @@ import { now } from '../db/index.ts';
 import { audit } from './audit.ts';
 import { notify } from './notifications.ts';
 import { getPost, isPostOwner } from './posts.ts';
+import { transition } from './workflow.ts';
 import type { User } from './types.ts';
 
 export class EngagementError extends Error {
@@ -83,7 +84,17 @@ export function addClaim(db: DB, user: Pick<User, 'id'>, postId: number, message
   db.prepare('INSERT INTO business_claims (post_id, user_id, message) VALUES (?, ?, ?)').run(postId, user.id, text);
 }
 
-export function decideClaim(db: DB, claimId: number, approve: boolean, actor: Pick<User, 'id'>, note: string, ipHash: string | null) {
+/** طلب ملكية لنشاط جديد يضيفه صاحبه من «أضف مطعمك أو محلك»، مع صورة إثبات خاصة اختيارية. */
+export function addOwnerClaim(db: DB, userId: number, postId: number, message: string, businessPhone: string | null, proofFile: string | null) {
+  db.prepare('INSERT INTO business_claims (post_id, user_id, message, business_phone, proof_file) VALUES (?, ?, ?, ?, ?)')
+    .run(postId, userId, message, businessPhone, proofFile);
+}
+
+/**
+ * قرار المدير على طلب ملكية. إذا كان النشاط جديداً أضافه صاحبه وما زال بانتظار المراجعة،
+ * فالاعتماد ينشره والرفض يرفضه، حتى لا يبقى معلقاً.
+ */
+export function decideClaim(db: DB, claimId: number, approve: boolean, actor: Pick<User, 'id' | 'role'>, note: string, ipHash: string | null) {
   db.transaction(() => {
     const c = db.prepare("SELECT * FROM business_claims WHERE id = ? AND status = 'pending'").get(claimId) as { id: number; post_id: number; user_id: number } | undefined;
     if (!c) throw new EngagementError('الطلب غير موجود أو تمت مراجعته.', 404);
@@ -95,8 +106,10 @@ export function decideClaim(db: DB, claimId: number, approve: boolean, actor: Pi
       db.prepare('UPDATE posts SET owner_id = ? WHERE id = ?').run(c.user_id, c.post_id);
       db.prepare("UPDATE users SET role = 'business_owner', updated_at = unixepoch() WHERE id = ? AND role = 'user'").run(c.user_id);
       db.prepare("UPDATE business_claims SET status = 'rejected', reviewed_by = ?, reviewed_at = unixepoch(), note = 'تم اعتماد مالك آخر' WHERE post_id = ? AND status = 'pending'").run(actor.id, c.post_id);
-      notify(db, c.user_id, `تم اعتماد ملكيتك لصفحة «${post.title}». تقدر تديرها من حسابك.`, c.post_id);
+      if (post.status === 'pending') transition(db, post.id, 'approve', actor, '', ipHash);
+      notify(db, c.user_id, `تم اعتماد ملكيتك لصفحة «${post.title}». تقدر تديرها من لوحة التحكم.`, c.post_id);
     } else {
+      if (post.status === 'pending' && post.user_id === c.user_id) transition(db, post.id, 'reject', actor, note.trim() || 'لم نتمكن من التحقق من ملكية النشاط', ipHash);
       notify(db, c.user_id, `لم يتم اعتماد طلب ملكية «${post.title}».${note.trim() ? ' ' + note.trim() : ''}`, c.post_id);
     }
     audit(db, { actorId: actor.id, action: approve ? 'claim.approve' : 'claim.reject', targetType: 'post', targetId: c.post_id, meta: { claim: c.id, user: c.user_id }, ipHash });

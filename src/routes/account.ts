@@ -8,7 +8,7 @@ import { deleteImageFiles, ImageError, MAX_IMAGES, storeImage, type StoredImage 
 import { hashPassword, passwordProblem, verifyPassword } from '../lib/password.ts';
 import { newTotpSecret, otpauthUri, verifyTotp } from '../lib/totp.ts';
 import { audit } from '../domain/audit.ts';
-import { canEditPost, createPost, getPost, isPostOwner, parseDetails, parsePostForm, PostError, postImages, postItems, reindex, updatePost } from '../domain/posts.ts';
+import { canEditPost, createPost, getPost, isPostOwner, parseDetails, parsePostForm, PostError, postImages, postItems, reindex, updatePost, guestUserId } from '../domain/posts.ts';
 import { sectionEnabled } from '../domain/settings.ts';
 import { STATUS_LABEL, TYPES, TYPE_KEYS, isPostType, type Post, type PostType } from '../domain/types.ts';
 import { ACTIONS, availableActions, transition, WorkflowError, type Action } from '../domain/workflow.ts';
@@ -21,7 +21,7 @@ import { intParam, needUser } from './guards.ts';
 interface Multipart { fields: Record<string, string | string[]>; files: Buffer[] }
 
 /** يقرأ نموذج multipart بحدود صارمة: حقل الملفات الوحيد المسموح هو images. */
-async function readMultipart(req: FastifyRequest): Promise<Multipart> {
+export async function readMultipart(req: FastifyRequest): Promise<Multipart> {
   const fields: Record<string, string | string[]> = {};
   const files: Buffer[] = [];
   for await (const part of req.parts()) {
@@ -39,7 +39,7 @@ async function readMultipart(req: FastifyRequest): Promise<Multipart> {
   return { fields, files };
 }
 
-async function saveImages(bufs: Buffer[], dir: string): Promise<StoredImage[]> {
+export async function saveImages(bufs: Buffer[], dir: string): Promise<StoredImage[]> {
   const out: StoredImage[] = [];
   try {
     for (const b of bufs) out.push(await storeImage(b, dir));
@@ -66,41 +66,55 @@ export async function accountRoutes(app: FastifyInstance) {
   const ownedBusinesses = (userId: number) => opts("SELECT id, title AS name FROM posts WHERE type = 'business' AND owner_id = ? AND status = 'published' ORDER BY title", userId);
 
   function renderForm(req: FastifyRequest, reply: FastifyReply, type: PostType, values: FormValues, errors: string[], post?: Post) {
-    const userId = req.user!.id;
+    const userId = req.user?.id ?? 0;
     return reply.page(req, { title: post ? `تعديل: ${post.title}` : `إضافة ${TYPES[type].single}`, noindex: true }, postForm({
-      type, values, errors, csrf: csrfInput(req), categories: categories(type), areas: areas(),
-      images: post ? postImages(db, post.id) : [], businesses: type === 'offer' ? ownedBusinesses(post?.user_id ?? userId) : [],
+      type, values, errors, csrf: csrfInput(req), categories: categories(type), areas: areas(), guest: !req.user,
+      images: post ? postImages(db, post.id) : [], businesses: type === 'offer' && userId ? ownedBusinesses(post?.user_id ?? userId) : [],
       editing: !!post, status: post?.status, action: post ? `/account/posts/${post.id}/edit` : `/submit/${type}`,
     }));
   }
 
   // ---------- إضافة منشور ----------
 
-  app.get('/submit', (req, reply) => {
-    if (needUser(req, reply)) return;
-    return reply.page(req, { title: 'أضف إعلانك', noindex: true }, chooseTypePage(TYPE_KEYS.filter((t) => sectionEnabled(req.settings, t))));
-  });
+  // الزوار ينشرون من دون حساب؛ كل شيء يمر بالمراجعة. المحلات تُضاف من «أضف مطعمك أو محلك» فقط.
+  app.get('/submit', (req, reply) =>
+    reply.page(req, { title: 'أضف إعلانك', noindex: true }, chooseTypePage(TYPE_KEYS.filter((t) => sectionEnabled(req.settings, t)), !req.user)));
 
   app.get('/submit/:type', (req, reply) => {
-    if (needUser(req, reply)) return;
     const type = (req.params as { type: string }).type;
     if (!isPostType(type) || !sectionEnabled(req.settings, type)) return reply.callNotFound();
-    return renderForm(req, reply, type, { contact_phone: req.user!.phone, show_phone: type === 'help' ? undefined : 'on' }, []);
+    if (type === 'business' && !req.user) return reply.redirect('/owner', 303);
+    return renderForm(req, reply, type, req.user ? { contact_phone: req.user.phone, show_phone: type === 'help' ? undefined : 'on' } : { show_phone: type === 'help' ? undefined : 'on' }, []);
   });
 
   app.post('/submit/:type', { config: { rateLimit: { max: app.cfg.env === 'test' ? 1000 : 20, timeWindow: '1 hour' } } }, async (req, reply) => {
-    if (needUser(req, reply)) return;
     const type = (req.params as { type: string }).type;
     if (!isPostType(type) || !sectionEnabled(req.settings, type)) return reply.callNotFound();
+    if (type === 'business' && !req.user) return reply.redirect('/owner', 303);
     if (!req.isMultipart()) return reply.code(415).send();
     const { fields, files } = await readMultipart(req);
     if (!csrfValid(app.cfg.sessionSecret, bindOf(req), fields._csrf)) return reply.code(403).send('طلب مرفوض.');
+    let guest: { name: string; ipHash: string } | undefined;
+    if (!req.user) {
+      const name = String(fields.guest_name ?? '').trim().replace(/\s+/g, ' ');
+      delete fields.guest_name;
+      const errs: string[] = [];
+      if (name.length < 2 || name.length > 60 || /[<>]/.test(name)) errs.push('اسمك: من ٢ إلى ٦٠ حرفاً.');
+      if (!String(fields.contact_phone ?? '').trim()) errs.push('رقم التواصل مطلوب حتى تتواصل وياك الإدارة.');
+      if (errs.length) { reply.code(400); return renderForm(req, reply, type, { ...formValues(fields), guest_name: name }, errs); }
+      guest = { name, ipHash: req.ipHash };
+      fields.action = 'submit';
+    }
     const parsed = parsePostForm(type, fields);
     if (!parsed.ok) { reply.code(400); return renderForm(req, reply, type, formValues(fields), parsed.errors); }
     if (files.length > MAX_IMAGES) { reply.code(400); return renderForm(req, reply, type, formValues(fields), ['الحد الأقصى ٦ صور.']); }
     let images: StoredImage[] = [];
     try {
       images = await saveImages(files, uploadDir);
+      if (guest) {
+        createPost(db, { id: guestUserId(db), role: 'user' }, type, parsed.value, images, 0, guest);
+        return reply.flashRedirect('/', 'ok', 'وصل إعلانك. راح يظهر بالموقع بعد مراجعة الإدارة، وإذا احتجنا شي نتصل بيك.');
+      }
       const id = createPost(db, req.user!, type, parsed.value, images, Number(req.settings.max_posts_per_day));
       if (isStaff(req.user!.role)) audit(db, { actorId: req.user!.id, action: 'post.create_by_admin', targetType: 'post', targetId: id, ipHash: req.ipHash });
       return reply.flashRedirect(`/account/posts/${id}`, 'ok', parsed.value.action === 'draft' ? 'تم حفظ المسودة.' : 'تم إرسال منشورك للمراجعة. راح نبلغك أول ما تنتهي المراجعة.');

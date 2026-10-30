@@ -12,7 +12,8 @@ export async function mediaRoutes(app: FastifyInstance) {
   app.get('/media/:file', (req, reply) => {
     const file = (req.params as { file: string }).file;
     if (!/^[0-9a-f]{32,33}\.webp$/.test(file)) return reply.callNotFound();
-    const row = db.prepare('SELECT post_id FROM post_images WHERE file = ? OR thumb = ?').get(file, file) as { post_id: number } | undefined;
+    const row = (db.prepare('SELECT post_id FROM post_images WHERE file = ? OR thumb = ?').get(file, file)
+      ?? db.prepare('SELECT post_id FROM post_items WHERE image = ?').get(file)) as { post_id: number } | undefined;
     const post = row ? getPost(db, row.post_id) : undefined;
     if (!post) return reply.callNotFound();
     const isPublic = post.status === 'published' && (!post.expires_at || post.expires_at > Date.now() / 1000);

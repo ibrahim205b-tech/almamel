@@ -236,9 +236,12 @@ export interface ImageRow { id: number; post_id: number; file: string; thumb: st
 export const postImages = (db: DB, postId: number) =>
   db.prepare('SELECT * FROM post_images WHERE post_id = ? ORDER BY sort, id').all(postId) as ImageRow[];
 
-export interface ItemRow { id: number; post_id: number; name: string; price: number | null; note: string; sort: number }
+export interface ItemRow { id: number; post_id: number; name: string; price: number | null; note: string; sort: number; section: string; available: number; image: string | null }
 export const postItems = (db: DB, postId: number) =>
   db.prepare('SELECT * FROM post_items WHERE post_id = ? ORDER BY sort, id').all(postId) as ItemRow[];
+
+/** المعرّف الداخلي لحساب «زائر» الذي تُنسب إليه إعلانات الزوار. */
+export const guestUserId = (db: DB) => db.prepare("SELECT id FROM users WHERE phone = '07000000009'").pluck().get() as number;
 
 export const parseDetails = (p: Post) => { try { return JSON.parse(p.details) as Record<string, string | number>; } catch { return {}; } };
 
@@ -267,11 +270,25 @@ function checkRefs(db: DB, type: PostType, input: PostInput, user: Pick<User, 'i
 
 export interface NewImage { file: string; thumb: string; width: number; height: number }
 
-export function createPost(db: DB, user: Pick<User, 'id' | 'role'>, type: PostType, input: PostInput, images: NewImage[], maxPerDay: number): number {
+export const GUEST_POSTS_PER_DAY = 3;
+
+/**
+ * ينشئ منشوراً بحالة مسودة أو «بانتظار المراجعة». لا يُنشر شيء من هنا أبداً.
+ * guest: إعلان زائر بلا حساب، يُنسب لحساب «زائر» الداخلي وتُطبق عليه حدود حسب الشبكة.
+ */
+export function createPost(db: DB, user: Pick<User, 'id' | 'role'>, type: PostType, input: PostInput, images: NewImage[], maxPerDay: number,
+  guest?: { name: string; ipHash: string }): number {
   return db.transaction(() => {
     checkRefs(db, type, input, user);
     const titleKey = normalizeArabic(input.title);
-    if (!isStaff(user.role)) {
+    if (guest) {
+      if (type === 'business') throw new PostError('إضافة المحلات والمطاعم تكون من «أضف مطعمك أو محلك» حتى نتحقق من الملكية.');
+      const recent = db.prepare('SELECT count(*) FROM posts WHERE ip_hash = ? AND created_at > ?').pluck().get(guest.ipHash, now() - 86400) as number;
+      if (recent >= GUEST_POSTS_PER_DAY) throw new PostError(`وصلت للحد اليومي (${GUEST_POSTS_PER_DAY} إعلانات). حاول باچر.`);
+      const dupe = db.prepare("SELECT 1 FROM posts WHERE ip_hash = ? AND title_key = ? AND type = ? AND status NOT IN ('removed', 'rejected') AND created_at > ?")
+        .get(guest.ipHash, titleKey, type, now() - 30 * 86400);
+      if (dupe) throw new PostError('وصلنا إعلان بنفس العنوان من قبل، وهو قيد المراجعة أو منشور.');
+    } else if (!isStaff(user.role)) {
       const recent = db.prepare('SELECT count(*) FROM posts WHERE user_id = ? AND created_at > ?').pluck().get(user.id, now() - 86400) as number;
       if (recent >= maxPerDay) throw new PostError(`وصلت للحد اليومي (${maxPerDay} منشورات). حاول باچر.`);
       const dupe = db.prepare("SELECT 1 FROM posts WHERE user_id = ? AND title_key = ? AND type = ? AND status NOT IN ('removed', 'rejected') AND created_at > ?")
@@ -282,11 +299,12 @@ export function createPost(db: DB, user: Pick<User, 'id' | 'role'>, type: PostTy
       const dup = db.prepare("SELECT 1 FROM posts WHERE type = 'business' AND title_key = ? AND area_id = ? AND status IN ('pending', 'published', 'hidden')").get(titleKey, input.area_id);
       if (dup) throw new PostError('هذا النشاط موجود بالدليل. إذا كنت صاحبه استخدم زر «أنا صاحب هذا النشاط» في صفحته.');
     }
-    const status = input.action === 'draft' ? 'draft' : 'pending';
-    const r = db.prepare(`INSERT INTO posts (type, user_id, business_id, category_id, area_id, title, body, price, contact_phone, show_phone, whatsapp, details, status, title_key, expires_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`).run(
+    const status = input.action === 'draft' && !guest ? 'draft' : 'pending';
+    const r = db.prepare(`INSERT INTO posts (type, user_id, business_id, category_id, area_id, title, body, price, contact_phone, show_phone, whatsapp, details, status, title_key, expires_at, guest_name, ip_hash)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`).run(
       type, user.id, input.businessId, input.category_id, input.area_id, input.title, input.body, input.price,
-      input.contact_phone, input.show_phone ? 1 : 0, input.whatsapp ? 1 : 0, JSON.stringify(input.details), status, titleKey);
+      input.contact_phone, input.show_phone ? 1 : 0, input.whatsapp ? 1 : 0, JSON.stringify(input.details), status, titleKey,
+      guest?.name ?? null, guest?.ipHash ?? null);
     const postId = Number(r.lastInsertRowid);
     const ins = db.prepare('INSERT INTO post_images (post_id, file, thumb, width, height, sort) VALUES (?, ?, ?, ?, ?, ?)');
     images.forEach((im, i) => ins.run(postId, im.file, im.thumb, im.width, im.height, i));

@@ -26,6 +26,7 @@ import { accountRoutes } from './routes/account.ts';
 import { adminRoutes } from './routes/admin.ts';
 import { mediaRoutes } from './routes/media.ts';
 import { staticRoutes } from './routes/static.ts';
+import { ownerRoutes } from './routes/owner.ts';
 
 declare module 'fastify' {
   interface FastifyInstance { db: DB; cfg: Config }
@@ -197,6 +198,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean; j
     await app.register(authRoutes);
     await app.register(accountRoutes);
     await app.register(adminRoutes);
+    await app.register(ownerRoutes);
   }
   await app.register(mediaRoutes);
 

@@ -83,17 +83,8 @@ test('mobile home: RTL, search box, menu and support links', async () => {
   await page.context().close();
 });
 
-test('register → submit job with image → admin approves → visible to public', async () => {
+test('visitor posts a job with an image (no account) → admin approves → visible to public', async () => {
   const user = await newPage();
-  await user.goto(BASE + '/register');
-  await user.fill('#f-name', 'سارة');
-  await user.fill('#f-phone', '07722222222');
-  await user.fill('#f-password', 'my-secure-pass-123');
-  await user.check('#f-agree');
-  await user.click('form.form button[type=submit]');
-  await user.waitForURL(BASE + '/account');
-  assert.ok((await user.textContent('.flash'))!.includes('تم إنشاء حسابك'));
-
   await user.goto(BASE + '/submit');
   await noHorizontalScroll(user, 'submit chooser');
   await user.click('a[href="/submit/job"]');
@@ -104,14 +95,16 @@ test('register → submit job with image → admin approves → visible to publi
   await user.selectOption('#f-d_employment', 'full');
   await user.fill('#f-price', '٤٠٠٠٠٠');
   await user.fill('#f-body', 'توصيل طلبات داخل المنطقة.');
+  await user.fill('#f-guest_name', 'سارة');
+  await user.fill('#f-contact_phone', '07722222222');
   const img = path.join(tmp, 'photo.jpg');
   fs.writeFileSync(img, await sharp({ create: { width: 640, height: 480, channels: 3, background: '#c33' } }).jpeg().toBuffer());
   await user.setInputFiles('#f-images', img);
   assert.equal(await user.locator('[data-preview] img').count(), 1, 'image preview shown');
   await user.click('button[name=action][value=submit]');
-  await user.waitForURL(/\/account\/posts\/\d+$/);
-  assert.ok((await user.textContent('main'))!.includes('بانتظار المراجعة'));
-  const postId = user.url().match(/(\d+)$/)![1];
+  await user.waitForURL(BASE + '/');
+  assert.ok((await user.textContent('.flash'))!.includes('وصل إعلانك'));
+  const postId = String(app.db.prepare('SELECT max(id) FROM posts').pluck().get());
 
   const anon = await newPage();
   assert.equal((await anon.goto(`${BASE}/jobs/${postId}`))!.status(), 404, 'pending post hidden');

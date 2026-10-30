@@ -15,6 +15,7 @@ export interface Post {
   verified_by: number | null; verified_at: number | null;
   approved_by: number | null; approved_at: number | null; published_at: number | null; expires_at: number | null;
   title_key: string; created_at: number; updated_at: number;
+  guest_name: string | null; ip_hash: string | null;
 }
 
 export interface TypeInfo { label: string; single: string; path: string; icon: string; expiryDays: number | null; blurb: string }

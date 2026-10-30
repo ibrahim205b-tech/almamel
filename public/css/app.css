@@ -267,7 +267,7 @@ input[type=file]{font:inherit;padding:10px 0;max-width:100%;width:100%;min-width
 .detail-grid{display:grid;gap:24px;grid-template-columns:minmax(0,1fr)}
 @media (min-width:960px){.detail-grid{grid-template-columns:minmax(0,1fr) 340px;align-items:start}.detail-side{position:sticky;top:16px}}
 .detail-side{display:grid;gap:12px;align-content:start}
-@media (max-width:959px){.detail-main{display:contents}.detail-main .gallery{order:-2;margin-bottom:0}.detail-side{order:-1}}
+@media (max-width:959px){.detail-main,.detail-side{display:contents}.detail-main .gallery{order:-2;margin-bottom:0}.detail-side .contact-row{order:-1}.detail-side>*:not(.contact-row){order:1}}
 .detail-side .contact-row{margin:0;flex-direction:column}
 .detail-side .contact-row .btn{width:100%}
 .prose{max-width:68ch}
@@ -279,6 +279,23 @@ input[type=file]{font:inherit;padding:10px 0;max-width:100%;width:100%;min-width
 .menu{width:100%;border-collapse:collapse;background:var(--surface);border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow)}
 .menu th,.menu td{padding:10px 14px;text-align:start;border-bottom:1px solid var(--line)}
 .menu th{font-size:var(--t-sm);color:var(--ink-2);font-weight:600;background:#F6F8F7}
+.menu-block{margin-bottom:24px}
+.menu-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;position:sticky;top:0;background:var(--plaster);z-index:1}
+.menu-tabs a{flex:none;display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:20px;background:var(--surface);border:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:600;font-size:var(--t-sm)}
+.menu-tabs a:hover{border-color:var(--board);color:var(--board)}
+.menu-group{scroll-margin-top:56px;margin-bottom:16px}
+.menu-group h3{margin:12px 0 8px}
+.menu-list{list-style:none;padding:0;margin:0;background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden}
+.menu-item{display:flex;gap:12px;align-items:center;padding:12px 14px}
+.menu-item+.menu-item{border-top:1px solid var(--line)}
+.menu-item img{width:72px;height:72px;object-fit:cover;border-radius:var(--r-sm);flex:none;outline:1px solid rgb(0 0 0 / .1);outline-offset:-1px}
+.menu-text{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.menu-name{font-weight:600}
+.menu-text .muted{font-size:var(--t-sm)}
+.menu-end{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
+.menu-price{font-weight:600;color:var(--board-deep)}
+@media (min-width:720px){.menu-end{flex-direction:row;align-items:center;gap:12px}}
+.menu-item.unavailable .menu-name,.menu-item.unavailable .menu-price{color:var(--ink-2);text-decoration:line-through}
 .num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .panel{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow);padding:4px 16px;margin-bottom:12px}
 .panel>summary{display:flex;align-items:center;gap:8px;min-height:52px;cursor:pointer;font-weight:600}
@@ -334,6 +351,20 @@ input[type=file]{font:inherit;padding:10px 0;max-width:100%;width:100%;min-width
 .inline-edit,.inline-select{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .inline-edit input:not([type=checkbox]),.inline-select select{width:auto;min-width:10em;min-height:40px}
 .inline-edit .w-sort{min-width:4em;width:4.5em}
+.claim-grid{display:grid;gap:12px}
+@media (min-width:720px){.claim-grid{grid-template-columns:1fr 220px}}
+.claim-card h2{font-size:var(--t-base)}
+.proof img{width:220px;height:165px;object-fit:cover;border-radius:var(--r-sm);outline:1px solid rgb(0 0 0 / .1)}
+.owner-cards{list-style:none;padding:0;margin:0;display:grid;gap:12px}
+@media (min-width:960px){.owner-cards{grid-template-columns:1fr 1fr}}
+.owner-card{padding:12px 18px 16px}
+.owner-card-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:8px}
+.owner-card h2{margin:0}
+.owner-features{display:grid;gap:4px;margin:16px 0}
+.owner-features p{display:flex;gap:8px;align-items:center;margin:0}
+.menu-edit{flex:1;min-width:0}
+.menu-edit summary{cursor:pointer;display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:44px}
+.menu-edit[open] summary{margin-bottom:8px}
 .revisions{list-style:none;padding:0}
 .revisions li{margin-bottom:6px}
 

@@ -249,13 +249,10 @@ export function detailPage(x: DetailData): SafeHtml {
       <div class="detail-grid">
         <div class="detail-main">
           ${x.images.length ? html`<div class="gallery gallery-n${Math.min(x.images.length, 3)}">${x.images.map((im, i) => html`<a href="${mediaUrl(im.file)}" class="${i === 0 ? 'g-main' : ''}"><img src="${mediaUrl(i === 0 ? im.file : im.thumb)}" alt="صورة ${i + 1} من ${x.images.length} لـ ${p.title}" width="${i === 0 ? im.width : 480}" height="${i === 0 ? im.height : 360}" ${i ? raw('loading="lazy"') : raw('fetchpriority="high"')} decoding="async"></a>`)}</div>` : ''}
+          ${menuSection(x, phone)}
           ${p.body ? html`<section aria-labelledby="h-desc"><h2 id="h-desc">التفاصيل</h2><div class="prose">${paragraphs(p.body)}</div></section>` : ''}
           ${p.type === 'job' && d.requirements ? html`<section><h2>الشروط</h2><div class="prose">${paragraphs(String(d.requirements))}</div></section>` : ''}
           ${p.type === 'business' && d.services ? html`<section><h2>الخدمات</h2><div class="prose">${paragraphs(String(d.services))}</div></section>` : ''}
-          ${x.items.length ? html`<section aria-labelledby="h-menu"><h2 id="h-menu">${p.category_name.includes('مطاعم') || p.category_name.includes('أفران') ? 'قائمة الطعام والأسعار' : 'المنتجات والأسعار'}</h2>
-            <table class="menu"><thead><tr><th scope="col">الصنف</th><th scope="col">السعر</th></tr></thead><tbody>
-            ${x.items.map((it) => html`<tr><td>${it.name}${it.note ? html`<span class="muted block">${it.note}</span>` : ''}</td><td class="num">${it.price !== null ? fmtPrice(it.price) : 'حسب الطلب'}</td></tr>`)}
-            </tbody></table></section>` : ''}
           ${x.offers.length ? html`<section><h2>عروض هذا المحل</h2>${rowList(x.offers, html``)}</section>` : ''}
           ${x.business ? html`<p>هذا العرض من <a href="/businesses/${x.business.id}">${x.business.title}</a></p>` : ''}
         </div>
@@ -307,6 +304,28 @@ function staticReport(x: DetailData): SafeHtml {
     <a class="btn" href="${wa(`أبلغ عن هذا المنشور في دليل المعامل:\n${url}\nالسبب: `)}" target="_blank" rel="noopener">${icon('flag', 'i i-sm')}إبلاغ عبر واتساب</a>
     ${x.post.type === 'business' ? html`<a class="btn" href="${wa(`أنا صاحب هذا النشاط وأريد تحديث صفحته:\n${url}`)}" target="_blank" rel="noopener">${icon('store', 'i i-sm')}أنا صاحب هذا النشاط</a>` : ''}
   </div></section>`;
+}
+
+/** قائمة الطعام أو المنتجات مقسّمة حسب الأقسام، مع زر طلب عبر واتساب لكل صنف. */
+function menuSection(x: DetailData, phone: string | null): SafeHtml {
+  if (!x.items.length) return html``;
+  const food = /مطاعم|أفران/.test(x.post.category_name);
+  const groups = new Map<string, ItemRow[]>();
+  for (const it of x.items) groups.set(it.section || (food ? 'الأصناف' : 'المنتجات'), [...(groups.get(it.section || (food ? 'الأصناف' : 'المنتجات')) ?? []), it]);
+  const sections = [...groups.entries()];
+  const order = (it: ItemRow) => phone && x.post.whatsapp && it.available
+    ? html`<a class="btn btn-sm btn-wa" href="${waLink(phone)}?text=${encodeURIComponent(`مرحبا، أريد أطلب: ${it.name}${it.price !== null ? ` (${fmtPrice(it.price)})` : ''} — من دليل المعامل`)}" target="_blank" rel="noopener" aria-label="اطلب ${it.name} عبر واتساب">${icon('whatsapp', 'i i-sm')}اطلب</a>` : '';
+  return html`<section class="menu-block" aria-labelledby="h-menu">
+    <h2 id="h-menu">${food ? 'قائمة الطعام' : 'المنتجات والأسعار'}</h2>
+    ${sections.length > 1 ? html`<nav class="menu-tabs" aria-label="أقسام القائمة">${sections.map(([name], i) => html`<a href="#menu-${i}">${name}</a>`)}</nav>` : ''}
+    ${sections.map(([name, items], i) => html`<div class="menu-group" id="menu-${i}">
+      ${sections.length > 1 || name !== 'الأصناف' ? html`<h3>${name}</h3>` : ''}
+      <ul class="menu-list">${items.map((it) => html`<li class="menu-item${it.available ? '' : ' unavailable'}">
+        ${it.image ? html`<img src="${mediaUrl(it.image)}" alt="" width="72" height="72" loading="lazy" decoding="async">` : ''}
+        <div class="menu-text"><span class="menu-name">${it.name}</span>${it.note ? html`<span class="muted">${it.note}</span>` : ''}${it.available ? '' : html`<span class="badge badge-warn">غير متوفر حالياً</span>`}</div>
+        <div class="menu-end"><span class="num menu-price">${it.price !== null ? fmtPrice(it.price) : 'حسب الطلب'}</span>${order(it)}</div>
+      </li>`)}</ul></div>`)}
+  </section>`;
 }
 
 function businessJsonLd(p: ListItem, d: Record<string, string | number>, phone: string | null, baseUrl: string): SafeHtml {

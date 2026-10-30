@@ -9,7 +9,7 @@ export type FormValues = Record<string, string | undefined>;
 
 export interface PostFormData {
   type: PostType; action: string; values: FormValues; errors: string[]; csrf: SafeHtml;
-  categories: Opt; areas: Opt; images: ImageRow[]; businesses: Opt; editing: boolean; status?: string;
+  categories: Opt; areas: Opt; images: ImageRow[]; businesses: Opt; editing: boolean; status?: string; guest?: boolean;
 }
 
 const TITLE_LABEL: Record<PostType, string> = {
@@ -91,6 +91,7 @@ export function postForm(d: PostFormData): SafeHtml {
       ${textarea({ name: 'body', label: BODY_LABEL[d.type], value: v.body, max: 4000, rows: 6, required: false })}
 
       <fieldset class="group"><legend>التواصل</legend>
+        ${d.guest ? field({ name: 'guest_name', label: 'اسمك', value: v.guest_name, required: true, max: 60, attrs: 'autocomplete="name"', hint: 'ما يظهر بالإعلان. للإدارة فقط.' }) : ''}
         ${field({ name: 'contact_phone', label: 'رقم التواصل', value: v.contact_phone, type: 'tel', dir: 'ltr', required: !['community', 'help'].includes(d.type), attrs: 'inputmode="tel"', hint: 'رقم عراقي يبدأ بـ 07' })}
         ${checkbox({ name: 'show_phone', label: 'إظهار الرقم للزوار', checked: v.show_phone === 'on' })}
         ${d.type === 'help' ? checkbox({ name: 'd_phone_consent', label: 'صاحب الرقم وافق على عرضه علناً', checked: v.d_phone_consent === 'on' }) : ''}
@@ -106,17 +107,17 @@ export function postForm(d: PostFormData): SafeHtml {
 
       <div class="form-actions">
         <button class="btn btn-primary btn-lg" type="submit" name="action" value="submit">${d.editing && d.status === 'pending' ? 'حفظ التعديل' : 'إرسال للمراجعة'}</button>
-        ${!d.editing || d.status === 'draft' ? html`<button class="btn" type="submit" name="action" value="draft">حفظ كمسودة</button>` : ''}
+        ${!d.guest && (!d.editing || d.status === 'draft') ? html`<button class="btn" type="submit" name="action" value="draft">حفظ كمسودة</button>` : ''}
       </div>
     </form>
   </div>`;
 }
 
-export function chooseTypePage(enabled: PostType[]): SafeHtml {
+export function chooseTypePage(enabled: PostType[], guest = false): SafeHtml {
   return html`<div class="wrap narrow">
     <h1>أضف إعلانك</h1>
-    <p class="lede">اختار نوع المنشور. كل منشور يمر بمراجعة الإدارة قبل ما يظهر.</p>
-    <ul class="tiles tiles-choose">${enabled.map((t) => html`<li><a class="tile" href="/submit/${t}"><span class="tile-icon">${icon(TYPES[t].icon)}</span><span class="tile-text"><span class="tile-label">${TYPES[t].single}</span><span class="tile-blurb">${TYPES[t].blurb}</span></span></a></li>`)}</ul>
+    <p class="lede">اختار نوع الإعلان. ما تحتاج حساب، وكل إعلان يمر بمراجعة الإدارة قبل ما يظهر.</p>
+    <ul class="tiles tiles-choose">${enabled.map((t) => html`<li><a class="tile" href="${t === 'business' && guest ? '/owner' : `/submit/${t}`}"><span class="tile-icon">${icon(TYPES[t].icon)}</span><span class="tile-text"><span class="tile-label">${t === 'business' ? 'مطعمك أو محلك' : TYPES[t].single}</span><span class="tile-blurb">${t === 'business' ? 'سجّل محلك وأدر قائمة الأسعار بنفسك بعد التحقق' : TYPES[t].blurb}</span></span></a></li>`)}</ul>
   </div>`;
 }
 

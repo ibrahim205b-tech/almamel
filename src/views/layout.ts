@@ -94,9 +94,10 @@ ${s.announcement ? html`<div class="announce" role="note">${s.announcement}</div
       ${ctx.staticMode ? html`<ul class="nav-list nav-account"><li><a href="/search">${icon('search')}البحث</a></li><li><a href="/contact">${icon('phone')}تواصل معنا</a></li></ul>` : html`<ul class="nav-list nav-account">
         ${u ? html`
           ${isStaff(u.role) ? html`<li><a href="/admin">${icon('shield')}لوحة الإدارة</a></li>` : ''}
+          <li><a href="/owner/dashboard">${icon('store')}لوحة التحكم</a></li>
           <li><a href="/account">${icon('user')}حسابي${ctx.unread ? html` <span class="count" aria-label="${ctx.unread} إشعارات غير مقروءة">${ctx.unread}</span>` : ''}</a></li>
           <li><form method="post" action="/logout">${csrfField(ctx)}<button class="linklike" type="submit">${icon('logout')}خروج</button></form></li>`
-        : html`<li><a href="/login">${icon('user')}تسجيل الدخول</a></li><li><a href="/register">إنشاء حساب</a></li>`}
+        : html`<li><a href="/owner">${icon('utensils')}أضف مطعمك أو محلك</a></li><li><a href="/login">${icon('user')}دخول أصحاب المحلات</a></li>`}
       </ul>`}
     </div>
   </nav>
@@ -122,6 +123,7 @@ ${body}
       <h2 id="f-links" class="footer-title">روابط</h2>
       <ul class="footer-links">
         <li><a href="/about">عن المنصة</a></li><li><a href="/contact">تواصل معنا</a></li>
+        ${ctx.staticMode ? '' : html`<li><a href="/owner">أضف مطعمك أو محلك</a></li>`}
         <li><a href="/policies/privacy">سياسة الخصوصية</a></li><li><a href="/policies/terms">شروط الاستخدام</a></li>
         <li><a href="/policies/posting">سياسة النشر</a></li><li><a href="/policies/ads">سياسة الإعلانات</a></li>
         <li><a href="/policies/reports">سياسة البلاغات</a></li>

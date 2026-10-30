@@ -30,8 +30,9 @@ export async function authRoutes(app: FastifyInstance) {
   }
 
   const loginPage = (req: FastifyRequest, reply: FastifyReply, errors: string[] = [], phone = '', next = '') =>
-    reply.page(req, { title: 'تسجيل الدخول', noindex: true }, html`<div class="wrap narrow">
-      <h1>تسجيل الدخول</h1>
+    reply.page(req, { title: 'دخول أصحاب المحلات', noindex: true }, html`<div class="wrap narrow">
+      <h1>دخول أصحاب المحلات</h1>
+      <p class="lede">الدخول لأصحاب المطاعم والمحلات المسجلين ولإدارة الموقع. لنشر إعلان عادي ما تحتاج حساب: <a href="/submit">أضف إعلانك</a>.</p>
       ${errorList(errors)}
       <form method="post" action="/login" class="form" novalidate>
         ${csrfInput(req)}
@@ -40,7 +41,7 @@ export async function authRoutes(app: FastifyInstance) {
         ${field({ name: 'password', label: 'كلمة المرور', required: true, type: 'password', attrs: 'autocomplete="current-password"' })}
         <button class="btn btn-primary btn-block" type="submit">دخول</button>
       </form>
-      <p>ما عندك حساب؟ <a href="/register">أنشئ حساباً</a></p>
+      <p>عندك مطعم أو محل؟ <a href="/owner/register">سجّله هنا</a></p>
       <p class="muted">نسيت كلمة المرور؟ تواصل مع الدعم على الرقم <a href="tel:${req.settings.support_phone}" dir="ltr">${req.settings.support_phone}</a> لإعادة تعيينها بعد التحقق من هويتك.</p>
     </div>`);
 
@@ -80,7 +81,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
     startSession(reply, req, user, true);
     if (isStaff(user.role as never)) audit(db, { actorId: user.id, action: 'auth.login_admin', ipHash: req.ipHash });
-    return reply.redirect(next, 303);
+    return reply.redirect(next === '/account' && !isStaff(user.role as never) ? '/owner/dashboard' : next, 303);
   });
 
   const mfaPage = (req: FastifyRequest, reply: FastifyReply, errors: string[] = [], next = '/account') =>
@@ -134,7 +135,8 @@ export async function authRoutes(app: FastifyInstance) {
       </form>
       <p>عندك حساب؟ <a href="/login">سجّل الدخول</a></p></div>`);
 
-  app.get('/register', (req, reply) => (req.user ? reply.redirect('/account', 303) : registerPage(req, reply)));
+  // التسجيل العام مخصص لأصحاب المحلات، ويمر عبر «أضف مطعمك أو محلك»
+  app.get('/register', (req, reply) => reply.redirect(req.user ? '/owner/dashboard' : '/owner/register', 303));
 
   app.post('/register', { config: { rateLimit: { max: app.cfg.env === 'test' ? 1000 : 5, timeWindow: '1 hour' } } }, async (req, reply) => {
     const b = req.body as Record<string, string>;
