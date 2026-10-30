@@ -30,6 +30,18 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      # إذا كان مصدر Pages «Deploy from a branch» يُعرض ملف README كنص فقط.
+      # هذه الخطوة تحاول تحويل المصدر إلى GitHub Actions تلقائياً.
+      - name: Use GitHub Actions as the Pages source
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(gh api "repos/${{ github.repository }}/pages" --jq .build_type || echo none)
+          echo "Pages build_type: $current"
+          if [ "$current" != "workflow" ]; then
+            gh api -X PUT "repos/${{ github.repository }}/pages" -f build_type=workflow && echo "Switched to GitHub Actions"
+          fi
       - id: pages
         uses: actions/configure-pages@v5
       - name: Build static site
