@@ -163,5 +163,14 @@ do $$ begin
   if (select logo from posts where id = public.t_id('مطعم أبو علي')) is null then raise exception 'owner logo not set'; end if;
 end $$;
 
+-- شعار عند التسجيل: يُقبل من مجلد صاحب الحساب فقط
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+insert into posts (type, title, category, contact_phone, details, logo) values ('business', 'محل بشعار', 'مطاعم', '07706666666', '{"address":"شارع"}', 'u/11111111-1111-1111-1111-111111111111/0123456789abcdef0123456789abcdef.webp');
+insert into posts (type, title, category, contact_phone, details, logo) values ('business', 'محل بشعار غريب', 'مطاعم', '07706666667', '{"address":"شارع"}', 'u/22222222-2222-2222-2222-222222222222/0123456789abcdef0123456789abcdef.webp');
+reset role;
+do $$ begin
+  if (select logo from posts where id = public.t_id('محل بشعار')) is null then raise exception 'own logo dropped at registration'; end if;
+  if (select logo from posts where id = public.t_id('محل بشعار غريب')) is not null then raise exception 'foreign logo accepted'; end if;
+end $$;
 reset role;
 select 'ALL RLS TESTS PASSED';

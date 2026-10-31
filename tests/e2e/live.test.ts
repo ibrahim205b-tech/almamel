@@ -206,10 +206,15 @@ test('owner registers, adds the shop with proof, and lands on the dashboard', as
   const img = path.join(os.tmpdir(), 'live-front.png');
   fs.writeFileSync(img, await sharp({ create: { width: 800, height: 600, channels: 3, background: '#963' } }).png().toBuffer());
   await p.setInputFiles('#f-proof', img);
+  await p.setInputFiles('input[name=photos]', [img, img]);
+  await p.setInputFiles('input[name=logo]', img);
+  assert.equal(await p.locator('#photos-preview img').count(), 2, 'gallery photos previewed');
   await p.click('[data-step=business] button[type=submit]');
   await p.waitForURL(/\/owner\/dashboard\/\?sent=1/);
   const biz = JSON.parse(posts().at(-1)!.body.toString());
   assert.equal(biz.type, 'business'); assert.equal(biz.details.address, 'الشارع العام');
+  assert.equal(biz.images.length, 2, 'shop photos sent with the registration');
+  for (const im of [...biz.images, biz.logo]) assert.match(im, new RegExp(`^u/${UID}/[0-9a-f]{32}\\.webp$`), 'photos in the owner folder');
   const proof = log.find((r) => r.path.startsWith('/storage/v1/object/proofs/'));
   assert.match(proof!.path, new RegExp(`^/storage/v1/object/proofs/${UID}/[0-9a-f]{32}\\.webp$`), 'proof in private bucket, own folder');
   const claim = JSON.parse(log.filter((r) => r.path === '/rest/v1/claims' && r.method === 'POST').at(-1)!.body.toString());

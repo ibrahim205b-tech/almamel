@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { html } from '../lib/html.ts';
-import { toFtsQuery } from '../lib/arabic.ts';
+import { addShopLink, toFtsQuery } from '../lib/arabic.ts';
 import { TYPES, TYPE_KEYS, isPostType, type PostType } from '../domain/types.ts';
 import { canPreview, getPostView, isPostOwner, listFeatured, listPublic, NEWS_CATEGORIES, postImages, postItems, PUBLIC_WHERE, type ListQuery } from '../domain/posts.ts';
 import { addClaim, addReport, addReview, EngagementError, publicReviews, reviewSummary } from '../domain/engagement.ts';
@@ -55,6 +55,7 @@ export async function publicRoutes(app: FastifyInstance) {
       counts, featured: listFeatured(db, 'home'), latest: pick([...TYPE_KEYS], {}, 6), offers: pick(['offer']), jobs: pick(['job']),
       properties: pick(['property']), food: pick(['business'], { foodOnly: true }, 11), services: pick(['service']), market: pick(['market']),
       community: pick(['community']), help: pick(['help'], {}, 3), news: pick(['community'], { newsOnly: true }),
+      addShop: !app.cfg.staticMode ? '/owner' : app.cfg.supabaseUrl && app.cfg.supabaseAnonKey ? '/owner/register' : addShopLink(s.whatsapp_phone ?? ''),
     }, s, req.user));
   });
 

@@ -100,6 +100,16 @@
     });
   }
 
+  // معاينة الصور المختارة من المعرض قبل الإرسال
+  $$('input[type=file][data-preview-into]').forEach(function (input) {
+    input.addEventListener('change', function () {
+      var box = document.getElementById(input.getAttribute('data-preview-into')); box.textContent = '';
+      Array.prototype.slice.call(input.files || []).slice(0, 6).forEach(function (file) {
+        box.appendChild(el('li', {}, [el('img', { src: URL.createObjectURL(file), alt: '', width: 96, height: 96 })]));
+      });
+    });
+  });
+
   // ---------- أضف إعلانك ----------
   async function initSubmit() {
     var form = $('[data-live-submit]');
@@ -204,9 +214,14 @@
       try {
         var details = { address: f.address.value.trim() };
         if (f.hours.value.trim()) details.hours = f.hours.value.trim();
+        if (f.services && f.services.value.trim()) details.services = f.services.value.trim();
+        // الصور والشعار تُرفع لمجلد صاحب الحساب، وتظهر بعد موافقة الإدارة
+        var photos = [], photoFiles = Array.prototype.slice.call((f.photos && f.photos.files) || []).slice(0, 6);
+        for (var pi = 0; pi < photoFiles.length; pi++) photos.push(await upload('media', 'u/' + s.user.id + '/' + hex() + '.webp', await toWebp(photoFiles[pi])));
+        var logoPath = f.logo && f.logo.files[0] ? await upload('media', 'u/' + s.user.id + '/' + hex() + '.webp', await toWebp(f.logo.files[0], 600)) : null;
         if (f.delivery.value.trim()) details.delivery = f.delivery.value.trim();
         var ins = await sb.from('posts').insert({ type: 'business', title: f.title.value.trim(), category: f.category.value, area: f.area.value,
-          body: f.body.value.trim(), contact_phone: ph, show_phone: true, whatsapp: f.whatsapp.checked, details: details }).select('id').single();
+          body: f.body.value.trim(), contact_phone: ph, show_phone: true, whatsapp: f.whatsapp.checked, details: details, images: photos, logo: logoPath }).select('id').single();
         if (ins.error) throw ins.error;
         var proof = null;
         if (f.proof.files[0]) proof = await upload('proofs', s.user.id + '/' + hex() + '.webp', await toWebp(f.proof.files[0], 1400));

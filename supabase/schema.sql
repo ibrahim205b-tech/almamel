@@ -104,7 +104,9 @@ declare uid uuid := auth.uid(); p text;
 begin
   new.status := 'pending'; new.status_reason := null; new.approved_by := null;
   new.published_at := null; new.expires_at := null; new.verified := false; new.is_official := false;
-  new.owner_id := null; new.open_state := 'unknown'; new.featured_until := null; new.logo := null;
+  new.owner_id := null; new.open_state := 'unknown'; new.featured_until := null;
+  -- الشعار: للمحلات فقط ومن مجلد صاحب الحساب نفسه
+  if new.logo is not null and (uid is null or new.type <> 'business' or not valid_media_path(new.logo, uid)) then new.logo := null; end if;
   new.author_id := uid; new.created_at := now(); new.updated_at := now();
   -- الإعلان الأول لكل حساب (أو رقم هاتف للزوار) مجاني، وكل إعلان بعده برسوم ثابتة.
   -- طلب تسجيل المحل نفسه لا يُحسب ولا يُدفع عليه.

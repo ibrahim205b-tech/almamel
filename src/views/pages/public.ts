@@ -1,6 +1,6 @@
 import { html, paragraphs, raw, jsonScript, type SafeHtml } from '../../lib/html.ts';
 import { fmtDate, fmtNumber, fmtPrice } from '../../lib/format.ts';
-import { addShopLink, telLink, waLink } from '../../lib/arabic.ts';
+import { telLink, waLink } from '../../lib/arabic.ts';
 import { TYPES, TYPE_KEYS, type PostType, type User } from '../../domain/types.ts';
 import { parseDetails, type ImageRow, type ItemRow, type ListItem } from '../../domain/posts.ts';
 import { REPORT_REASONS } from '../../domain/engagement.ts';
@@ -27,6 +27,8 @@ export interface HomeData {
   counts: Record<string, number>;
   featured: ListItem[]; latest: ListItem[]; offers: ListItem[]; jobs: ListItem[]; properties: ListItem[];
   food: ListItem[]; services: ListItem[]; market: ListItem[]; community: ListItem[]; help: ListItem[]; news: ListItem[];
+  /** رابط «أضف مطعمك»: نموذج التسجيل المباشر إذا كان متاحاً، وإلا واتساب الإدارة. */
+  addShop: string;
 }
 
 const quickLinks: [string, string, string][] = [
@@ -35,7 +37,7 @@ const quickLinks: [string, string, string][] = [
 ];
 
 /** المطاعم في مربعات كبيرة أعلى الصفحة الرئيسية: المميّزة (المدفوعة) أولاً، ثم الأحدث. */
-function foodShowcase(items: ListItem[], supportPhone: string): SafeHtml {
+function foodShowcase(items: ListItem[], addShop: string): SafeHtml {
   return html`<section class="block food-showcase" aria-labelledby="h-food">
     ${sectionTitle('المطاعم', '/restaurants', 'كل المطاعم', 'h-food')}
     <ul class="food-grid">
@@ -47,10 +49,10 @@ function foodShowcase(items: ListItem[], supportPhone: string): SafeHtml {
         <span class="food-meta">${p.category_name}${p.open_state === 'open' ? html` · <span class="food-open">مفتوح الآن</span>` : ''}</span>
         ${p.featured ? html`<span class="ribbon">مميز</span>` : ''}
       </a></li>`)}
-      <li><a class="food-card food-add" href="${addShopLink(supportPhone)}" target="_blank" rel="noopener">
-        <span class="food-img">${icon('whatsapp', 'i i-food')}</span>
+      <li><a class="food-card food-add" href="${addShop}"${addShop.startsWith('https://') ? raw(' target="_blank" rel="noopener"') : ''}>
+        <span class="food-img">${icon(addShop.startsWith('https://') ? 'whatsapp' : 'plus', 'i i-food')}</span>
         <span class="food-name">أضف مطعمك</span>
-        <span class="food-meta">راسلنا على واتساب ونضيفه لك</span>
+        <span class="food-meta">${addShop.startsWith('https://') ? 'راسلنا على واتساب ونضيفه لك' : 'سجّل وأضف معلوماتك وصورك وقائمتك بنفسك'}</span>
       </a></li>
     </ul>
   </section>`;
@@ -72,7 +74,7 @@ export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml 
   </section>
 
   <div class="wrap home">
-    ${foodShowcase(d.food, s.whatsapp_phone ?? '')}
+    ${foodShowcase(d.food, d.addShop)}
 
     <section class="block" aria-labelledby="h-sections">
       <div class="section-head"><h2 id="h-sections">الأقسام</h2></div>

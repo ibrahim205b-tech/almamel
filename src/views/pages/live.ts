@@ -23,7 +23,7 @@ export function liveSubmitPage(type: PostType | '', cats: Record<string, string[
   return html`<div class="wrap narrow" data-page="submit">
     <h1>أضف إعلانك</h1>
     <p class="lede">املأ الإعلان وأرسله مباشرة. ما تحتاج حساب، والإعلان يظهر بعد مراجعة الإدارة.</p>
-    <p class="note">${icon('store', 'i i-sm')}عندك مطعم أو محل؟ <a href="${addShop}" target="_blank" rel="noopener">راسل الإدارة على واتساب</a> ونضيفه لك مع قائمة أسعاره.</p>
+    <p class="note">${icon('store', 'i i-sm')}عندك مطعم أو محل؟ <a href="${addShop}">سجّله من هنا</a>: تكتب معلوماته وتضيف صوره وقائمة أسعاره بنفسك، ويُنشر بعد موافقة الإدارة.</p>
     ${pricingNote}
     ${msg}${noJs}
     <form class="form" data-live-submit data-cats="${JSON.stringify(cats)}" data-texts="${typeTextJson()}" novalidate>
@@ -95,7 +95,15 @@ export function ownerRegisterPage(cats: string[], areas: string[]): SafeHtml {
         ${field({ name: 'delivery', label: 'مناطق التوصيل', max: 300 })}
         ${field({ name: 'contact_phone', label: 'رقم المحل للطلبات', required: true, type: 'tel', dir: 'ltr', attrs: 'inputmode="tel"' })}
         ${checkbox({ name: 'whatsapp', label: 'رقم المحل عليه واتساب', checked: true })}
+        ${textarea({ name: 'services', label: 'الخدمات أو الأطباق الرئيسية', max: 1000, rows: 3 })}
         ${textarea({ name: 'body', label: 'وصف قصير', max: 2000, rows: 3 })}
+      </fieldset>
+      <fieldset class="group"><legend>الصور <span class="opt">(اختياري)</span></legend>
+        <label class="btn btn-pick">${icon('store')}شعار المحل<input type="file" name="logo" accept="image/*" aria-label="شعار المحل" data-preview-into="logo-preview"></label>
+        <ul class="thumbs picked" id="logo-preview" aria-live="polite"></ul>
+        <label class="btn btn-pick">${icon('image')}صور المحل من المعرض (حتى ٦)<input type="file" name="photos" accept="image/*" multiple aria-label="صور المحل" data-preview-into="photos-preview"></label>
+        <ul class="thumbs picked" id="photos-preview" aria-live="polite"></ul>
+        <p class="hint">بعد الموافقة تگدر تضيف صور الأطباق وأسعارها من لوحة التحكم.</p>
       </fieldset>
       <fieldset class="group"><legend>٣. إثبات الملكية</legend>
         ${textarea({ name: 'message', label: 'كيف نتأكد إن المحل إلك؟', required: true, max: 1000, rows: 3, hint: 'مثلاً: اتصلوا على رقم المحل بين ٤ و٦ العصر.' })}
