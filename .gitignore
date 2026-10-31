@@ -13,4 +13,5 @@ coverage/
 dist/
 dist-admin/
 dist-register/
+dist-cf/
 .cache/

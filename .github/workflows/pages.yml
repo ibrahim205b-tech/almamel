@@ -11,7 +11,7 @@ on:
     - cron: '*/15 * * * *'
 
 permissions:
-  contents: read
+  contents: write # لدفع النسخة الجاهزة إلى فرع cf-pages (Cloudflare Pages)
   pages: write
   id-token: write
 
@@ -81,6 +81,28 @@ jobs:
           SITE_URL: ${{ steps.pages.outputs.base_url }}/tasjeel
           PUBLIC_URL: ${{ steps.pages.outputs.base_url }}/
           OUT_DIR: dist/tasjeel
+      # نسخة جاهزة لـ Cloudflare Pages: تُبنى هنا (البناء على Cloudflare يفشل بخطأ داخلي عندهم)
+      # وتُدفع إلى فرع cf-pages؛ مشروع Cloudflare ينشر هذا الفرع كما هو بلا أمر بناء.
+      - name: Build Cloudflare copy (public + /idara + /tasjeel)
+        if: steps.check.outputs.build == 'true'
+        env:
+          CF: ${{ vars.CF_SITE_URL || 'https://almamel.pages.dev' }}
+        run: |
+          SITE_URL="$CF" OUT_DIR=dist-cf node scripts/build-static.ts
+          ADMIN_SITE=1 SITE_URL="$CF/idara" PUBLIC_URL="$CF/" OUT_DIR=dist-cf/idara node scripts/build-static.ts
+          REGISTER_SITE=1 SITE_URL="$CF/tasjeel" PUBLIC_URL="$CF/" OUT_DIR=dist-cf/tasjeel node scripts/build-static.ts
+      - name: Push Cloudflare copy to the cf-pages branch
+        if: steps.check.outputs.build == 'true'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd dist-cf
+          git init -q -b cf-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Built site for Cloudflare Pages (${GITHUB_SHA::7})"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" cf-pages
       - if: steps.check.outputs.build == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
