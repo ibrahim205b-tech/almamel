@@ -103,6 +103,9 @@ before(async () => {
   // موقع الإدارة المنفصل
   await buildStatic({ siteUrl: siteUrl + '/almamel-admin', contentDir: content, outDir: path.join(root, 'almamel-admin'), repo: 'u/almamel', quiet: true,
     supabase: { url: mockUrl, key: 'test-anon-key' }, admin: { publicUrl: siteUrl + '/almamel/' } });
+  // رابط التسجيل الخاص الذي يُرسل للزبون
+  await buildStatic({ siteUrl: siteUrl + '/almamel-tasjeel', contentDir: content, outDir: path.join(root, 'almamel-tasjeel'), repo: 'u/almamel', quiet: true,
+    supabase: { url: mockUrl, key: 'test-anon-key' }, register: { publicUrl: siteUrl + '/almamel/' } });
   browser = await chromium.launch();
 });
 
@@ -203,6 +206,31 @@ test('public site has no shop sign-up: «add your restaurant» opens WhatsApp su
   const home = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
   assert.ok(/class="food-card food-add" href="https:\/\/wa\.me\/964/.test(home), 'homepage card goes to WhatsApp');
   assert.ok(!home.includes('/owner/register'));
+});
+
+test('private registration link: customer adds shop info, logo, photos and menu for admin approval', async () => {
+  const p = await open('/', 390, '/almamel-tasjeel');
+  await p.fill('#f-name', 'أبو علي'); await p.fill('#f-phone', '07701111111'); await p.fill('#f-email', 'owner@x.iq'); await p.fill('#f-password', 'owner-pass-1234');
+  await p.check('#f-agree');
+  await p.click('[data-step=account] button[type=submit]');
+  await p.waitForSelector('[data-step=business]:not([hidden])');
+  await p.fill('#f-title', 'مطعم أبو علي'); await p.selectOption('#f-category', { label: 'مطاعم' }); await p.fill('#f-address', 'الشارع العام');
+  await p.fill('#f-contact_phone', '07705555555'); await p.fill('#f-message', 'اتصلوا على رقم المحل العصر');
+  const img = path.join(os.tmpdir(), 'reg-front.png');
+  fs.writeFileSync(img, await sharp({ create: { width: 800, height: 600, channels: 3, background: '#963' } }).png().toBuffer());
+  await p.setInputFiles('input[name=photos]', [img, img]);
+  await p.setInputFiles('input[name=logo]', img);
+  await p.fill('#f-menu', '*المشويات*\n• نفر كباب — 12,000');
+  await p.click('[data-step=business] button[type=submit]');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("وصل طلبك")');
+  const biz = JSON.parse(posts().at(-1)!.body.toString());
+  assert.equal(biz.type, 'business'); assert.equal(biz.images.length, 2); assert.match(biz.logo, new RegExp(`^u/${UID}/`));
+  const claim = JSON.parse(log.filter((r) => r.path === '/rest/v1/claims' && r.method === 'POST').at(-1)!.body.toString());
+  assert.equal(claim.business_id, 1000005);
+  const items = JSON.parse(log.filter((r) => r.path === '/rest/v1/menu_items' && r.method === 'POST').at(-1)!.body.toString());
+  assert.deepEqual(items.map((i: { section: string; name: string; price: number }) => [i.section, i.name, i.price]), [['المشويات', 'نفر كباب', 12000]]);
+  assert.ok(!(await p.content()).includes('/owner/dashboard'), 'no owner dashboard link');
+  await p.context().close();
 });
 
 async function adminLogin(w = 1280): Promise<Page> {

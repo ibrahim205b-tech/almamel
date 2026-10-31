@@ -11,7 +11,7 @@
   var TYPE_LABEL = { business: 'نشاط تجاري', job: 'وظيفة', property: 'عقار', service: 'خدمة', market: 'إعلان بيع', offer: 'عرض', community: 'خبر أو فعالية', help: 'طلب مساعدة' };
   var PATHS = { business: '/businesses', job: '/jobs', property: '/properties', service: '/services', market: '/market', offer: '/offers', community: '/community', help: '/help' };
   var nf = new Intl.NumberFormat('ar-IQ');
-  var ADMIN_SITE = meta('admin-site') === '1';
+  var ADMIN_SITE = meta('admin-site') === '1', REGISTER_SITE = meta('register-site') === '1';
   var FEE = 3000, FEATURE_DAYS = 10; // تطابق ad_fee و feature_fee و feature_days في schema.sql
   var SUPPORT_WA = meta('support-wa');
   function waTo(text) { return SUPPORT_WA ? SUPPORT_WA + '?text=' + encodeURIComponent(text) : ''; }
@@ -228,6 +228,17 @@
         if (f.proof.files[0]) proof = await upload('proofs', s.user.id + '/' + hex() + '.webp', await toWebp(f.proof.files[0], 1400));
         var c = await sb.from('claims').insert({ business_id: ins.data.id, message: f.message.value.trim(), business_phone: ph, proof_path: proof });
         if (c.error) throw c.error;
+        // القائمة: تُحفظ مع الطلب وتظهر بعد الموافقة
+        var items = f.menu ? parseMenu(f.menu.value) : [];
+        for (var mi = 0; mi < items.length; mi += 100) {
+          var mr = await sb.from('menu_items').insert(items.slice(mi, mi + 100).map(function (it, k) { return { business_id: ins.data.id, section: it.section.slice(0, 60), name: it.name, price: it.price, note: it.note, sort: mi + k }; }));
+          if (mr.error) throw mr.error;
+        }
+        if (REGISTER_SITE) {
+          biz.hidden = true; await sb.auth.signOut();
+          say('وصل طلبك ✅ راح نتصل بيك للتحقق، وبعد الموافقة تنشر صفحة محلك بالموقع.', 'ok');
+          return;
+        }
         go('/owner/dashboard/?sent=1');
       } catch (err) { say(errText(err), 'error'); busy(biz, false); }
     });

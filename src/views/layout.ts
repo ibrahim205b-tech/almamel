@@ -17,6 +17,7 @@ export interface ViewCtx {
   staticMode?: boolean; // نسخة GitHub Pages الثابتة: بلا حسابات ولا نماذج تُرسل للخادم
   supabaseOrigin?: string; // عند تفعيل Supabase في النسخة الثابتة
   adminSite?: boolean; // موقع الإدارة المنفصل
+  registerSite?: boolean; // صفحة تسجيل المحلات الخاصة
   publicUrl?: string;
   flash?: { kind: 'ok' | 'error'; text: string } | null;
 }
@@ -35,6 +36,15 @@ export const icon = (name: string, cls = 'i') =>
   raw(`<svg class="${cls}" aria-hidden="true" focusable="false"><use href="/static/img/icons.svg#${name.replace(/[^a-z-]/g, '')}"></use></svg>`);
 
 export const csrfField = (ctx: ViewCtx) => html`<input type="hidden" name="_csrf" value="${ctx.csrf}">`;
+
+/** رأس صفحة تسجيل المحلات الخاصة: الشعار يفتح الموقع العام فقط. */
+function registerHeader(ctx: ViewCtx): SafeHtml {
+  return html`<header class="site-header"><div class="wrap header-row">
+    <a class="brand" href="${ctx.publicUrl || '/'}" aria-label="${ctx.settings.site_name}">
+      <img src="/static/img/logo.svg" width="40" height="40" alt="">
+      <span class="brand-name">${ctx.settings.site_name}</span>
+    </a></div></header>`;
+}
 
 /** رأس موقع الإدارة المنفصل: روابط الإدارة فقط، ورابط للموقع العام. */
 function adminHeader(ctx: ViewCtx): SafeHtml {
@@ -100,7 +110,7 @@ ${meta.head ?? ''}
 <a class="skip" href="#main">انتقل إلى المحتوى</a>
 <div class="creator-bar"><div class="wrap"><span>المُنشئ: <strong>إبراهيم علي</strong></span></div></div>
 ${s.announcement ? html`<div class="announce" role="note">${s.announcement}</div>` : ''}
-${ctx.adminSite ? adminHeader(ctx) : html`<header class="site-header">
+${ctx.adminSite ? adminHeader(ctx) : ctx.registerSite ? registerHeader(ctx) : html`<header class="site-header">
   <div class="wrap header-row">
     <a class="brand" href="/" aria-label="${s.site_name}، الصفحة الرئيسية">
       <img src="/static/img/logo.svg" width="40" height="40" alt="">
@@ -131,7 +141,7 @@ ${ctx.adminSite ? adminHeader(ctx) : html`<header class="site-header">
 ${ctx.flash ? html`<div class="wrap"><p class="flash flash-${ctx.flash.kind}" role="${ctx.flash.kind === 'error' ? 'alert' : 'status'}">${ctx.flash.text}</p></div>` : ''}
 ${body}
 </main>
-${ctx.adminSite ? html`<footer class="site-footer"><div class="wrap copyright"><p>${COPYRIGHT}</p></div></footer>` : html`<footer class="site-footer">
+${ctx.adminSite || ctx.registerSite ? html`<footer class="site-footer"><div class="wrap copyright"><p>${COPYRIGHT}</p></div></footer>` : html`<footer class="site-footer">
   <div class="wrap footer-grid">
     <section aria-labelledby="f-about">
       <h2 id="f-about" class="footer-title">${s.site_name}</h2>

@@ -18,6 +18,8 @@ export interface Config {
   supabaseAnonKey: string;
   /** موقع الإدارة المنفصل (نسخة ثابتة): صفحات الإدارة فقط. */
   adminSite: boolean;
+  /** صفحة تسجيل المحلات الخاصة (رابط يُرسل للزبون فقط). */
+  registerSite: boolean;
   /** رابط الموقع العام (يظهر في موقع الإدارة). */
   publicUrl: string;
 }
@@ -45,6 +47,7 @@ export function loadConfig(overrides: Partial<Config> = {}, env = process.env): 
     supabaseUrl: '',
     supabaseAnonKey: '',
     adminSite: false,
+    registerSite: false,
     publicUrl: '',
     ...overrides,
   };

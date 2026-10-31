@@ -6,10 +6,10 @@ import { checkbox, field, select, textarea } from '../components.ts';
 import { icon } from '../layout.ts';
 import { typeFieldGroup, typeTextJson } from '../type-fields.ts';
 
-export interface LiveCfg { url: string; key: string; v: string; wa?: string; admin?: boolean }
+export interface LiveCfg { url: string; key: string; v: string; wa?: string; admin?: boolean; register?: boolean }
 
 /** وسوم الإعداد ومكتبة Supabase وسكربت الصفحات التفاعلية. */
-export const liveHead = (c: LiveCfg) => html`<meta name="sb-url" content="${c.url}"><meta name="sb-key" content="${c.key}"><meta name="support-wa" content="${c.wa ?? ''}"><meta name="admin-site" content="${c.admin ? '1' : '0'}">
+export const liveHead = (c: LiveCfg) => html`<meta name="sb-url" content="${c.url}"><meta name="sb-key" content="${c.key}"><meta name="support-wa" content="${c.wa ?? ''}"><meta name="admin-site" content="${c.admin ? '1' : '0'}"><meta name="register-site" content="${c.register ? '1' : '0'}">
 <script src="/static/vendor/supabase.js?v=${c.v}" defer></script><script src="/static/js/live.js?v=${c.v}" defer></script>`;
 
 const msg = html`<div class="live-msg" data-msg role="status" aria-live="polite"></div>`;
@@ -69,9 +69,11 @@ export function ownerLandingPage(): SafeHtml {
   </div>`;
 }
 
-export function ownerRegisterPage(cats: string[], areas: string[]): SafeHtml {
+export function ownerRegisterPage(cats: string[], areas: string[], publicUrl = ''): SafeHtml {
+  const pol = (k: string) => publicUrl ? `${publicUrl.replace(/\/+$/, '')}/policies/${k}/` : `/policies/${k}`;
   return html`<div class="wrap narrow" data-page="register">
-    <h1>سجّل مطعمك أو محلك</h1>
+    <h1>سجّل مطعمك أو محلك في دليل المعامل</h1>
+    <p class="lede">سوّي حساب، واكتب معلومات محلك، وأضف شعارك وصورك وقائمة أسعارك. بعد موافقة الإدارة تنشر صفحتك بالموقع.</p>
     <p class="note">${icon('shield', 'i i-sm')}صفحتك ما تظهر للناس إلا بعد ما نتحقق إنك صاحب النشاط. صورة الإثبات لا يراها إلا مدير الموقع.</p>
     ${msg}${noJs}
     <form class="form" data-step="account" novalidate>
@@ -80,9 +82,8 @@ export function ownerRegisterPage(cats: string[], areas: string[]): SafeHtml {
         ${field({ name: 'phone', label: 'رقم هاتفك', required: true, type: 'tel', dir: 'ltr', attrs: 'autocomplete="tel" inputmode="tel"' })}
         ${field({ name: 'email', label: 'البريد الإلكتروني (للدخول)', required: true, type: 'email', dir: 'ltr', attrs: 'autocomplete="email"' })}
         ${field({ name: 'password', label: 'كلمة المرور', required: true, type: 'password', hint: '١٠ أحرف على الأقل', attrs: 'autocomplete="new-password" minlength="10"' })}
-        <div class="check"><input type="checkbox" id="f-agree" name="agree" required><label for="f-agree">قرأت <a href="/policies/terms" target="_blank">شروط الاستخدام</a> و<a href="/policies/privacy" target="_blank">سياسة الخصوصية</a> وأوافق عليها</label></div>
+        <div class="check"><input type="checkbox" id="f-agree" name="agree" required><label for="f-agree">قرأت <a href="${pol('terms')}" target="_blank" rel="noopener">شروط الاستخدام</a> و<a href="${pol('privacy')}" target="_blank" rel="noopener">سياسة الخصوصية</a> وأوافق عليها</label></div>
         <button class="btn btn-primary btn-lg" type="submit">التالي</button>
-        <p>عندك حساب؟ <a href="/login">سجّل الدخول</a></p>
       </fieldset>
     </form>
     <form class="form" data-step="business" hidden novalidate>
@@ -103,7 +104,9 @@ export function ownerRegisterPage(cats: string[], areas: string[]): SafeHtml {
         <ul class="thumbs picked" id="logo-preview" aria-live="polite"></ul>
         <label class="btn btn-pick">${icon('image')}صور المحل من المعرض (حتى ٦)<input type="file" name="photos" accept="image/*" multiple aria-label="صور المحل" data-preview-into="photos-preview"></label>
         <ul class="thumbs picked" id="photos-preview" aria-live="polite"></ul>
-        <p class="hint">بعد الموافقة تگدر تضيف صور الأطباق وأسعارها من لوحة التحكم.</p>
+      </fieldset>
+      <fieldset class="group"><legend>القائمة والأسعار <span class="opt">(اختياري)</span></legend>
+        ${textarea({ name: 'menu', label: 'اكتب أو الصق قائمتك', rows: 8, max: 30000, hint: 'كل قسم بسطر مثل «*المشويات*»، وتحته الأصناف مثل «• نفر كباب — 12,000». أو «الاسم | السعر».' })}
       </fieldset>
       <fieldset class="group"><legend>٣. إثبات الملكية</legend>
         ${textarea({ name: 'message', label: 'كيف نتأكد إن المحل إلك؟', required: true, max: 1000, rows: 3, hint: 'مثلاً: اتصلوا على رقم المحل بين ٤ و٦ العصر.' })}

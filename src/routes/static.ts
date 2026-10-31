@@ -59,7 +59,7 @@ export async function staticRoutes(app: FastifyInstance) {
 
   const live = !!(app.cfg.supabaseUrl && app.cfg.supabaseAnonKey);
   const v = assetVersion();
-  const head = (req?: { settings: Record<string, string> }) => liveHead({ url: app.cfg.supabaseUrl, key: app.cfg.supabaseAnonKey, v, wa: req ? waLink(req.settings.whatsapp_phone ?? '') : '', admin: app.cfg.adminSite });
+  const head = (req?: { settings: Record<string, string> }) => liveHead({ url: app.cfg.supabaseUrl, key: app.cfg.supabaseAnonKey, v, wa: req ? waLink(req.settings.whatsapp_phone ?? '') : '', admin: app.cfg.adminSite, register: app.cfg.registerSite });
   const catsBySection = () => {
     const out: Record<string, string[]> = {};
     for (const r of db.prepare('SELECT section, name FROM categories WHERE active = 1 ORDER BY section, sort').all() as { section: string; name: string }[]) (out[r.section] ??= []).push(r.name);
@@ -77,7 +77,7 @@ export async function staticRoutes(app: FastifyInstance) {
       return reply.page(req, { title: `أضف ${TYPES[type].single}`, canonical: '/submit', head: head() }, liveSubmitPage(type, catsBySection(), areaNames(), addShopLink(req.settings.whatsapp_phone ?? '')));
     });
     app.get('/owner', (req, reply) => reply.page(req, { title: 'أضف مطعمك أو محلك', description: 'سجّل مطعمك أو محلك في دليل المعامل وأدر قائمة الطعام والأسعار بنفسك.' }, ownerLandingPage()));
-    app.get('/owner/register', (req, reply) => reply.page(req, { title: 'سجّل مطعمك أو محلك', noindex: true, head: head() }, ownerRegisterPage(catsBySection().business ?? [], areaNames())));
+    app.get('/owner/register', (req, reply) => reply.page(req, { title: 'سجّل مطعمك أو محلك', noindex: true, head: head() }, ownerRegisterPage(catsBySection().business ?? [], areaNames(), app.cfg.publicUrl)));
     app.get('/login', (req, reply) => reply.page(req, { title: app.cfg.adminSite ? 'دخول الإدارة' : 'دخول أصحاب المحلات', noindex: true, head: head() }, liveLoginPage(app.cfg.adminSite)));
     app.get('/owner/dashboard', (req, reply) => reply.page(req, { title: 'لوحة التحكم', noindex: true, canonical: null, head: head(req) }, dashboardPage()));
     app.get('/owner/menu', (req, reply) => reply.page(req, { title: 'القائمة والأسعار', noindex: true, canonical: null, head: head() }, menuManagerPage()));

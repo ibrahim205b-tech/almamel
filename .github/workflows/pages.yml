@@ -73,6 +73,14 @@ jobs:
           SITE_URL: ${{ steps.pages.outputs.base_url }}/idara
           PUBLIC_URL: ${{ steps.pages.outputs.base_url }}/
           OUT_DIR: dist/idara
+      - name: Build private shop registration page (/tasjeel, link sent to customers)
+        if: steps.check.outputs.build == 'true'
+        run: node scripts/build-static.ts
+        env:
+          REGISTER_SITE: '1'
+          SITE_URL: ${{ steps.pages.outputs.base_url }}/tasjeel
+          PUBLIC_URL: ${{ steps.pages.outputs.base_url }}/
+          OUT_DIR: dist/tasjeel
       - if: steps.check.outputs.build == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
