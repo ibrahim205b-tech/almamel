@@ -17,12 +17,12 @@ const PRICE_TYPES: PostType[] = ['job', 'property', 'market', 'offer'];
 /** أسعار الإعلانات والتمييز (تطابق ad_fee و feature_fee في supabase/schema.sql). */
 export const pricingNote = html`<p class="note note-price">${icon('tag', 'i i-sm')}<strong>الإعلان الأول مجاني.</strong> كل إعلان بعده 3,000 د.ع، ويُنشر بعد الدفع. وتگدر تميّز إعلانك أو مطعمك بأول الصفحة لمدة 10 أيام بـ 3,000 د.ع.</p>`;
 
-export function liveSubmitPage(type: PostType | '', cats: Record<string, string[]>, areas: string[]): SafeHtml {
+export function liveSubmitPage(type: PostType | '', cats: Record<string, string[]>, areas: string[], addShop = '/contact'): SafeHtml {
   const guestTypes = TYPE_KEYS.filter((t) => t !== 'business');
   return html`<div class="wrap narrow" data-page="submit">
     <h1>أضف إعلانك</h1>
     <p class="lede">املأ الإعلان وأرسله مباشرة. ما تحتاج حساب، والإعلان يظهر بعد مراجعة الإدارة.</p>
-    <p class="note">${icon('store', 'i i-sm')}عندك مطعم أو محل؟ <a href="/owner">سجّله من هنا</a> حتى تدير صفحته وقائمة أسعاره بنفسك.</p>
+    <p class="note">${icon('store', 'i i-sm')}عندك مطعم أو محل؟ <a href="${addShop}" target="_blank" rel="noopener">راسل الإدارة على واتساب</a> ونضيفه لك مع قائمة أسعاره.</p>
     ${pricingNote}
     ${msg}${noJs}
     <form class="form" data-live-submit data-cats="${JSON.stringify(cats)}" novalidate>

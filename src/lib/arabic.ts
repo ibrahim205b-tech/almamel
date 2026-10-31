@@ -44,6 +44,9 @@ export function normalizePhone(input: string): string | null {
 }
 
 export const waLink = (phone: string) => `https://wa.me/964${phone.slice(1)}`;
+/** «أضف مطعمك»: الإضافة عن طريق الإدارة فقط، برسالة واتساب جاهزة لرقم الدعم. */
+export const addShopLink = (supportPhone: string) =>
+  `${waLink(supportPhone)}?text=${encodeURIComponent('مرحباً، أريد إضافة مطعمي أو محلي في دليل المعامل.')}`;
 export const telLink = (phone: string) => `tel:${phone}`;
 
 export function slugify(title: string): string {

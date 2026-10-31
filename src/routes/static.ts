@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { html } from '../lib/html.ts';
-import { searchText, waLink } from '../lib/arabic.ts';
+import { addShopLink, searchText, waLink } from '../lib/arabic.ts';
 import { fmtPrice } from '../lib/format.ts';
 import { TYPES, TYPE_KEYS, isPostType, type PostType } from '../domain/types.ts';
 import { listPublic } from '../domain/posts.ts';
@@ -61,12 +61,12 @@ export async function staticRoutes(app: FastifyInstance) {
 
   if (live) {
     // النماذج والحسابات عبر Supabase: الإرسال مباشر، والنشر بعد موافقة الإدارة
-    app.get('/submit', (req, reply) => reply.page(req, { title: 'أضف إعلانك', head: head() }, liveSubmitPage('', catsBySection(), areaNames())));
+    app.get('/submit', (req, reply) => reply.page(req, { title: 'أضف إعلانك', head: head() }, liveSubmitPage('', catsBySection(), areaNames(), addShopLink(req.settings.whatsapp_phone ?? ''))));
     app.get('/submit/:type', (req, reply) => {
       const type = (req.params as { type: string }).type;
       if (!isPostType(type) || !sectionEnabled(req.settings, type)) return reply.callNotFound();
       if (type === 'business') return reply.page(req, { title: 'أضف مطعمك أو محلك', canonical: '/owner' }, ownerLandingPage());
-      return reply.page(req, { title: `أضف ${TYPES[type].single}`, canonical: '/submit', head: head() }, liveSubmitPage(type, catsBySection(), areaNames()));
+      return reply.page(req, { title: `أضف ${TYPES[type].single}`, canonical: '/submit', head: head() }, liveSubmitPage(type, catsBySection(), areaNames(), addShopLink(req.settings.whatsapp_phone ?? '')));
     });
     app.get('/owner', (req, reply) => reply.page(req, { title: 'أضف مطعمك أو محلك', description: 'سجّل مطعمك أو محلك في دليل المعامل وأدر قائمة الطعام والأسعار بنفسك.' }, ownerLandingPage()));
     app.get('/owner/register', (req, reply) => reply.page(req, { title: 'سجّل مطعمك أو محلك', noindex: true, head: head() }, ownerRegisterPage(catsBySection().business ?? [], areaNames())));

@@ -2,7 +2,9 @@ import { html, raw, type SafeHtml } from '../lib/html.ts';
 import { COPYRIGHT, sectionEnabled, type Settings } from '../domain/settings.ts';
 import { TYPES, TYPE_KEYS, type User } from '../domain/types.ts';
 import { isStaff } from '../auth/rbac.ts';
-import { telLink, waLink } from '../lib/arabic.ts';
+import { addShopLink, telLink, waLink } from '../lib/arabic.ts';
+
+const s0 = (ctx: ViewCtx) => ctx.settings.whatsapp_phone ?? '';
 
 export interface ViewCtx {
   user: User | null;
@@ -94,14 +96,14 @@ ${s.announcement ? html`<div class="announce" role="note">${s.announcement}</div
     <div class="wrap menu-inner">
       ${nav(ctx)}
       ${ctx.staticMode ? html`<ul class="nav-list nav-account"><li><a href="/search">${icon('search')}البحث</a></li>${ctx.supabaseOrigin
-        ? html`<li><a href="/owner">${icon('utensils')}أضف مطعمك أو محلك</a></li><li><a href="/login">${icon('user')}دخول أصحاب المحلات</a></li>`
+        ? html`<li><a href="${addShopLink(s0(ctx))}" target="_blank" rel="noopener">${icon('utensils')}أضف مطعمك أو محلك</a></li><li><a href="/login">${icon('user')}دخول أصحاب المحلات</a></li>`
         : html`<li><a href="/contact">${icon('phone')}تواصل معنا</a></li>`}</ul>` : html`<ul class="nav-list nav-account">
         ${u ? html`
           ${isStaff(u.role) ? html`<li><a href="/admin">${icon('shield')}لوحة الإدارة</a></li>` : ''}
           <li><a href="/owner/dashboard">${icon('store')}لوحة التحكم</a></li>
           <li><a href="/account">${icon('user')}حسابي${ctx.unread ? html` <span class="count" aria-label="${ctx.unread} إشعارات غير مقروءة">${ctx.unread}</span>` : ''}</a></li>
           <li><form method="post" action="/logout">${csrfField(ctx)}<button class="linklike" type="submit">${icon('logout')}خروج</button></form></li>`
-        : html`<li><a href="/owner">${icon('utensils')}أضف مطعمك أو محلك</a></li><li><a href="/login">${icon('user')}دخول أصحاب المحلات</a></li>`}
+        : html`<li><a href="${addShopLink(s0(ctx))}" target="_blank" rel="noopener">${icon('utensils')}أضف مطعمك أو محلك</a></li><li><a href="/login">${icon('user')}دخول أصحاب المحلات</a></li>`}
       </ul>`}
     </div>
   </nav>
@@ -127,7 +129,7 @@ ${body}
       <h2 id="f-links" class="footer-title">روابط</h2>
       <ul class="footer-links">
         <li><a href="/about">عن المنصة</a></li><li><a href="/contact">تواصل معنا</a></li>
-        ${ctx.staticMode && !ctx.supabaseOrigin ? '' : html`<li><a href="/owner">أضف مطعمك أو محلك</a></li>`}
+        ${ctx.staticMode && !ctx.supabaseOrigin ? '' : html`<li><a href="${addShopLink(s0(ctx))}" target="_blank" rel="noopener">أضف مطعمك أو محلك</a></li>`}
         <li><a href="/policies/privacy">سياسة الخصوصية</a></li><li><a href="/policies/terms">شروط الاستخدام</a></li>
         <li><a href="/policies/posting">سياسة النشر</a></li><li><a href="/policies/ads">سياسة الإعلانات</a></li>
         <li><a href="/policies/reports">سياسة البلاغات</a></li>
