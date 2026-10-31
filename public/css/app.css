@@ -470,3 +470,30 @@ body:has(.cart-bar:not([hidden])) .site-footer{padding-bottom:96px}
 .picked li{position:relative}
 .picked img{width:96px;height:96px;object-fit:cover;border-radius:var(--r);display:block;box-shadow:var(--shadow)}
 .thumb-x{position:absolute;top:-8px;inset-inline-end:-8px;width:28px;height:28px;border-radius:50%;border:0;background:var(--danger);color:#fff;font-weight:700;cursor:pointer;line-height:1}
+
+/* ---------- الحركة: ناعمة وخفيفة، وتتوقف تماماً عند «تقليل الحركة» ---------- */
+@media (prefers-reduced-motion:no-preference){
+  @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  main{animation:fade .35s ease-out both}
+  /* دخول الواجهة الرئيسية بالتتابع */
+  .hero-title{animation:rise .6s var(--ease) both}
+  .hero-sub{animation:rise .6s var(--ease) .08s both}
+  .hero .search{animation:rise .6s var(--ease) .16s both}
+  .hero .quick{animation:rise .6s var(--ease) .24s both}
+  /* الظهور عند النزول بالصفحة (يضيفه static.js فقط، فبدون JavaScript يظهر كل شيء عادي) */
+  .js-anim [data-anim]{opacity:0;transform:translateY(18px);transition:opacity .55s var(--ease),transform .55s var(--ease);transition-delay:var(--d,0s)}
+  .js-anim [data-anim].in{opacity:1;transform:none}
+  /* رفع خفيف عند المرور والضغط */
+  .tile{transition:box-shadow .2s ease-out,transform .2s var(--ease)}
+  .tile:hover{transform:translateY(-2px)}
+  .tile:active,.food-card:active{transform:scale(.98)}
+  .tile-icon{transition:transform .25s var(--ease)}
+  .tile:hover .tile-icon{transform:scale(1.08) rotate(-4deg)}
+  .food-img img{transition:transform .5s var(--ease)}
+  .food-card:hover .food-img img{transform:scale(1.05)}
+  .row-thumb img{transition:transform .4s var(--ease)}
+  .row-link:hover .row-thumb img{transform:scale(1.06)}
+  .add-btn:hover{transform:scale(1.08)}
+  .ribbon{animation:fade .4s ease-out .3s both}
+}

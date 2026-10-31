@@ -21,6 +21,23 @@
     use.setAttribute('href', BASE + '/static/img/icons.svg#' + name); svg.appendChild(use); return svg;
   }
 
+  // ---------- الحركة: ظهور تدريجي للأقسام والبطاقات عند النزول ----------
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+    document.documentElement.classList.add('js-anim');
+    var seen = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); seen.unobserve(e.target); } });
+    }, { threshold: 0, rootMargin: '0px 0px -30px 0px' }); // threshold 0: الأقسام الطويلة جداً (قائمة كاملة) تظهر أيضاً
+    var animGroups = ['.home > .block', '.tiles > li', '.food-grid > li', '.rows > li', '.menu-list > li', '.detail-side > *', '.columns > .block'];
+    animGroups.forEach(function (sel) {
+      Array.prototype.forEach.call(document.querySelectorAll(sel), function (node, i) {
+        if (node.hasAttribute('data-anim')) return;
+        node.setAttribute('data-anim', '');
+        node.style.setProperty('--d', (i % 6) * 0.06 + 's'); // تتابع خفيف داخل كل مجموعة
+        seen.observe(node);
+      });
+    });
+  }
+
   // ---------- البحث ----------
   var results = document.querySelector('[data-search-results]');
   if (results) {
