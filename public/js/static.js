@@ -153,6 +153,45 @@
       });
     };
     typeSel.addEventListener('change', show); show();
+
+    // ---------- صور من معرض الهاتف: تُصغَّر في المتصفح وتُضمَّن في ملف الإعلان ----------
+    var picked = [], logo = null, fullText = '';
+    var shrink = async function (file, max) {
+      var bmp = await createImageBitmap(file);
+      var k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+      var c = document.createElement('canvas');
+      c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      var url = c.toDataURL('image/webp', 0.8);
+      return url.indexOf('data:image/webp') === 0 ? url : c.toDataURL('image/jpeg', 0.82);
+    };
+    var preview = function (list, urls, onRemove) {
+      list.textContent = '';
+      urls.forEach(function (u, i) {
+        var li = el('li'), img = el('img'), x = el('button', 'thumb-x', '×');
+        img.src = u; img.alt = 'صورة ' + (i + 1); img.width = 96; img.height = 96;
+        x.type = 'button'; x.setAttribute('aria-label', 'إزالة الصورة ' + (i + 1));
+        x.addEventListener('click', function () { onRemove(i); });
+        li.appendChild(img); li.appendChild(x); list.appendChild(li);
+      });
+    };
+    var pickedList = pub.querySelector('[data-picked]'), logoList = pub.querySelector('[data-picked-logo]');
+    var drawPicked = function () { preview(pickedList, picked, function (i) { picked.splice(i, 1); drawPicked(); }); };
+    var drawLogo = function () { preview(logoList, logo ? [logo] : [], function () { logo = null; drawLogo(); }); };
+    pub.querySelector('[data-pick-images]').addEventListener('change', async function (e) {
+      var files = Array.prototype.slice.call(e.target.files || []);
+      for (var i = 0; i < files.length && picked.length < 6; i++) {
+        try { picked.push(await shrink(files[i], 1280)); } catch { alert('تعذر قراءة إحدى الصور.'); }
+      }
+      if (files.length && picked.length >= 6) pickedList.setAttribute('data-full', '1');
+      e.target.value = ''; drawPicked();
+    });
+    pub.querySelector('[data-pick-logo]').addEventListener('change', async function (e) {
+      var file = (e.target.files || [])[0];
+      if (file) { try { logo = await shrink(file, 600); } catch { alert('تعذر قراءة الصورة.'); } }
+      e.target.value = ''; drawLogo();
+    });
+
     pub.addEventListener('submit', function (e) {
       e.preventDefault();
       delete pub.dataset.submitting;
@@ -171,14 +210,19 @@
         out.push(k.slice(t.length + 1) + ': ' + (v === 'on' ? 'true' : q(v)));
       });
       if (f.get('menu')) { out.push('menu:'); String(f.get('menu')).split('\n').filter(Boolean).forEach(function (l) { out.push('  - ' + q(l.trim())); }); }
-      if (f.get('images')) { out.push('images:'); String(f.get('images')).split(',').map(function (x) { return x.trim(); }).filter(Boolean).forEach(function (n) { out.push('  - ' + q(n)); }); }
+      var imgs = picked.concat(String(f.get('images') || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean)).slice(0, 6);
+      if (imgs.length) { out.push('images:'); imgs.forEach(function (n) { out.push('  - ' + q(n)); }); }
+      if (logo && t === 'business') out.push('logo: ' + q(logo));
       ['featured', 'verified', 'official', 'consent', 'phone_consent'].forEach(function (k) { if (f.get(k)) out.push(k + ': true'); });
       out.push('---', '', String(f.get('body') || '').trim(), '');
       var text = out.join('\n');
+      fullText = text;
       var file = 'content/listings/' + t + '-' + id + '.md';
       var box = document.querySelector('[data-publish-out]');
       box.hidden = false;
-      document.querySelector('[data-publish-text]').value = text;
+      // العرض بدون نص الصور الطويل؛ النسخ والحفظ يستخدمان النص الكامل
+      var n = 0;
+      document.querySelector('[data-publish-text]').value = text.replace(/"data:image\/[a-z]+;base64,[^"]+"/g, function () { n++; return '"(صورة ' + n + ' مضمّنة)"'; });
       var base = 'https://github.com/' + pub.getAttribute('data-repo') + '/new/main?filename=' + encodeURIComponent(file);
       var full = base + '&value=' + encodeURIComponent(text);
       // GitHub يرفض الروابط الطويلة («Your request URL is too long»)، وهذا يحدث مع المنيو الطويل.
@@ -191,8 +235,8 @@
     });
     var copyText = function () {
       var ta = document.querySelector('[data-publish-text]');
-      if (navigator.clipboard) navigator.clipboard.writeText(ta.value).catch(function () {});
-      else { ta.select(); document.execCommand('copy'); }
+      if (navigator.clipboard) navigator.clipboard.writeText(fullText || ta.value).catch(function () {});
+      else { ta.value = fullText || ta.value; ta.select(); document.execCommand('copy'); }
     };
     var link = document.querySelector('[data-publish-link]');
     if (link) link.addEventListener('click', function () {
@@ -200,8 +244,7 @@
     });
     var copy = document.querySelector('[data-copy]');
     if (copy) copy.addEventListener('click', function () {
-      var ta = document.querySelector('[data-publish-text]');
-      if (navigator.clipboard) navigator.clipboard.writeText(ta.value); else { ta.select(); document.execCommand('copy'); }
+      copyText();
       copy.textContent = 'تم النسخ';
     });
   }

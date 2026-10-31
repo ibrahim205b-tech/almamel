@@ -111,7 +111,18 @@ export async function staticRoutes(app: FastifyInstance) {
         ${field({ name: 'phone', label: 'رقم التواصل', type: 'tel', dir: 'ltr', required: false, attrs: 'inputmode="tel"' })}
         ${checkbox({ name: 'show_phone', label: 'إظهار الرقم', checked: true })}
         ${checkbox({ name: 'whatsapp', label: 'الرقم عليه واتساب', checked: true })}
-        ${field({ name: 'images', label: 'أسماء الصور', required: false, hint: 'ارفع الصور أولاً إلى مجلد content/images في GitHub ثم اكتب أسماءها مفصولة بفاصلة: shop.jpg, menu.jpg', dir: 'ltr' })}
+        <fieldset class="group"><legend>الصور <span class="opt">(اختياري، حتى ٦)</span></legend>
+          <label class="btn btn-pick">${icon('image')}إضافة صور من المعرض<input type="file" accept="image/*" multiple data-pick-images aria-label="اختيار صور من المعرض"></label>
+          <ul class="thumbs picked" data-picked aria-live="polite"></ul>
+          <p class="hint">تُصغَّر الصور تلقائياً وتُحفظ مع الإعلان. أول صورة تظهر كصورة رئيسية.</p>
+          <div data-for="business" hidden>
+            <label class="btn btn-pick">${icon('store')}إضافة شعار المحل<input type="file" accept="image/*" data-pick-logo aria-label="اختيار شعار المحل"></label>
+            <ul class="thumbs picked" data-picked-logo aria-live="polite"></ul>
+          </div>
+          <details><summary>صور مرفوعة مسبقاً على GitHub (متقدم)</summary>
+            ${field({ name: 'images', label: 'أسماء الصور', required: false, hint: 'أسماء ملفات موجودة في مجلد content/images مفصولة بفاصلة: shop.jpg, menu.jpg', dir: 'ltr' })}
+          </details>
+        </fieldset>
         ${field({ name: 'expires', label: 'تاريخ انتهاء الإعلان', type: 'date', required: false, hint: 'اتركه فارغاً للمدة الافتراضية للقسم' })}
         ${checkbox({ name: 'featured', label: 'إعلان مميز (يظهر بالصفحة الرئيسية)' })}
         <div data-for="business help" hidden>${checkbox({ name: 'verified', label: 'تم التحقق فعلياً من البيانات (يظهر شارة موثّق)' })}</div>

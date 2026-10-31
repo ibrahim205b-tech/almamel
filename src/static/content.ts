@@ -45,6 +45,24 @@ export async function loadContent(db: DB, contentDir: string, uploadDir: string,
     saveSettings(db, values, sys);
   }
 
+  /**
+   * صورة الإعلان: اسم ملف في content/images، أو صورة مضمّنة (data:image/...;base64) اختيرت من معرض الهاتف
+   * في صفحة النشر. في الحالتين تُعاد ترميزها بالكامل (WebP بلا بيانات EXIF).
+   */
+  const readImage = (n: string): { buf: Buffer; label: string } | { error: string } => {
+    const data = n.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+    if (data) {
+      const buf = Buffer.from(data[2], 'base64');
+      if (!buf.length || buf.length > 3 * 1024 * 1024) return { error: 'صورة مضمّنة فارغة أو أكبر من ٣ ميغابايت' };
+      return { buf, label: 'صورة مضمّنة' };
+    }
+    if (n.startsWith('data:')) return { error: 'صورة مضمّنة بصيغة غير مدعومة (JPEG أو PNG أو WebP فقط)' };
+    if (!/^[\w\-. ]+\.(jpe?g|png|webp)$/i.test(n)) return { error: `اسم صورة غير صالح: ${n}` };
+    const f = path.join(contentDir, 'images', n);
+    if (!fs.existsSync(f)) return { error: `الصورة غير موجودة في content/images: ${n}` };
+    return { buf: fs.readFileSync(f), label: n };
+  };
+
   const dir = path.join(contentDir, 'listings');
   const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.md')).sort() : [];
   const seen = new Set<number>();
@@ -100,22 +118,19 @@ export async function loadContent(db: DB, contentDir: string, uploadDir: string,
     const images: Awaited<ReturnType<typeof storeImage>>[] = [];
     let imgError = '';
     for (const n of names.slice(0, 6)) {
-      if (!/^[\w\-. ]+\.(jpe?g|png|webp)$/i.test(n)) { imgError = `اسم صورة غير صالح: ${n}`; break; }
-      const f = path.join(contentDir, 'images', n);
-      if (!fs.existsSync(f)) { imgError = `الصورة غير موجودة في content/images: ${n}`; break; }
-      try { images.push(await storeImage(fs.readFileSync(f), uploadDir)); } catch (e) { imgError = `${n}: ${(e as Error).message}`; break; }
+      const r = readImage(n);
+      if ('error' in r) { imgError = r.error; break; }
+      try { images.push(await storeImage(r.buf, uploadDir)); } catch (e) { imgError = `${r.label}: ${(e as Error).message}`; break; }
     }
     if (imgError) { fail(imgError); continue; }
 
     // شعار المحل: صورة واحدة من content/images تظهر بجانب اسمه
     let logoThumb: string | null = null;
     if (fm.logo !== undefined) {
-      const n = str(fm.logo).trim();
       if (type !== 'business') { fail('logo للمحلات فقط'); continue; }
-      if (!/^[\w\-. ]+\.(jpe?g|png|webp)$/i.test(n)) { fail(`اسم شعار غير صالح: ${n}`); continue; }
-      const f = path.join(contentDir, 'images', n);
-      if (!fs.existsSync(f)) { fail(`الشعار غير موجود في content/images: ${n}`); continue; }
-      try { logoThumb = (await storeImage(fs.readFileSync(f), uploadDir)).thumb; } catch (e) { fail(`${n}: ${(e as Error).message}`); continue; }
+      const r = readImage(str(fm.logo).trim());
+      if ('error' in r) { fail(r.error); continue; }
+      try { logoThumb = (await storeImage(r.buf, uploadDir)).thumb; } catch (e) { fail(`${r.label}: ${(e as Error).message}`); continue; }
     }
     const featuredUntil = fm.featured_until ? str(fm.featured_until) : '';
     if (featuredUntil && !DATE.test(featuredUntil)) { fail('featured_until بصيغة YYYY-MM-DD'); continue; }

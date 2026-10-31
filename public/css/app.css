@@ -463,3 +463,10 @@ body:has(.cart-bar:not([hidden])) .site-footer{padding-bottom:96px}
 .owner-block h4{margin:0 0 6px;font-size:var(--t-base)}
 .logo-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .logo-row input[type=file]{position:absolute;width:1px;height:1px;opacity:0}
+/* اختيار الصور من المعرض في صفحة النشر */
+.btn-pick{position:relative;cursor:pointer;margin-top:6px}
+.btn-pick input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;padding:0}
+.picked{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:10px 0 0}
+.picked li{position:relative}
+.picked img{width:96px;height:96px;object-fit:cover;border-radius:var(--r);display:block;box-shadow:var(--shadow)}
+.thumb-x{position:absolute;top:-8px;inset-inline-end:-8px;width:28px;height:28px;border-radius:50%;border:0;background:var(--danger);color:#fff;font-weight:700;cursor:pointer;line-height:1}

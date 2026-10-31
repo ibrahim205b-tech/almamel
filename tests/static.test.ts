@@ -95,6 +95,19 @@ test('each section shows its own fields (help, service, market)', async () => {
   assert.ok(submit.includes('name="d_help_blood_type"') && submit.includes('name="d_property_rooms"') && submit.includes('name="d_job_positions"'));
 });
 
+test('photos picked from the phone gallery are embedded in the listing file', async () => {
+  const dir = fixture();
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'almamel-out-'));
+  const jpg = (await sharp({ create: { width: 640, height: 480, channels: 3, background: '#c33' } }).jpeg().toBuffer()).toString('base64');
+  write(dir, 'p.md', `---\nid: 14\ntype: business\ntitle: "مطعم بالصور"\ncategory: "مطاعم"\ndate: ${today}\nphone: "07701234567"\naddress: "شارع"\nimages:\n  - "data:image/jpeg;base64,${jpg}"\nlogo: "data:image/jpeg;base64,${jpg}"\n---\n`);
+  await buildStatic({ siteUrl: 'https://u.github.io/r', contentDir: dir, outDir: out, repo: 'u/r', quiet: true });
+  const page = fs.readFileSync(path.join(out, 'businesses/14/index.html'), 'utf8');
+  assert.ok(page.includes('class="biz-logo"'), 'logo shown next to the name');
+  assert.ok(/src="\/r\/media\/[0-9a-f]+\.webp"/.test(page), 'embedded photo re-encoded to WebP');
+  write(dir, 'p.md', `---\nid: 14\ntype: business\ntitle: "مطعم"\ncategory: "مطاعم"\ndate: ${today}\nphone: "07701234567"\naddress: "شارع"\nimages:\n  - "data:image/svg+xml;base64,PHN2Zz4="\n---\n`);
+  await assert.rejects(buildStatic({ siteUrl: 'https://u.github.io/r', contentDir: dir, outDir: fs.mkdtempSync(path.join(os.tmpdir(), 'o-')), repo: 'u/r', quiet: true }), /غير مدعومة/);
+});
+
 test('invalid listing files stop the build with clear messages', async () => {
   const dir = fixture();
   write(dir, 'bad1.md', `---\nid: 1\ntype: job\ntitle: "x"\ncategory: "غير موجود"\ndate: ${today}\n---\n`);
