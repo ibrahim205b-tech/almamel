@@ -88,7 +88,7 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
     write('search.json', (await app.inject({ method: 'GET', url: '/search.json' })).body.replace(/"\/(?!\/)/g, `"${base}/`));
     write('sitemap.xml', (await app.inject({ method: 'GET', url: '/sitemap.xml' })).body);
     write('manifest.webmanifest', (await app.inject({ method: 'GET', url: '/manifest.webmanifest' })).body.replace(/"\/(?!\/)/g, `"${base}/`));
-    write('robots.txt', `User-agent: *\nDisallow: ${base}/publish/\nSitemap: ${siteUrl}/sitemap.xml\n`);
+    write('robots.txt', `User-agent: *\nDisallow: ${base}/publish/\nDisallow: ${base}/idara/\nSitemap: ${siteUrl}/sitemap.xml\n`);
     write('.nojekyll', '');
     write('build-stamp.txt', stamp);
     fs.cpSync(path.join(import.meta.dirname, '..', 'public'), path.join(opts.outDir, 'static'), { recursive: true });

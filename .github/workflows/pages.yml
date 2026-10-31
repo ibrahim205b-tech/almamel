@@ -65,6 +65,14 @@ jobs:
         run: node scripts/build-static.ts
         env:
           SITE_URL: ${{ steps.pages.outputs.base_url }}
+      - name: Build admin site (/idara, not linked from the public site)
+        if: steps.check.outputs.build == 'true'
+        run: node scripts/build-static.ts
+        env:
+          ADMIN_SITE: '1'
+          SITE_URL: ${{ steps.pages.outputs.base_url }}/idara
+          PUBLIC_URL: ${{ steps.pages.outputs.base_url }}/
+          OUT_DIR: dist/idara
       - if: steps.check.outputs.build == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
