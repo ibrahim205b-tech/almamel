@@ -123,7 +123,9 @@ const posts = () => log.filter((r) => r.path === '/rest/v1/posts' && r.method ==
 test('build pulls published Supabase content: restaurant page with menu, images and order links', () => {
   const page = fs.readFileSync(path.join(dist, 'businesses/1000001/index.html'), 'utf8');
   assert.ok(page.includes('مطعم المحاكاة') && page.includes('تكة لحم') && page.includes('غير متوفر حالياً'));
-  assert.ok(page.includes('https://wa.me/9647705555555?text='));
+  // الطلب عبر سلة: أزرار «+» لكل صنف، ورسالة واحدة لواتساب المحل
+  assert.ok(page.includes('data-cart data-wa="https://wa.me/9647705555555"'));
+  assert.ok(/<button class="add-btn"[^>]*data-add data-name="تكة لحم"/.test(page), 'add-to-cart button per available item');
   assert.ok(page.includes('بيانات النشاط موثقة'));
   assert.ok(!page.includes('evil'), 'unknown detail keys dropped');
   assert.ok(/src="\/almamel\/media\/[0-9a-f]+\.webp"/.test(page), 'images re-hosted locally');
