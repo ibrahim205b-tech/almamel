@@ -55,7 +55,8 @@ export async function publicRoutes(app: FastifyInstance) {
       counts, featured: listFeatured(db, 'home'), latest: pick([...TYPE_KEYS], {}, 6), offers: pick(['offer']), jobs: pick(['job']),
       properties: pick(['property']), food: pick(['business'], { foodOnly: true }, 11), services: pick(['service']), market: pick(['market']),
       community: pick(['community']), help: pick(['help'], {}, 3), news: pick(['community'], { newsOnly: true }),
-      addShop: !app.cfg.staticMode ? '/owner' : app.cfg.supabaseUrl && app.cfg.supabaseAnonKey ? '/owner/register' : addShopLink(s.whatsapp_phone ?? ''),
+      // النسخة الثابتة: إضافة المحلات عن طريق خدمة العملاء على واتساب فقط
+      addShop: app.cfg.staticMode ? addShopLink(s.whatsapp_phone ?? '') : '/owner',
     }, s, req.user));
   });
 

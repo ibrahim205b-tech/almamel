@@ -6,10 +6,10 @@ import { checkbox, field, select, textarea } from '../components.ts';
 import { icon } from '../layout.ts';
 import { typeFieldGroup, typeTextJson } from '../type-fields.ts';
 
-export interface LiveCfg { url: string; key: string; v: string; wa?: string }
+export interface LiveCfg { url: string; key: string; v: string; wa?: string; admin?: boolean }
 
 /** وسوم الإعداد ومكتبة Supabase وسكربت الصفحات التفاعلية. */
-export const liveHead = (c: LiveCfg) => html`<meta name="sb-url" content="${c.url}"><meta name="sb-key" content="${c.key}"><meta name="support-wa" content="${c.wa ?? ''}">
+export const liveHead = (c: LiveCfg) => html`<meta name="sb-url" content="${c.url}"><meta name="sb-key" content="${c.key}"><meta name="support-wa" content="${c.wa ?? ''}"><meta name="admin-site" content="${c.admin ? '1' : '0'}">
 <script src="/static/vendor/supabase.js?v=${c.v}" defer></script><script src="/static/js/live.js?v=${c.v}" defer></script>`;
 
 const msg = html`<div class="live-msg" data-msg role="status" aria-live="polite"></div>`;
@@ -23,7 +23,7 @@ export function liveSubmitPage(type: PostType | '', cats: Record<string, string[
   return html`<div class="wrap narrow" data-page="submit">
     <h1>أضف إعلانك</h1>
     <p class="lede">املأ الإعلان وأرسله مباشرة. ما تحتاج حساب، والإعلان يظهر بعد مراجعة الإدارة.</p>
-    <p class="note">${icon('store', 'i i-sm')}عندك مطعم أو محل؟ <a href="${addShop}">سجّله من هنا</a>: تكتب معلوماته وتضيف صوره وقائمة أسعاره بنفسك، ويُنشر بعد موافقة الإدارة.</p>
+    <p class="note">${icon('store', 'i i-sm')}عندك مطعم أو محل؟ <a href="${addShop}" target="_blank" rel="noopener">راسل خدمة العملاء على واتساب</a> ونضيفه لك مع صوره وقائمة أسعاره.</p>
     ${pricingNote}
     ${msg}${noJs}
     <form class="form" data-live-submit data-cats="${JSON.stringify(cats)}" data-texts="${typeTextJson()}" novalidate>
@@ -114,10 +114,10 @@ export function ownerRegisterPage(cats: string[], areas: string[]): SafeHtml {
     </form></div>`;
 }
 
-export function liveLoginPage(): SafeHtml {
+export function liveLoginPage(admin = false): SafeHtml {
   return html`<div class="wrap narrow" data-page="login">
-    <h1>دخول أصحاب المحلات</h1>
-    <p class="lede">لنشر إعلان عادي ما تحتاج حساب: <a href="/submit">أضف إعلانك</a>.</p>
+    <h1>${admin ? 'دخول الإدارة' : 'دخول أصحاب المحلات'}</h1>
+    ${admin ? '' : html`<p class="lede">لنشر إعلان عادي ما تحتاج حساب: <a href="/submit">أضف إعلانك</a>.</p>`}
     ${msg}${noJs}
     <form class="form" data-login novalidate>
       ${field({ name: 'email', label: 'البريد الإلكتروني', required: true, type: 'email', dir: 'ltr', attrs: 'autocomplete="email"' })}
@@ -125,7 +125,15 @@ export function liveLoginPage(): SafeHtml {
       <button class="btn btn-primary btn-block" type="submit">دخول</button>
     </form>
     <p><button class="linklike link" type="button" data-reset>نسيت كلمة المرور؟</button></p>
-    <p>عندك مطعم أو محل؟ <a href="/owner/register">سجّله هنا</a></p>
+    ${admin ? html`<details class="panel"><summary>أول مرة؟ إنشاء حساب الإدارة</summary>
+      <p class="hint">بعد إنشاء الحساب، شغّل في Supabase ← SQL Editor: <code dir="ltr">select public.make_admin('بريدك');</code> ثم سجّل الدخول.</p>
+      <form class="form" data-signup novalidate>
+        ${field({ name: 'name', label: 'الاسم', required: true, max: 60 })}
+        ${field({ name: 'phone', label: 'رقم الهاتف', required: true, type: 'tel', dir: 'ltr', attrs: 'inputmode="tel"' })}
+        ${field({ name: 'email', label: 'البريد الإلكتروني', required: true, type: 'email', dir: 'ltr' })}
+        ${field({ name: 'password', label: 'كلمة المرور', required: true, type: 'password', hint: '١٠ أحرف على الأقل', attrs: 'minlength="10" autocomplete="new-password"' })}
+        <button class="btn" type="submit">إنشاء الحساب</button>
+      </form></details>` : html`<p>عندك مطعم أو محل؟ راسل خدمة العملاء على واتساب ونضيفه لك.</p>`}
   </div>`;
 }
 
@@ -142,9 +150,9 @@ export function dashboardPage(): SafeHtml {
   </div>`;
 }
 
-export function menuManagerPage(): SafeHtml {
+export function menuManagerPage(back = '/owner/dashboard'): SafeHtml {
   return html`<div class="wrap narrow" data-page="menu">
-    <nav class="crumbs" aria-label="مسار التنقل"><a href="/owner/dashboard">لوحة التحكم</a><span aria-hidden="true">/</span><span aria-current="page" data-biz-name>القائمة</span></nav>
+    <nav class="crumbs" aria-label="مسار التنقل"><a href="${back}">${back === '/admin' ? 'لوحة الإدارة' : 'لوحة التحكم'}</a><span aria-hidden="true">/</span><span aria-current="page" data-biz-name>القائمة</span></nav>
     <h1>القائمة والأسعار</h1>
     ${msg}${noJs}
     <section class="panel" aria-labelledby="h-add"><h2 id="h-add">إضافة صنف</h2>
@@ -163,7 +171,8 @@ export function menuManagerPage(): SafeHtml {
 
 export function adminLivePage(): SafeHtml {
   return html`<div class="wrap" data-page="admin">
-    <div class="page-head"><div><h1>لوحة الإدارة</h1><p class="lede">المعتمد يظهر بالموقع خلال ربع ساعة تقريباً.</p></div><button class="btn" type="button" data-logout>${icon('logout')}خروج</button></div>
+    <div class="page-head"><div><h1>لوحة الإدارة</h1><p class="lede">المعتمد يظهر بالموقع خلال ربع ساعة تقريباً.</p></div>
+      <div class="btn-row"><a class="btn btn-sign" href="/admin/business">${icon('plus')}إضافة مطعم أو محل</a><button class="btn" type="button" data-logout>${icon('logout')}خروج</button></div></div>
     ${msg}${noJs}
     <nav class="menu-tabs" aria-label="أقسام الإدارة">
       <a href="#pending">بانتظار المراجعة <span class="count" data-count="pending"></span></a>
@@ -173,6 +182,41 @@ export function adminLivePage(): SafeHtml {
     <section id="pending" class="block"><h2>بانتظار المراجعة</h2><div data-pending><p class="muted">جارِ التحميل...</p></div></section>
     <section id="claims" class="block"><h2>طلبات أصحاب المحلات</h2><div data-claims></div></section>
     <section id="published" class="block"><h2>المنشور حالياً</h2><div data-published></div></section>
+  </div>`;
+}
+
+/** موقع الإدارة: إضافة مطعم أو محل كاملاً (معلومات، شعار، صور، قائمة) ونشره مباشرة. */
+export function adminBusinessPage(cats: string[], areas: string[]): SafeHtml {
+  return html`<div class="wrap narrow" data-page="add-business">
+    <nav class="crumbs" aria-label="مسار التنقل"><a href="/admin">لوحة الإدارة</a><span aria-hidden="true">/</span><span aria-current="page">إضافة مطعم أو محل</span></nav>
+    <h1>إضافة مطعم أو محل</h1>
+    <p class="lede">املأ معلومات المحل وأضف صوره وقائمته، ويُنشر بالموقع مباشرة (خلال ربع ساعة تقريباً).</p>
+    ${msg}${noJs}
+    <form class="form" data-add-business novalidate>
+      <fieldset class="group"><legend>معلومات المحل</legend>
+        ${field({ name: 'title', label: 'اسم المطعم أو المحل', required: true, max: 100 })}
+        ${select({ name: 'category', label: 'نوع النشاط', required: true, placeholder: 'اختر', options: cats.map((c) => [c, c]) })}
+        ${select({ name: 'area', label: 'المنطقة', required: true, value: areas[0], options: areas.map((a) => [a, a]) })}
+        ${field({ name: 'address', label: 'العنوان', required: true, max: 200, hint: 'الشارع أو أقرب نقطة دالة' })}
+        ${field({ name: 'hours', label: 'ساعات العمل', max: 200 })}
+        ${field({ name: 'delivery', label: 'مناطق التوصيل', max: 300 })}
+        ${textarea({ name: 'services', label: 'الخدمات أو الأطباق الرئيسية', max: 1000, rows: 2 })}
+        ${field({ name: 'contact_phone', label: 'رقم المحل للطلبات', required: true, type: 'tel', dir: 'ltr', attrs: 'inputmode="tel"' })}
+        ${checkbox({ name: 'whatsapp', label: 'رقم المحل عليه واتساب (يفعّل سلة الطلب)', checked: true })}
+        ${textarea({ name: 'body', label: 'وصف قصير', max: 2000, rows: 3 })}
+        ${checkbox({ name: 'verified', label: 'تم التحقق من بيانات المحل (شارة «موثّق»)', checked: true })}
+      </fieldset>
+      <fieldset class="group"><legend>الصور</legend>
+        <label class="btn btn-pick">${icon('store')}شعار المحل<input type="file" name="logo" accept="image/*" aria-label="شعار المحل" data-preview-into="logo-preview"></label>
+        <ul class="thumbs picked" id="logo-preview" aria-live="polite"></ul>
+        <label class="btn btn-pick">${icon('image')}صور المحل من المعرض (حتى ٦)<input type="file" name="photos" accept="image/*" multiple aria-label="صور المحل" data-preview-into="photos-preview"></label>
+        <ul class="thumbs picked" id="photos-preview" aria-live="polite"></ul>
+      </fieldset>
+      <fieldset class="group"><legend>القائمة والأسعار <span class="opt">(اختياري)</span></legend>
+        ${textarea({ name: 'menu', label: 'الصق القائمة', rows: 10, max: 30000, hint: 'بصيغة واتساب: سطر القسم «*المشويات*» ثم «• نفر كباب — 12,000». الأحجام: «• بيتزا: صغير 5,000 / وسط 7,000». أو «الاسم | السعر». تقدر تعدّل الأصناف وتضيف صورها بعد الحفظ.' })}
+      </fieldset>
+      <button class="btn btn-primary btn-lg" type="submit">${icon('check')}حفظ ونشر المحل</button>
+    </form>
   </div>`;
 }
 

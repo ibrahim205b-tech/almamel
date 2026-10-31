@@ -100,6 +100,9 @@ before(async () => {
     fs.createReadStream(f).pipe(res);
   });
   await buildStatic({ siteUrl: siteUrl + '/almamel', contentDir: content, outDir: dist, repo: 'u/almamel', quiet: true, supabase: { url: mockUrl, key: 'test-anon-key' } });
+  // موقع الإدارة المنفصل
+  await buildStatic({ siteUrl: siteUrl + '/almamel-admin', contentDir: content, outDir: path.join(root, 'almamel-admin'), repo: 'u/almamel', quiet: true,
+    supabase: { url: mockUrl, key: 'test-anon-key' }, admin: { publicUrl: siteUrl + '/almamel/' } });
   browser = await chromium.launch();
 });
 
@@ -109,13 +112,13 @@ after(async () => {
   assert.deepEqual(cspErrors, [], 'no Content-Security-Policy violations or page errors');
 });
 
-async function open(urlPath: string, w = 390): Promise<Page> {
+async function open(urlPath: string, w = 390, site = '/almamel'): Promise<Page> {
   const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, locale: 'ar-IQ' });
   const page = await ctx.newPage();
   page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy|Refused/i.test(m.text())) cspErrors.push(m.text()); });
   page.on('pageerror', (e) => cspErrors.push('pageerror: ' + e.message));
   page.on('dialog', (d) => d.accept(d.type() === 'prompt' ? 'سبب الاختبار' : undefined));
-  await page.goto(siteUrl + '/almamel' + urlPath);
+  await page.goto(siteUrl + site + urlPath);
   return page;
 }
 const posts = () => log.filter((r) => r.path === '/rest/v1/posts' && r.method === 'POST');
@@ -193,43 +196,49 @@ test('help requests have their own fields: blood type, units, hospital, consent'
   await p.context().close();
 });
 
-test('owner registers, adds the shop with proof, and lands on the dashboard', async () => {
-  const p = await open('/owner/register/');
-  await p.fill('#f-name', 'أبو علي'); await p.fill('#f-phone', '07701111111'); await p.fill('#f-email', 'owner@x.iq'); await p.fill('#f-password', 'owner-pass-1234');
-  await p.check('#f-agree');
-  await p.click('[data-step=account] button[type=submit]');
-  await p.waitForSelector('[data-step=business]:not([hidden])');
-  const signup = JSON.parse(log.find((r) => r.path === '/auth/v1/signup')!.body.toString());
-  assert.deepEqual(signup.data, { name: 'أبو علي', phone: '07701111111' });
-  await p.fill('#f-title', 'مطعم أبو علي'); await p.selectOption('#f-category', { label: 'مطاعم' }); await p.fill('#f-address', 'الشارع العام');
-  await p.fill('#f-contact_phone', '07705555555'); await p.fill('#f-message', 'اتصلوا على رقم المحل العصر');
-  const img = path.join(os.tmpdir(), 'live-front.png');
-  fs.writeFileSync(img, await sharp({ create: { width: 800, height: 600, channels: 3, background: '#963' } }).png().toBuffer());
-  await p.setInputFiles('#f-proof', img);
+test('public site has no shop sign-up: «add your restaurant» opens WhatsApp support', async () => {
+  for (const f of ['owner/register/index.html', 'owner/index.html', 'owner/dashboard/index.html', 'login/index.html', 'admin/index.html']) {
+    assert.ok(!fs.existsSync(path.join(dist, f)), f + ' must not be on the public site');
+  }
+  const home = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
+  assert.ok(/class="food-card food-add" href="https:\/\/wa\.me\/964/.test(home), 'homepage card goes to WhatsApp');
+  assert.ok(!home.includes('/owner/register'));
+});
+
+async function adminLogin(w = 1280): Promise<Page> {
+  const p = await open('/login/', w, '/almamel-admin');
+  await p.fill('#f-email', 'admin@x.iq'); await p.fill('#f-password', 'admin-pass-1234');
+  await p.click('[data-login] button[type=submit]');
+  await p.waitForURL(/\/almamel-admin\/admin\//);
+  return p;
+}
+
+test('admin site: add a restaurant with logo, photos and a pasted menu, published at once', async () => {
+  const p = await adminLogin(390);
+  await p.goto(siteUrl + '/almamel-admin/admin/business/');
+  await p.fill('#f-title', 'مطعم الإدارة'); await p.selectOption('#f-category', { label: 'مطاعم' }); await p.fill('#f-address', 'شارع ٢٠');
+  await p.fill('#f-contact_phone', '07705555556');
+  const img = path.join(os.tmpdir(), 'admin-shop.jpg');
+  fs.writeFileSync(img, await sharp({ create: { width: 900, height: 700, channels: 3, background: '#396' } }).jpeg().toBuffer());
   await p.setInputFiles('input[name=photos]', [img, img]);
   await p.setInputFiles('input[name=logo]', img);
-  assert.equal(await p.locator('#photos-preview img').count(), 2, 'gallery photos previewed');
-  await p.click('[data-step=business] button[type=submit]');
-  await p.waitForURL(/\/owner\/dashboard\/\?sent=1/);
+  await p.fill('#f-menu', '*المشويات*\n• نفر كباب — 12,000\n*البيتزا*\n• بيتزا لحم: صغير 5,000 / وسط 7,000\nتكة | 6000');
+  await p.click('[data-add-business] button[type=submit]');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("مطعم الإدارة")');
   const biz = JSON.parse(posts().at(-1)!.body.toString());
-  assert.equal(biz.type, 'business'); assert.equal(biz.details.address, 'الشارع العام');
-  assert.equal(biz.images.length, 2, 'shop photos sent with the registration');
-  for (const im of [...biz.images, biz.logo]) assert.match(im, new RegExp(`^u/${UID}/[0-9a-f]{32}\\.webp$`), 'photos in the owner folder');
-  const proof = log.find((r) => r.path.startsWith('/storage/v1/object/proofs/'));
-  assert.match(proof!.path, new RegExp(`^/storage/v1/object/proofs/${UID}/[0-9a-f]{32}\\.webp$`), 'proof in private bucket, own folder');
-  const claim = JSON.parse(log.filter((r) => r.path === '/rest/v1/claims' && r.method === 'POST').at(-1)!.body.toString());
-  assert.equal(claim.business_id, 1000005); assert.match(claim.proof_path, new RegExp(`^${UID}/`));
-  await p.waitForSelector('[data-businesses] .owner-card');
-  assert.ok((await p.textContent('[data-businesses]'))!.includes('قيد التحقق من الملكية'));
+  assert.equal(biz.type, 'business'); assert.equal(biz.images.length, 2);
+  for (const im of [...biz.images, biz.logo]) assert.match(im, new RegExp(`^u/${ADMIN}/[0-9a-f]{32}\\.webp$`));
+  const rpcs = log.filter((r) => r.path === '/rest/v1/rpc/moderate_post').map((r) => JSON.parse(r.body.toString()).p_action);
+  assert.ok(rpcs.includes('approve') && rpcs.includes('verify'), 'published and verified right away');
+  const items = JSON.parse(log.filter((r) => r.path === '/rest/v1/menu_items' && r.method === 'POST').at(-1)!.body.toString());
+  assert.deepEqual(items.map((i: { section: string; name: string; price: number }) => [i.section, i.name, i.price]), [
+    ['المشويات', 'نفر كباب', 12000], ['البيتزا', 'بيتزا لحم (صغير)', 5000], ['البيتزا', 'بيتزا لحم (وسط)', 7000], ['البيتزا', 'تكة', 6000]]);
   await p.context().close();
 });
 
-test('owner manages the menu: add an item with a photo', async () => {
-  const p = await open('/login/');
-  await p.fill('#f-email', 'owner@x.iq'); await p.fill('#f-password', 'owner-pass-1234');
-  await p.click('[data-login] button[type=submit]');
-  await p.waitForURL(/\/owner\/dashboard\//);
-  await p.goto(siteUrl + '/almamel/owner/menu/?b=1000001');
+test('admin site: manage a restaurant menu and add an item with a photo', async () => {
+  const p = await adminLogin(390);
+  await p.goto(siteUrl + '/almamel-admin/admin/menu/?b=1000001');
   await p.waitForSelector('[data-items] .menu-item');
   assert.ok((await p.textContent('[data-items]'))!.includes('تكة لحم'));
   await p.fill('#f-section', 'سندويشات'); await p.fill('#f-name', 'لفة كباب'); await p.fill('#f-price', '2000');
@@ -240,15 +249,12 @@ test('owner manages the menu: add an item with a photo', async () => {
   await p.waitForSelector('.live-msg.flash-ok:has-text("لفة كباب")');
   const ins = JSON.parse(log.filter((r) => r.path === '/rest/v1/menu_items' && r.method === 'POST').at(-1)!.body.toString());
   assert.equal(ins.business_id, 1000001); assert.equal(ins.section, 'سندويشات'); assert.equal(ins.price, 2000);
-  assert.match(ins.image, new RegExp(`^u/${UID}/[0-9a-f]{32}\\.webp$`));
+  assert.match(ins.image, new RegExp(`^u/${ADMIN}/[0-9a-f]{32}\\.webp$`));
   await p.context().close();
 });
 
 test('admin reviews and approves a pending ad', async () => {
-  const p = await open('/login/', 1280);
-  await p.fill('#f-email', 'admin@x.iq'); await p.fill('#f-password', 'admin-pass-1234');
-  await p.click('[data-login] button[type=submit]');
-  await p.waitForURL(/\/admin\//);
+  const p = await adminLogin();
   await p.waitForSelector('[data-pending] .panel');
   assert.ok((await p.textContent('[data-pending]'))!.includes('سلعة بانتظار المراجعة'));
   await p.click('[data-pending] button:has-text("موافقة ونشر")');

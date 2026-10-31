@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { html } from '../lib/html.ts';
-import { searchText, waLink } from '../lib/arabic.ts';
+import { addShopLink, searchText, waLink } from '../lib/arabic.ts';
 import { fmtPrice } from '../lib/format.ts';
 import { TYPES, TYPE_KEYS, isPostType, type PostType } from '../domain/types.ts';
 import { listPublic } from '../domain/posts.ts';
@@ -8,7 +8,7 @@ import { sectionEnabled } from '../domain/settings.ts';
 import { staticSearchPage } from '../views/pages/public.ts';
 import { checkbox, field, select, textarea, postUrl } from '../views/components.ts';
 import { icon } from '../views/layout.ts';
-import { adminLivePage, dashboardPage, liveHead, pricingNote, liveLoginPage, liveSubmitPage, menuManagerPage, notConfiguredPage, ownerLandingPage, ownerRegisterPage } from '../views/pages/live.ts';
+import { adminBusinessPage, adminLivePage, dashboardPage, liveHead, pricingNote, liveLoginPage, liveSubmitPage, menuManagerPage, notConfiguredPage, ownerLandingPage, ownerRegisterPage } from '../views/pages/live.ts';
 import { assetVersion } from '../app.ts';
 import { typeFieldGroup, typeLabelsJson, typeTextJson } from '../views/type-fields.ts';
 
@@ -59,7 +59,7 @@ export async function staticRoutes(app: FastifyInstance) {
 
   const live = !!(app.cfg.supabaseUrl && app.cfg.supabaseAnonKey);
   const v = assetVersion();
-  const head = (req?: { settings: Record<string, string> }) => liveHead({ url: app.cfg.supabaseUrl, key: app.cfg.supabaseAnonKey, v, wa: req ? waLink(req.settings.whatsapp_phone ?? '') : '' });
+  const head = (req?: { settings: Record<string, string> }) => liveHead({ url: app.cfg.supabaseUrl, key: app.cfg.supabaseAnonKey, v, wa: req ? waLink(req.settings.whatsapp_phone ?? '') : '', admin: app.cfg.adminSite });
   const catsBySection = () => {
     const out: Record<string, string[]> = {};
     for (const r of db.prepare('SELECT section, name FROM categories WHERE active = 1 ORDER BY section, sort').all() as { section: string; name: string }[]) (out[r.section] ??= []).push(r.name);
@@ -69,19 +69,22 @@ export async function staticRoutes(app: FastifyInstance) {
 
   if (live) {
     // النماذج والحسابات عبر Supabase: الإرسال مباشر، والنشر بعد موافقة الإدارة
-    app.get('/submit', (req, reply) => reply.page(req, { title: 'أضف إعلانك', head: head() }, liveSubmitPage('', catsBySection(), areaNames(), '/owner/register')));
+    app.get('/submit', (req, reply) => reply.page(req, { title: 'أضف إعلانك', head: head() }, liveSubmitPage('', catsBySection(), areaNames(), addShopLink(req.settings.whatsapp_phone ?? ''))));
     app.get('/submit/:type', (req, reply) => {
       const type = (req.params as { type: string }).type;
       if (!isPostType(type) || !sectionEnabled(req.settings, type)) return reply.callNotFound();
-      if (type === 'business') return reply.page(req, { title: 'أضف مطعمك أو محلك', canonical: '/owner' }, ownerLandingPage());
-      return reply.page(req, { title: `أضف ${TYPES[type].single}`, canonical: '/submit', head: head() }, liveSubmitPage(type, catsBySection(), areaNames(), '/owner/register'));
+      if (type === 'business') return reply.redirect(addShopLink(req.settings.whatsapp_phone ?? ''));
+      return reply.page(req, { title: `أضف ${TYPES[type].single}`, canonical: '/submit', head: head() }, liveSubmitPage(type, catsBySection(), areaNames(), addShopLink(req.settings.whatsapp_phone ?? '')));
     });
     app.get('/owner', (req, reply) => reply.page(req, { title: 'أضف مطعمك أو محلك', description: 'سجّل مطعمك أو محلك في دليل المعامل وأدر قائمة الطعام والأسعار بنفسك.' }, ownerLandingPage()));
     app.get('/owner/register', (req, reply) => reply.page(req, { title: 'سجّل مطعمك أو محلك', noindex: true, head: head() }, ownerRegisterPage(catsBySection().business ?? [], areaNames())));
-    app.get('/login', (req, reply) => reply.page(req, { title: 'دخول أصحاب المحلات', noindex: true, head: head() }, liveLoginPage()));
+    app.get('/login', (req, reply) => reply.page(req, { title: app.cfg.adminSite ? 'دخول الإدارة' : 'دخول أصحاب المحلات', noindex: true, head: head() }, liveLoginPage(app.cfg.adminSite)));
     app.get('/owner/dashboard', (req, reply) => reply.page(req, { title: 'لوحة التحكم', noindex: true, canonical: null, head: head(req) }, dashboardPage()));
     app.get('/owner/menu', (req, reply) => reply.page(req, { title: 'القائمة والأسعار', noindex: true, canonical: null, head: head() }, menuManagerPage()));
     app.get('/admin', (req, reply) => reply.page(req, { title: 'لوحة الإدارة', noindex: true, canonical: null, head: head() }, adminLivePage()));
+    // موقع الإدارة: إضافة المطاعم والمحلات بصورها وقائمتها، وإدارة قائمة أي محل
+    app.get('/admin/business', (req, reply) => reply.page(req, { title: 'إضافة مطعم أو محل', noindex: true, canonical: null, head: head() }, adminBusinessPage(catsBySection().business ?? [], areaNames())));
+    app.get('/admin/menu', (req, reply) => reply.page(req, { title: 'القائمة والأسعار', noindex: true, canonical: null, head: head() }, menuManagerPage('/admin')));
   } else {
     app.get('/submit', (req, reply) => reply.page(req, { title: 'أضف إعلانك' }, submitPage('', waLink(req.settings.whatsapp_phone), catsBySection())));
     app.get('/submit/:type', (req, reply) => {

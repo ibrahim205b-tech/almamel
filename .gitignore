@@ -11,4 +11,5 @@ test-results/
 coverage/
 .DS_Store
 dist/
+dist-admin/
 .cache/

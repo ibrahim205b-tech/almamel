@@ -16,6 +16,8 @@ export interface ViewCtx {
   unread: number;
   staticMode?: boolean; // نسخة GitHub Pages الثابتة: بلا حسابات ولا نماذج تُرسل للخادم
   supabaseOrigin?: string; // عند تفعيل Supabase في النسخة الثابتة
+  adminSite?: boolean; // موقع الإدارة المنفصل
+  publicUrl?: string;
   flash?: { kind: 'ok' | 'error'; text: string } | null;
 }
 
@@ -33,6 +35,23 @@ export const icon = (name: string, cls = 'i') =>
   raw(`<svg class="${cls}" aria-hidden="true" focusable="false"><use href="/static/img/icons.svg#${name.replace(/[^a-z-]/g, '')}"></use></svg>`);
 
 export const csrfField = (ctx: ViewCtx) => html`<input type="hidden" name="_csrf" value="${ctx.csrf}">`;
+
+/** رأس موقع الإدارة المنفصل: روابط الإدارة فقط، ورابط للموقع العام. */
+function adminHeader(ctx: ViewCtx): SafeHtml {
+  return html`<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="/admin" aria-label="إدارة ${ctx.settings.site_name}">
+      <img src="/static/img/logo.svg" width="40" height="40" alt="">
+      <span class="brand-name">إدارة ${ctx.settings.site_name}</span>
+    </a>
+  </div>
+  <nav class="site-menu admin-menu" aria-label="الإدارة"><div class="wrap menu-inner"><ul class="nav-list">
+    <li><a href="/admin" ${ctx.path === '/admin' ? raw('aria-current="page"') : ''}>${icon('shield')}المراجعة والمنشور</a></li>
+    <li><a href="/admin/business" ${ctx.path === '/admin/business' ? raw('aria-current="page"') : ''}>${icon('store')}إضافة مطعم أو محل</a></li>
+    ${ctx.publicUrl ? html`<li><a href="${ctx.publicUrl}" target="_blank" rel="noopener">${icon('home')}فتح الموقع العام</a></li>` : ''}
+  </ul></div></nav>
+</header>`;
+}
 
 function nav(ctx: ViewCtx) {
   const links = TYPE_KEYS.filter((t) => t !== 'offer').map((t) => ({ href: TYPES[t].path, label: TYPES[t].label }));
@@ -81,7 +100,7 @@ ${meta.head ?? ''}
 <a class="skip" href="#main">انتقل إلى المحتوى</a>
 <div class="creator-bar"><div class="wrap"><span>المُنشئ: <strong>إبراهيم علي</strong></span></div></div>
 ${s.announcement ? html`<div class="announce" role="note">${s.announcement}</div>` : ''}
-<header class="site-header">
+${ctx.adminSite ? adminHeader(ctx) : html`<header class="site-header">
   <div class="wrap header-row">
     <a class="brand" href="/" aria-label="${s.site_name}، الصفحة الرئيسية">
       <img src="/static/img/logo.svg" width="40" height="40" alt="">
@@ -95,9 +114,9 @@ ${s.announcement ? html`<div class="announce" role="note">${s.announcement}</div
   <nav id="site-menu" class="site-menu" aria-label="الأقسام">
     <div class="wrap menu-inner">
       ${nav(ctx)}
-      ${ctx.staticMode ? html`<ul class="nav-list nav-account"><li><a href="/search">${icon('search')}البحث</a></li>${ctx.supabaseOrigin
-        ? html`<li><a href="/owner/register">${icon('utensils')}أضف مطعمك أو محلك</a></li><li><a href="/login">${icon('user')}دخول أصحاب المحلات</a></li>`
-        : html`<li><a href="/contact">${icon('phone')}تواصل معنا</a></li>`}</ul>` : html`<ul class="nav-list nav-account">
+      ${ctx.staticMode ? html`<ul class="nav-list nav-account"><li><a href="/search">${icon('search')}البحث</a></li>
+        <li><a href="${addShopLink(s0(ctx))}" target="_blank" rel="noopener">${icon('utensils')}أضف مطعمك أو محلك</a></li>
+        <li><a href="/contact">${icon('phone')}تواصل معنا</a></li></ul>` : html`<ul class="nav-list nav-account">
         ${u ? html`
           ${isStaff(u.role) ? html`<li><a href="/admin">${icon('shield')}لوحة الإدارة</a></li>` : ''}
           <li><a href="/owner/dashboard">${icon('store')}لوحة التحكم</a></li>
@@ -107,12 +126,12 @@ ${s.announcement ? html`<div class="announce" role="note">${s.announcement}</div
       </ul>`}
     </div>
   </nav>
-</header>
+</header>`}
 <main id="main" tabindex="-1">
 ${ctx.flash ? html`<div class="wrap"><p class="flash flash-${ctx.flash.kind}" role="${ctx.flash.kind === 'error' ? 'alert' : 'status'}">${ctx.flash.text}</p></div>` : ''}
 ${body}
 </main>
-<footer class="site-footer">
+${ctx.adminSite ? html`<footer class="site-footer"><div class="wrap copyright"><p>${COPYRIGHT}</p></div></footer>` : html`<footer class="site-footer">
   <div class="wrap footer-grid">
     <section aria-labelledby="f-about">
       <h2 id="f-about" class="footer-title">${s.site_name}</h2>
@@ -129,7 +148,7 @@ ${body}
       <h2 id="f-links" class="footer-title">روابط</h2>
       <ul class="footer-links">
         <li><a href="/about">عن المنصة</a></li><li><a href="/contact">تواصل معنا</a></li>
-        <li><a href="${ctx.supabaseOrigin ? '/owner/register' : ctx.staticMode ? addShopLink(s0(ctx)) : '/owner'}"${ctx.staticMode && !ctx.supabaseOrigin ? raw(' target="_blank" rel="noopener"') : ''}>أضف مطعمك أو محلك</a></li>
+        <li><a href="${ctx.staticMode ? addShopLink(s0(ctx)) : '/owner'}"${ctx.staticMode ? raw(' target="_blank" rel="noopener"') : ''}>أضف مطعمك أو محلك</a></li>
         <li><a href="/policies/privacy">سياسة الخصوصية</a></li><li><a href="/policies/terms">شروط الاستخدام</a></li>
         <li><a href="/policies/posting">سياسة النشر</a></li><li><a href="/policies/ads">سياسة الإعلانات</a></li>
         <li><a href="/policies/reports">سياسة البلاغات</a></li>
@@ -137,7 +156,7 @@ ${body}
     </section>
   </div>
   <div class="wrap copyright"><p>${COPYRIGHT}</p></div>
-</footer>
+</footer>`}
 </body>
 </html>`.value;
 }

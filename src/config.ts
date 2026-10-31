@@ -16,6 +16,10 @@ export interface Config {
   repo: string; // owner/name على GitHub (لروابط النشر في النسخة الثابتة)
   supabaseUrl: string; // النسخة الثابتة: مشروع Supabase للنماذج والحسابات (فارغ = غير مفعّل)
   supabaseAnonKey: string;
+  /** موقع الإدارة المنفصل (نسخة ثابتة): صفحات الإدارة فقط. */
+  adminSite: boolean;
+  /** رابط الموقع العام (يظهر في موقع الإدارة). */
+  publicUrl: string;
 }
 
 const bool = (v: string | undefined, def: boolean) => (v === undefined || v === '' ? def : v === 'true' || v === '1');
@@ -40,6 +44,8 @@ export function loadConfig(overrides: Partial<Config> = {}, env = process.env): 
     repo: env.GITHUB_REPOSITORY || 'ibrahim205b-tech/almamel',
     supabaseUrl: '',
     supabaseAnonKey: '',
+    adminSite: false,
+    publicUrl: '',
     ...overrides,
   };
   if (cfg.sessionSecret.length < 32 || cfg.sessionSecret === 'replace-with-a-long-random-value') {

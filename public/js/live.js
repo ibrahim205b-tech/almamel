@@ -11,6 +11,7 @@
   var TYPE_LABEL = { business: 'نشاط تجاري', job: 'وظيفة', property: 'عقار', service: 'خدمة', market: 'إعلان بيع', offer: 'عرض', community: 'خبر أو فعالية', help: 'طلب مساعدة' };
   var PATHS = { business: '/businesses', job: '/jobs', property: '/properties', service: '/services', market: '/market', offer: '/offers', community: '/community', help: '/help' };
   var nf = new Intl.NumberFormat('ar-IQ');
+  var ADMIN_SITE = meta('admin-site') === '1';
   var FEE = 3000, FEATURE_DAYS = 10; // تطابق ad_fee و feature_fee و feature_days في schema.sql
   var SUPPORT_WA = meta('support-wa');
   function waTo(text) { return SUPPORT_WA ? SUPPORT_WA + '?text=' + encodeURIComponent(text) : ''; }
@@ -243,7 +244,23 @@
       if (r.error) return say(errText(r.error), 'error');
       var p = await profile(r.data.user.id);
       var next = new URLSearchParams(location.search).get('next');
+      if (ADMIN_SITE && !(p && p.role === 'admin')) { await sb.auth.signOut(); return say('هذا الحساب ليس حساب إدارة. شغّل make_admin لبريدك في Supabase أولاً.', 'error'); }
       go(next && /^\/[\w\-/?=&%.]*$/.test(next) ? next : p && p.role === 'admin' ? '/admin/' : '/owner/dashboard/');
+    });
+    var signup = $('[data-signup]');
+    if (signup) signup.addEventListener('submit', async function (e) {
+      e.preventDefault(); delete signup.dataset.submitting;
+      var f = signup.elements, ph = phone(f.phone.value), errs = [];
+      if (f.name.value.trim().length < 2) errs.push('اكتب الاسم.');
+      if (!ph) errs.push('رقم الهاتف: رقم عراقي يبدأ بـ 07.');
+      if (f.password.value.length < 10) errs.push('كلمة المرور ١٠ أحرف على الأقل.');
+      if (errs.length) return say(errs.join(' '), 'error');
+      busy(signup, true);
+      var r = await sb.auth.signUp({ email: f.email.value.trim(), password: f.password.value, options: { data: { name: f.name.value.trim(), phone: ph } } });
+      busy(signup, false);
+      if (r.error) return say(errText(r.error), 'error');
+      await sb.auth.signOut();
+      say('تم إنشاء الحساب. الآن شغّل في Supabase ← SQL Editor: select public.make_admin(\'' + f.email.value.trim() + '\'); ثم سجّل الدخول.', 'ok');
     });
     $('[data-reset]').addEventListener('click', async function () {
       var email = form.elements.email.value.trim();
@@ -509,6 +526,7 @@
         pul.appendChild(el('li', {}, [el('a', { href: BASE + PATHS[x.type] + '/' + x.id + '/', text: x.title }), ' ', el('span', { class: 'muted', text: TYPE_LABEL[x.type] }),
           x.verified ? el('span', { class: 'badge badge-ok', text: 'موثّق' }) : null,
           el('div', { class: 'btn-row' }, [
+            x.type === 'business' ? el('a', { class: 'btn btn-sm btn-primary', href: BASE + '/admin/menu/?b=' + x.id, text: 'القائمة والأسعار' }) : null,
             el('button', { class: 'btn btn-sm', type: 'button', text: 'إخفاء', onclick: function () { act(x.id, 'hide', true); } }),
             el('button', { class: 'btn btn-sm btn-danger', type: 'button', text: 'حذف', onclick: function () { act(x.id, 'remove', true); } }),
             x.type === 'business' || x.type === 'help' ? el('button', { class: 'btn btn-sm', type: 'button', text: x.verified ? 'إلغاء التوثيق' : 'توثيق (بعد التحقق)', onclick: function () { act(x.id, x.verified ? 'unverify' : 'verify'); } }) : null,
@@ -520,6 +538,73 @@
     load();
   }
 
-  var init = { submit: initSubmit, register: initRegister, login: initLogin, dashboard: initDashboard, menu: initMenu, admin: initAdmin }[page.getAttribute('data-page')];
+  // ---------- موقع الإدارة: إضافة مطعم أو محل كاملاً ----------
+  // نفس قواعد src/static/menu-text.ts: أقسام «*القسم*»، أصناف «• الاسم — السعر»، أحجام «الاسم: صغير 5,000 / وسط 7,000»، أو «الاسم | السعر».
+  function parseMenu(text) {
+    var items = [], section = '';
+    var clean = function (x) { return x.replace(/\*/g, '').replace(/^[^\p{L}\p{N}(]+/u, '').replace(/[^\p{L}\p{N})]+$/u, '').trim(); };
+    var num = function (x) { var d = digits(x).replace(/(د\.?\s?ع|دينار)/g, '').replace(/[,\s٬.]/g, ''); return /^\d{1,10}$/.test(d) ? Number(d) : null; };
+    String(text || '').split('\n').map(function (l) { return l.trim(); }).filter(Boolean).forEach(function (raw) {
+      if (items.length >= 300) return;
+      if (raw.indexOf('|') !== -1) { var p = raw.split('|').map(function (x) { return x.trim(); }); if (p[0].length >= 2) items.push({ section: section, name: p[0].slice(0, 80), price: num(p[1] || ''), note: (p[2] || '').slice(0, 200) }); return; }
+      var bullet = /^[•·▪●◦*\-–—]\s*/.test(raw) && !/^\*[^*]+\*$/.test(raw), line = raw.replace(/^[•·▪●◦*\-–—]\s*/, '');
+      var dash = line.match(/^(.*\S)\s+[—–-]\s+([\d٠-٩][\d٠-٩,٬.\s]*(?:د\.?\s?ع|دينار)?)$/);
+      if (dash && clean(dash[1]).length >= 2) { items.push({ section: section, name: clean(dash[1]).slice(0, 80), price: num(dash[2]), note: '' }); return; }
+      var sized = line.match(/^(.*\S)\s*:\s*(.+)$/);
+      if (sized && sized[2].indexOf('/') !== -1) {
+        var parts = sized[2].split('/').map(function (x) { return x.trim().match(/^(\D*?)\s*([\d٠-٩][\d٠-٩,٬.]*)/); });
+        if (parts.every(Boolean)) { parts.forEach(function (m) { items.push({ section: section, name: (clean(sized[1]) + (m[1].trim() ? ' (' + m[1].trim() + ')' : '')).slice(0, 80), price: num(m[2]), note: '' }); }); return; }
+      }
+      var t = clean(line); if (t.length < 2) return;
+      if (bullet) items.push({ section: section, name: t.slice(0, 80), price: null, note: '' });
+      else if (!/[\d٠-٩]/.test(t) && t.length <= 60) section = t;
+    });
+    return items;
+  }
+
+  async function initAddBusiness() {
+    var s = await requireLogin(); if (!s) return;
+    var p = await profile(s.user.id);
+    if (!p || p.role !== 'admin') { say('هذه الصفحة للإدارة فقط.', 'error'); $('[data-add-business]').hidden = true; return; }
+    var form = $('[data-add-business]');
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault(); delete form.dataset.submitting;
+      var f = form.elements, errs = [], ph = phone(f.contact_phone.value);
+      if (f.title.value.trim().length < 3) errs.push('اكتب اسم المحل.');
+      if (!f.category.value) errs.push('اختر نوع النشاط.');
+      if (f.address.value.trim().length < 3) errs.push('اكتب العنوان.');
+      if (!ph) errs.push('رقم المحل: رقم عراقي يبدأ بـ 07.');
+      if (errs.length) return say(errs.join(' '), 'error');
+      busy(form, true); say('جارِ رفع الصور والحفظ...', 'ok');
+      try {
+        var folder = 'u/' + s.user.id + '/';
+        var photos = [], files = Array.prototype.slice.call(f.photos.files || []).slice(0, 6);
+        for (var i = 0; i < files.length; i++) photos.push(await upload('media', folder + hex() + '.webp', await toWebp(files[i])));
+        var logoPath = f.logo.files[0] ? await upload('media', folder + hex() + '.webp', await toWebp(f.logo.files[0], 600)) : null;
+        var details = { address: f.address.value.trim() };
+        ['hours', 'delivery', 'services'].forEach(function (k) { if (f[k].value.trim()) details[k] = f[k].value.trim(); });
+        var ins = await sb.from('posts').insert({ type: 'business', title: f.title.value.trim(), category: f.category.value, area: f.area.value,
+          body: f.body.value.trim(), contact_phone: ph, show_phone: true, whatsapp: f.whatsapp.checked, details: details, images: photos, logo: logoPath }).select('id').single();
+        if (ins.error) throw ins.error;
+        var id = ins.data.id, name = f.title.value.trim();
+        var ap = await sb.rpc('moderate_post', { p_id: id, p_action: 'approve', p_reason: null });
+        if (ap.error) throw ap.error;
+        if (f.verified.checked) await sb.rpc('moderate_post', { p_id: id, p_action: 'verify', p_reason: null });
+        var items = parseMenu(f.menu.value);
+        for (var j = 0; j < items.length; j += 100) {
+          var chunk = items.slice(j, j + 100).map(function (it, k) { return { business_id: id, section: it.section.slice(0, 60), name: it.name, price: it.price, note: it.note, sort: j + k }; });
+          var mr = await sb.from('menu_items').insert(chunk);
+          if (mr.error) throw mr.error;
+        }
+        form.reset(); $$('.picked', form).forEach(function (u) { u.textContent = ''; });
+        say('تم نشر «' + name + '» مع ' + items.length + ' صنف. يظهر بالموقع خلال ربع ساعة. تقدر تعدّل القائمة وتضيف صور الأطباق من «القائمة والأسعار».', 'ok');
+        var a = el('a', { class: 'btn btn-primary', href: BASE + '/admin/menu/?b=' + id, text: 'فتح القائمة والأسعار' });
+        $('[data-msg]').appendChild(a);
+      } catch (err) { say(errText(err), 'error'); }
+      finally { busy(form, false); }
+    });
+  }
+
+  var init = { 'add-business': initAddBusiness, submit: initSubmit, register: initRegister, login: initLogin, dashboard: initDashboard, menu: initMenu, admin: initAdmin }[page.getAttribute('data-page')];
   if (init) Promise.resolve(init()).catch(function (e) { say(errText(e), 'error'); });
 })();
