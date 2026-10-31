@@ -417,3 +417,28 @@ button[disabled]{opacity:.6;cursor:progress}
 .cart-clear{justify-self:center}
 body:has(.cart-bar:not([hidden])) .site-footer{padding-bottom:96px}
 @media (prefers-reduced-motion:reduce){.cart-bar.bump{animation:none}}
+
+/* ---------- المطاعم: مربعات كبيرة في الصفحة الرئيسية ---------- */
+.food-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+@media (min-width:720px){.food-grid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px}}
+.food-card{position:relative;display:flex;flex-direction:column;height:100%;background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden;color:var(--ink);text-decoration:none;transition:transform .2s var(--ease),box-shadow .2s var(--ease)}
+.food-card:hover{transform:translateY(-2px);box-shadow:0 0 0 1px rgb(30 42 47 / .08),0 8px 24px -8px rgb(30 42 47 / .25);color:var(--ink)}
+.food-card.is-featured{outline:2px solid var(--sign);outline-offset:-2px}
+.food-img{display:grid;place-items:center;aspect-ratio:1;background:var(--board-soft);color:var(--board)}
+.food-img img{width:100%;height:100%;object-fit:cover}
+.i-food{width:48px;height:48px}
+.food-name{padding:10px 12px 0;font-weight:700;line-height:1.4}
+.food-meta{padding:2px 12px 12px;color:var(--ink-2);font-size:var(--t-sm)}
+.food-open{color:var(--ok);font-weight:700}
+.food-card .ribbon{inset-inline-start:10px;inset-inline-end:auto;width:max-content}
+.food-add{border:2px dashed var(--line-strong);box-shadow:none;background:transparent}
+.food-add .food-img{background:transparent}
+.row-logo img{object-fit:contain;background:var(--surface)}
+.detail-title{display:flex;align-items:center;gap:14px}
+.biz-logo{width:72px;height:72px;border-radius:var(--r-lg);object-fit:cover;flex:none;box-shadow:var(--shadow)}
+@media (prefers-reduced-motion:reduce){.food-card{transition:none}.food-card:hover{transform:none}}
+.note-price{background:var(--warn-bg);color:var(--warn)}
+.owner-block{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
+.owner-block h4{margin:0 0 6px;font-size:var(--t-base)}
+.logo-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo-row input[type=file]{position:absolute;width:1px;height:1px;opacity:0}

@@ -8,7 +8,7 @@ import { sectionEnabled } from '../domain/settings.ts';
 import { staticSearchPage } from '../views/pages/public.ts';
 import { checkbox, field, select, textarea, postUrl } from '../views/components.ts';
 import { icon } from '../views/layout.ts';
-import { adminLivePage, dashboardPage, liveHead, liveLoginPage, liveSubmitPage, menuManagerPage, notConfiguredPage, ownerLandingPage, ownerRegisterPage } from '../views/pages/live.ts';
+import { adminLivePage, dashboardPage, liveHead, pricingNote, liveLoginPage, liveSubmitPage, menuManagerPage, notConfiguredPage, ownerLandingPage, ownerRegisterPage } from '../views/pages/live.ts';
 import { assetVersion } from '../app.ts';
 
 /**
@@ -33,6 +33,7 @@ export async function staticRoutes(app: FastifyInstance) {
     <h1>أضف إعلانك</h1>
     <p class="lede">اكتب تفاصيل إعلانك وراح تنفتح رسالة واتساب جاهزة لإدارة الموقع. الإعلان ينشر بعد المراجعة.</p>
     <p class="note">${icon('shield', 'i i-sm')}لا ترسل وثائق شخصية أو طبية، ولا رقم أي شخص بدون موافقته. اقرأ <a href="/policies/posting">سياسة النشر</a>.</p>
+    ${pricingNote}
     <form class="form" data-wa-form data-wa="${wa}" novalidate>
       ${select({ name: 'type', label: 'نوع الإعلان', required: true, value: type, placeholder: 'اختر', options: TYPE_KEYS.map((t) => [TYPES[t].single, TYPES[t].single]) })}
       ${field({ name: 'title', label: 'العنوان', required: true, max: 100 })}
@@ -50,7 +51,7 @@ export async function staticRoutes(app: FastifyInstance) {
 
   const live = !!(app.cfg.supabaseUrl && app.cfg.supabaseAnonKey);
   const v = assetVersion();
-  const head = () => liveHead({ url: app.cfg.supabaseUrl, key: app.cfg.supabaseAnonKey, v });
+  const head = (req?: { settings: Record<string, string> }) => liveHead({ url: app.cfg.supabaseUrl, key: app.cfg.supabaseAnonKey, v, wa: req ? waLink(req.settings.whatsapp_phone ?? '') : '' });
   const catsBySection = () => {
     const out: Record<string, string[]> = {};
     for (const r of db.prepare('SELECT section, name FROM categories WHERE active = 1 ORDER BY section, sort').all() as { section: string; name: string }[]) (out[r.section] ??= []).push(r.name);
@@ -70,7 +71,7 @@ export async function staticRoutes(app: FastifyInstance) {
     app.get('/owner', (req, reply) => reply.page(req, { title: 'أضف مطعمك أو محلك', description: 'سجّل مطعمك أو محلك في دليل المعامل وأدر قائمة الطعام والأسعار بنفسك.' }, ownerLandingPage()));
     app.get('/owner/register', (req, reply) => reply.page(req, { title: 'سجّل مطعمك أو محلك', noindex: true, head: head() }, ownerRegisterPage(catsBySection().business ?? [], areaNames())));
     app.get('/login', (req, reply) => reply.page(req, { title: 'دخول أصحاب المحلات', noindex: true, head: head() }, liveLoginPage()));
-    app.get('/owner/dashboard', (req, reply) => reply.page(req, { title: 'لوحة التحكم', noindex: true, canonical: null, head: head() }, dashboardPage()));
+    app.get('/owner/dashboard', (req, reply) => reply.page(req, { title: 'لوحة التحكم', noindex: true, canonical: null, head: head(req) }, dashboardPage()));
     app.get('/owner/menu', (req, reply) => reply.page(req, { title: 'القائمة والأسعار', noindex: true, canonical: null, head: head() }, menuManagerPage()));
     app.get('/admin', (req, reply) => reply.page(req, { title: 'لوحة الإدارة', noindex: true, canonical: null, head: head() }, adminLivePage()));
   } else {

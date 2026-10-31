@@ -15,6 +15,7 @@ interface Row {
   id: number; type: string; title: string; body: string; category: string; area: string; price: number | null;
   contact_phone: string | null; show_phone: boolean; whatsapp: boolean; details: Record<string, unknown>; images: string[];
   business_id: number | null; open_state: string; verified: boolean; is_official: boolean; published_at: string | null; expires_at: string | null; updated_at: string;
+  featured_until?: string | null; logo?: string | null;
 }
 interface Item { id: number; business_id: number; section: string; name: string; price: number | null; note: string; image: string | null; available: boolean; sort: number }
 
@@ -76,6 +77,8 @@ export async function loadSupabase(db: DB, cfg: SupabaseCfg, uploadDir: string, 
     const exp = r.expires_at ? Math.floor(Date.parse(r.expires_at) / 1000) : null;
     const images: StoredImage[] = [];
     for (const p of (r.images ?? []).slice(0, 6)) { const im = await image(cfg, p, cacheDir, uploadDir); if (im) images.push(im); }
+    const logo = r.type === 'business' && r.logo ? await image(cfg, r.logo, cacheDir, uploadDir) : null;
+    const featuredUntil = r.featured_until ? Math.floor(Date.parse(r.featured_until) / 1000) : 0;
     try {
       db.transaction(() => {
         db.prepare(`INSERT INTO posts (id, type, user_id, category_id, area_id, title, body, price, contact_phone, show_phone, whatsapp, details, status, title_key, business_id, created_at, updated_at)
@@ -87,6 +90,15 @@ export async function loadSupabase(db: DB, cfg: SupabaseCfg, uploadDir: string, 
         if (r.verified && (r.type === 'business' || r.type === 'help')) db.prepare('UPDATE posts SET verified = 1, verified_by = ?, verified_at = ? WHERE id = ?').run(sys, pub, r.id);
         if (r.is_official && r.type === 'community') db.prepare('UPDATE posts SET is_official = 1, verified_by = ? WHERE id = ?').run(sys, r.id);
         images.forEach((im, i) => db.prepare('INSERT INTO post_images (post_id, file, thumb, width, height, sort) VALUES (?, ?, ?, ?, ?, ?)').run(r.id, im.file, im.thumb, im.width, im.height, i));
+        if (logo) db.prepare('UPDATE posts SET logo = ? WHERE id = ?').run(logo.thumb, r.id);
+        // التمييز المدفوع: أول الصفحة الرئيسية وأول قسمه حتى انتهاء المدة
+        const nowSec = Math.floor(Date.now() / 1000);
+        if (featuredUntil > nowSec) {
+          for (const placement of ['home', 'section']) {
+            db.prepare('INSERT INTO featured_listings (post_id, placement, starts_at, ends_at, note, created_by) VALUES (?, ?, ?, ?, ?, ?)')
+              .run(r.id, placement, Math.min(pub, nowSec), featuredUntil, 'تمييز مدفوع', sys);
+          }
+        }
       })();
       ids.add(r.id);
       published++;

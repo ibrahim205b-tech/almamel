@@ -34,6 +34,28 @@ const quickLinks: [string, string, string][] = [
   ['/services', 'خدمات', 'wrench'], ['/properties', 'عقارات', 'building'], ['/market', 'بيع وشراء', 'tag'],
 ];
 
+/** المطاعم في مربعات كبيرة أعلى الصفحة الرئيسية: المميّزة (المدفوعة) أولاً، ثم الأحدث. */
+function foodShowcase(items: ListItem[]): SafeHtml {
+  return html`<section class="block food-showcase" aria-labelledby="h-food">
+    ${sectionTitle('المطاعم', '/restaurants', 'كل المطاعم', 'h-food')}
+    <ul class="food-grid">
+      ${items.map((p) => html`<li><a class="food-card${p.featured ? ' is-featured' : ''}" href="${postUrl(p)}">
+        <span class="food-img">${p.logo || p.thumb
+          ? html`<img src="${mediaUrl((p.logo || p.thumb)!)}" alt="" width="240" height="240" loading="lazy" decoding="async">`
+          : icon('utensils', 'i i-food')}</span>
+        <span class="food-name">${p.title}</span>
+        <span class="food-meta">${p.category_name}${p.open_state === 'open' ? html` · <span class="food-open">مفتوح الآن</span>` : ''}</span>
+        ${p.featured ? html`<span class="ribbon">مميز</span>` : ''}
+      </a></li>`)}
+      <li><a class="food-card food-add" href="/owner">
+        <span class="food-img">${icon('plus', 'i i-food')}</span>
+        <span class="food-name">أضف مطعمك</span>
+        <span class="food-meta">قائمة طعامك وأسعارك وصورك</span>
+      </a></li>
+    </ul>
+  </section>`;
+}
+
 export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml {
   const block = (title: string, href: string, items: ListItem[], emptyText: string, type?: PostType) => html`<section class="block" aria-labelledby="h-${href.slice(1)}">
     ${sectionTitle(title, href, 'عرض الكل', `h-${href.slice(1)}`)}
@@ -50,6 +72,8 @@ export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml 
   </section>
 
   <div class="wrap home">
+    ${foodShowcase(d.food)}
+
     <section class="block" aria-labelledby="h-sections">
       <div class="section-head"><h2 id="h-sections">الأقسام</h2></div>
       <ul class="tiles">
@@ -70,7 +94,6 @@ export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml 
       ${block('أحدث الإعلانات', '/search', d.latest, 'أول ما توافق الإدارة على إعلانات جديدة راح تظهر هنا.')}
       ${block('عروض المحلات', '/offers', d.offers, 'ما كو عروض حالياً. أصحاب المحلات يگدرون ينشرون عروضهم من صفحة محلهم.')}
       ${block('فرص العمل', '/jobs', d.jobs, 'ما كو وظائف منشورة حالياً.', 'job')}
-      ${block('المطاعم والتوصيل', '/restaurants', d.food, 'ما كو مطاعم مضافة بعد.', 'business')}
       ${block('الخدمات والمهن', '/services', d.services, 'ما كو أصحاب مهن مسجلين بعد.', 'service')}
       ${block('العقارات', '/properties', d.properties, 'ما كو عقارات معروضة حالياً.', 'property')}
       ${block('بيع وشراء', '/market', d.market, 'ما كو إعلانات بيع حالياً.', 'market')}
@@ -240,7 +263,7 @@ export function detailPage(x: DetailData): SafeHtml {
     <nav class="crumbs" aria-label="مسار التنقل"><a href="/">الرئيسية</a><span aria-hidden="true">/</span><a href="${t.path}">${t.label}</a><span aria-hidden="true">/</span><span aria-current="page">${p.title}</span></nav>
     <article>
       <header class="detail-head">
-        <h1>${p.title}</h1>
+        <div class="detail-title">${p.logo ? html`<img class="biz-logo" src="${mediaUrl(p.logo)}" alt="شعار ${p.title}" width="72" height="72">` : ''}<h1>${p.title}</h1></div>
         <div class="badges">
           ${p.verified ? html`<span class="badge badge-ok">${icon('badge', 'i i-sm')}${p.type === 'help' ? 'تم التحقق من الطلب' : 'بيانات النشاط موثقة'}</span>` : ''}
           ${p.type === 'community' ? (p.is_official ? html`<span class="badge badge-ok">${icon('check', 'i i-sm')}خبر مؤكد من الإدارة</span>` : d.source_url ? html`<span class="badge">منقول عن ${String(d.source_name || 'مصدر إخباري')}، والتفاصيل في الخبر الأصلي</span>` : html`<span class="badge">منشور من أحد المستخدمين، غير مؤكد رسمياً</span>`) : ''}

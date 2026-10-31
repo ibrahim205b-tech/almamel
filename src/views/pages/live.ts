@@ -5,15 +5,17 @@ import { TYPES, TYPE_KEYS, type PostType } from '../../domain/types.ts';
 import { checkbox, field, select, textarea } from '../components.ts';
 import { icon } from '../layout.ts';
 
-export interface LiveCfg { url: string; key: string; v: string }
+export interface LiveCfg { url: string; key: string; v: string; wa?: string }
 
 /** وسوم الإعداد ومكتبة Supabase وسكربت الصفحات التفاعلية. */
-export const liveHead = (c: LiveCfg) => html`<meta name="sb-url" content="${c.url}"><meta name="sb-key" content="${c.key}">
+export const liveHead = (c: LiveCfg) => html`<meta name="sb-url" content="${c.url}"><meta name="sb-key" content="${c.key}"><meta name="support-wa" content="${c.wa ?? ''}">
 <script src="/static/vendor/supabase.js?v=${c.v}" defer></script><script src="/static/js/live.js?v=${c.v}" defer></script>`;
 
 const msg = html`<div class="live-msg" data-msg role="status" aria-live="polite"></div>`;
 const noJs = html`<noscript><p class="note">هذه الصفحة تحتاج تفعيل JavaScript.</p></noscript>`;
 const PRICE_TYPES: PostType[] = ['job', 'property', 'market', 'offer'];
+/** أسعار الإعلانات والتمييز (تطابق ad_fee و feature_fee في supabase/schema.sql). */
+export const pricingNote = html`<p class="note note-price">${icon('tag', 'i i-sm')}<strong>الإعلان الأول مجاني.</strong> كل إعلان بعده 3,000 د.ع، ويُنشر بعد الدفع. وتگدر تميّز إعلانك أو مطعمك بأول الصفحة لمدة 10 أيام بـ 3,000 د.ع.</p>`;
 
 export function liveSubmitPage(type: PostType | '', cats: Record<string, string[]>, areas: string[]): SafeHtml {
   const guestTypes = TYPE_KEYS.filter((t) => t !== 'business');
@@ -21,6 +23,7 @@ export function liveSubmitPage(type: PostType | '', cats: Record<string, string[
     <h1>أضف إعلانك</h1>
     <p class="lede">املأ الإعلان وأرسله مباشرة. ما تحتاج حساب، والإعلان يظهر بعد مراجعة الإدارة.</p>
     <p class="note">${icon('store', 'i i-sm')}عندك مطعم أو محل؟ <a href="/owner">سجّله من هنا</a> حتى تدير صفحته وقائمة أسعاره بنفسك.</p>
+    ${pricingNote}
     ${msg}${noJs}
     <form class="form" data-live-submit data-cats="${JSON.stringify(cats)}" novalidate>
       ${select({ name: 'type', label: 'نوع الإعلان', required: true, value: type === 'business' ? '' : type, placeholder: 'اختر', options: guestTypes.map((t) => [t, TYPES[t].single]) })}

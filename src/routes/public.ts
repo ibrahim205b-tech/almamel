@@ -53,7 +53,7 @@ export async function publicRoutes(app: FastifyInstance) {
     const s = req.settings;
     return reply.page(req, { title: s.site_name, canonical: '/' }, homePage({
       counts, featured: listFeatured(db, 'home'), latest: pick([...TYPE_KEYS], {}, 6), offers: pick(['offer']), jobs: pick(['job']),
-      properties: pick(['property']), food: pick(['business'], { foodOnly: true }), services: pick(['service']), market: pick(['market']),
+      properties: pick(['property']), food: pick(['business'], { foodOnly: true }, 11), services: pick(['service']), market: pick(['market']),
       community: pick(['community']), help: pick(['help'], {}, 3), news: pick(['community'], { newsOnly: true }),
     }, s, req.user));
   });

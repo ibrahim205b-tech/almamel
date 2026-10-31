@@ -11,6 +11,10 @@
   var TYPE_LABEL = { business: 'نشاط تجاري', job: 'وظيفة', property: 'عقار', service: 'خدمة', market: 'إعلان بيع', offer: 'عرض', community: 'خبر أو فعالية', help: 'طلب مساعدة' };
   var PATHS = { business: '/businesses', job: '/jobs', property: '/properties', service: '/services', market: '/market', offer: '/offers', community: '/community', help: '/help' };
   var nf = new Intl.NumberFormat('ar-IQ');
+  var FEE = 3000, FEATURE_DAYS = 10; // تطابق ad_fee و feature_fee و feature_days في schema.sql
+  var SUPPORT_WA = meta('support-wa');
+  function waTo(text) { return SUPPORT_WA ? SUPPORT_WA + '?text=' + encodeURIComponent(text) : ''; }
+  function dayText(iso) { return new Date(iso).toLocaleDateString('ar-IQ'); }
 
   // ---------- أدوات ----------
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -268,6 +272,32 @@
           } }));
         });
         card.appendChild(st);
+
+        // الشعار: يظهر بجانب اسم المحل في الموقع
+        var logoInput = el('input', { type: 'file', accept: 'image/*', 'aria-label': 'صورة الشعار' });
+        var logoRow = el('div', { class: 'logo-row' }, [
+          b.logo ? el('img', { class: 'biz-logo', src: mediaUrl(b.logo), alt: 'الشعار الحالي', width: 72, height: 72 }) : el('span', { class: 'muted', text: 'ما كو شعار بعد.' }),
+          el('label', { class: 'btn btn-sm' }, [b.logo ? 'تغيير الشعار' : 'رفع شعار المحل', logoInput])]);
+        logoInput.addEventListener('change', async function () {
+          var file = logoInput.files[0]; if (!file) return;
+          say('جارِ رفع الشعار...', 'ok');
+          try {
+            var path = await upload('media', 'u/' + uid + '/' + hex() + '.webp', await toWebp(file, 600));
+            var r = await sb.rpc('set_business_logo', { p_id: b.id, p_path: path });
+            if (r.error) throw r.error;
+            say('تم حفظ الشعار. يظهر بالموقع خلال ربع ساعة.', 'ok'); initDashboard();
+          } catch (err) { say(errText(err), 'error'); }
+        });
+        card.appendChild(el('div', { class: 'owner-block' }, [el('h4', { text: 'شعار المحل' }), logoRow]));
+
+        // التمييز المدفوع: أول الصفحة الرئيسية وأول قسم المطاعم
+        var featured = b.featured_until && new Date(b.featured_until) > new Date();
+        var fx = [el('h4', { text: 'التمييز' })];
+        if (featured) fx.push(el('p', {}, [el('span', { class: 'badge badge-ok', text: 'مميز' }), ' حتى ' + dayText(b.featured_until)]));
+        fx.push(el('p', { class: 'muted', text: 'مطعمك يظهر بأول الصفحة الرئيسية وأول قسم المطاعم لمدة ' + FEATURE_DAYS + ' أيام بـ ' + nf.format(FEE) + ' د.ع.' }));
+        var wa = waTo('أريد تمييز «' + b.title + '» لمدة ' + FEATURE_DAYS + ' أيام بـ ' + nf.format(FEE) + ' د.ع. (رقم المحل في الدليل: ' + b.id + ')');
+        if (wa) fx.push(el('a', { class: 'btn btn-sign', href: wa, target: '_blank', rel: 'noopener', text: featured ? 'تمديد التمييز ' + FEATURE_DAYS + ' أيام' : 'ميّز مطعمك ' + FEATURE_DAYS + ' أيام' }));
+        card.appendChild(el('div', { class: 'owner-block' }, fx));
       }
       list.appendChild(card);
     });
@@ -277,6 +307,8 @@
     ads.forEach(function (a) {
       ul.appendChild(el('li', {}, [el('strong', { text: a.title }), ' ', el('span', { class: 'muted', text: TYPE_LABEL[a.type] }), ' ', badge(a.status),
         a.status_reason ? el('p', { class: 'reason', text: a.status_reason }) : null,
+        a.fee_due > 0 && a.status === 'pending' ? el('p', { class: 'note note-price' }, ['رسوم هذا الإعلان ' + nf.format(a.fee_due) + ' د.ع (الإعلان الأول فقط مجاني). يُنشر بعد الدفع. ',
+          waTo('أريد دفع رسوم إعلاني «' + a.title + '» (' + nf.format(a.fee_due) + ' د.ع).') ? el('a', { href: waTo('أريد دفع رسوم إعلاني «' + a.title + '» (' + nf.format(a.fee_due) + ' د.ع).'), target: '_blank', rel: 'noopener', text: 'تواصل للدفع' }) : null]) : null,
         el('button', { class: 'btn btn-sm', type: 'button', text: 'حذف', onclick: async function () {
           if (!confirm('حذف الإعلان؟')) return;
           var r = await sb.rpc('remove_own_post', { p_id: a.id });
@@ -361,6 +393,12 @@
     var s = await requireLogin(); if (!s) return;
     var p = await profile(s.user.id);
     if (!p || p.role !== 'admin') { say('هذه الصفحة للإدارة فقط.', 'error'); $$('section').forEach(function (x) { x.hidden = true; }); return; }
+    async function feature(x, days) {
+      if (days && !confirm('تمييز «' + x.title + '» ' + days + ' أيام؟ تأكد من استلام ' + nf.format(FEE) + ' د.ع.')) return;
+      var r = await sb.rpc('feature_post', { p_id: x.id, p_days: days });
+      if (r.error) return say(errText(r.error), 'error');
+      say(days ? 'تم التمييز. يظهر أولاً خلال ربع ساعة.' : 'أُلغي التمييز.', 'ok'); load();
+    }
     async function act(id, action, needReason) {
       var reason = null;
       if (needReason) { reason = prompt('السبب (يظهر لصاحب الإعلان):'); if (!reason || reason.trim().length < 3) return; }
@@ -386,8 +424,18 @@
       var box = $('[data-pending]'); box.textContent = '';
       var ul = el('ul', { class: 'cards-admin' }); box.appendChild(ul);
       (pend.data || []).forEach(function (x) {
-        ul.appendChild(postCard(x, [el('button', { class: 'btn btn-primary', type: 'button', text: 'موافقة ونشر', onclick: function () { act(x.id, 'approve'); } }),
-          el('button', { class: 'btn', type: 'button', text: 'رفض', onclick: function () { act(x.id, 'reject', true); } })]));
+        var actions = [el('button', { class: 'btn btn-primary', type: 'button', text: 'موافقة ونشر', onclick: function () {
+            if (x.fee_due > 0 && !confirm('رسوم ' + nf.format(x.fee_due) + ' د.ع لم تُسجَّل كمدفوعة. نشر رغم ذلك؟')) return;
+            act(x.id, 'approve'); } }),
+          el('button', { class: 'btn', type: 'button', text: 'رفض', onclick: function () { act(x.id, 'reject', true); } })];
+        if (x.fee_due > 0) {
+          actions.unshift(el('span', { class: 'badge badge-warn', text: 'مستحق ' + nf.format(x.fee_due) + ' د.ع' }));
+          actions.push(el('button', { class: 'btn', type: 'button', text: 'تم استلام المبلغ', onclick: async function () {
+            var r = await sb.rpc('mark_fee_paid', { p_id: x.id });
+            if (r.error) return say(errText(r.error), 'error'); say('سُجّل الدفع.', 'ok'); load();
+          } }));
+        }
+        ul.appendChild(postCard(x, actions));
       });
       $('[data-count=pending]').textContent = String((pend.data || []).length);
       if (!(pend.data || []).length) box.appendChild(el('p', { class: 'empty-inline', text: 'ما كو إعلانات بانتظار المراجعة.' }));
@@ -437,7 +485,9 @@
             el('button', { class: 'btn btn-sm', type: 'button', text: 'إخفاء', onclick: function () { act(x.id, 'hide', true); } }),
             el('button', { class: 'btn btn-sm btn-danger', type: 'button', text: 'حذف', onclick: function () { act(x.id, 'remove', true); } }),
             x.type === 'business' || x.type === 'help' ? el('button', { class: 'btn btn-sm', type: 'button', text: x.verified ? 'إلغاء التوثيق' : 'توثيق (بعد التحقق)', onclick: function () { act(x.id, x.verified ? 'unverify' : 'verify'); } }) : null,
-            x.type === 'community' ? el('button', { class: 'btn btn-sm', type: 'button', text: x.is_official ? 'إلغاء «خبر مؤكد»' : 'خبر مؤكد', onclick: function () { act(x.id, x.is_official ? 'unofficial' : 'official'); } }) : null])]));
+            x.type === 'community' ? el('button', { class: 'btn btn-sm', type: 'button', text: x.is_official ? 'إلغاء «خبر مؤكد»' : 'خبر مؤكد', onclick: function () { act(x.id, x.is_official ? 'unofficial' : 'official'); } }) : null,
+            el('button', { class: 'btn btn-sm btn-sign', type: 'button', text: 'تمييز ' + FEATURE_DAYS + ' أيام (مدفوع)', onclick: function () { feature(x, FEATURE_DAYS); } }),
+            x.featured_until && new Date(x.featured_until) > new Date() ? el('button', { class: 'btn btn-sm', type: 'button', text: 'مميز حتى ' + dayText(x.featured_until) + ' — إلغاء', onclick: function () { feature(x, 0); } }) : null])]));
       });
     }
     load();

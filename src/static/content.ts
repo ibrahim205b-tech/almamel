@@ -24,7 +24,7 @@ const DETAIL_KEYS: Record<PostType, string[]> = {
   community: ['event_date', 'location', 'organizer', 'source_name', 'source_url'],
   help: ['blood_type', 'location'],
 };
-const COMMON = ['id', 'type', 'title', 'category', 'area', 'date', 'expires', 'price', 'phone', 'show_phone', 'whatsapp', 'images', 'featured', 'verified', 'official', 'menu', 'consent', 'phone_consent'];
+const COMMON = ['id', 'type', 'title', 'category', 'area', 'date', 'expires', 'price', 'phone', 'show_phone', 'whatsapp', 'images', 'featured', 'featured_until', 'logo', 'verified', 'official', 'menu', 'consent', 'phone_consent'];
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const toUnix = (d: string) => Math.floor(Date.parse(d + 'T09:00:00+03:00') / 1000);
@@ -107,6 +107,19 @@ export async function loadContent(db: DB, contentDir: string, uploadDir: string,
     }
     if (imgError) { fail(imgError); continue; }
 
+    // شعار المحل: صورة واحدة من content/images تظهر بجانب اسمه
+    let logoThumb: string | null = null;
+    if (fm.logo !== undefined) {
+      const n = str(fm.logo).trim();
+      if (type !== 'business') { fail('logo للمحلات فقط'); continue; }
+      if (!/^[\w\-. ]+\.(jpe?g|png|webp)$/i.test(n)) { fail(`اسم شعار غير صالح: ${n}`); continue; }
+      const f = path.join(contentDir, 'images', n);
+      if (!fs.existsSync(f)) { fail(`الشعار غير موجود في content/images: ${n}`); continue; }
+      try { logoThumb = (await storeImage(fs.readFileSync(f), uploadDir)).thumb; } catch (e) { fail(`${n}: ${(e as Error).message}`); continue; }
+    }
+    const featuredUntil = fm.featured_until ? str(fm.featured_until) : '';
+    if (featuredUntil && !DATE.test(featuredUntil)) { fail('featured_until بصيغة YYYY-MM-DD'); continue; }
+
     let menu: MenuLine[] = [];
     if (fm.menu !== undefined) {
       if (type !== 'business') { fail('menu للمحلات فقط'); continue; }
@@ -125,6 +138,13 @@ export async function loadContent(db: DB, contentDir: string, uploadDir: string,
       if (fm.official === true && type === 'community') db.prepare('UPDATE posts SET is_official = 1, verified_by = ? WHERE id = ?').run(sys, id);
       images.forEach((im, i) => db.prepare('INSERT INTO post_images (post_id, file, thumb, width, height, sort) VALUES (?, ?, ?, ?, ?, ?)').run(id, im.file, im.thumb, im.width, im.height, i));
       menu.forEach((it, i) => db.prepare('INSERT INTO post_items (post_id, name, price, note, section, sort) VALUES (?, ?, ?, ?, ?, ?)').run(id, it.name, it.price, it.note, it.section, i));
+      if (logoThumb) db.prepare('UPDATE posts SET logo = ? WHERE id = ?').run(logoThumb, id);
+      if (featuredUntil && toUnix(featuredUntil) + 86400 > nowSec) {
+        for (const placement of ['home', 'section']) {
+          db.prepare('INSERT INTO featured_listings (post_id, placement, starts_at, ends_at, note, created_by) VALUES (?, ?, ?, ?, ?, ?)')
+            .run(id, placement, Math.min(publishedAt, nowSec), toUnix(featuredUntil) + 86400, 'تمييز مدفوع', sys);
+        }
+      }
       if (fm.featured === true) db.prepare("INSERT INTO featured_listings (post_id, placement, starts_at, ends_at, created_by) VALUES (?, 'home', ?, ?, ?)").run(id, publishedAt, expiresAt ?? publishedAt + 365 * 86400, sys);
       reindex(db, id);
     })();

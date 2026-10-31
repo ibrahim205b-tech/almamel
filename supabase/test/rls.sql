@@ -127,5 +127,41 @@ select pg_temp.expect_error($q$insert into storage.objects (bucket_id, name) val
 do $$ begin
   if exists (select 1 from storage.objects where bucket_id = 'proofs') then raise exception 'non-admin reads proofs'; end if;
 end $$;
+-- ===== الرسوم والتمييز والشعار =====
+reset role;
+delete from posts where contact_phone = '07708888888';
+select pg_temp.as_user(null);
+insert into posts (type, title, category, guest_name, contact_phone, fee_due, featured_until) values ('job', 'أول إعلان مجاني', 'توصيل', 'زائر', '07708888888', 0, now() + interval '99 days');
+insert into posts (type, title, category, guest_name, contact_phone, fee_due) values ('job', 'ثاني إعلان مدفوع', 'توصيل', 'زائر', '07708888888', 0);
+reset role;
+do $$ begin
+  if (select fee_due from posts where id = public.t_id('أول إعلان مجاني')) <> 0 then raise exception 'first ad should be free'; end if;
+  if (select fee_due from posts where id = public.t_id('ثاني إعلان مدفوع')) <> 3000 then raise exception 'second ad should cost 3000'; end if;
+  if (select featured_until from posts where id = public.t_id('أول إعلان مجاني')) is not null then raise exception 'client set featured_until'; end if;
+end $$;
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+select pg_temp.expect_error($q$select public.mark_fee_paid(public.t_id('ثاني إعلان مدفوع'))$q$, 'non-admin marks fee paid');
+select pg_temp.expect_error($q$select public.feature_post(public.t_id('أول إعلان مجاني'), 10)$q$, 'non-admin features');
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+select public.mark_fee_paid(public.t_id('ثاني إعلان مدفوع'));
+select pg_temp.expect_error($q$select public.feature_post(public.t_id('أول إعلان مجاني'), 10)$q$, 'feature unpublished');
+select public.moderate_post(public.t_id('أول إعلان مجاني'), 'approve');
+select public.feature_post(public.t_id('أول إعلان مجاني'), 10);
+reset role;
+do $$ begin
+  if (select fee_due from posts where id = public.t_id('ثاني إعلان مدفوع')) <> 0 then raise exception 'fee not cleared'; end if;
+  if (select featured_until from public_posts where id = public.t_id('أول إعلان مجاني')) < now() + interval '9 days' then raise exception 'not featured for 10 days'; end if;
+end $$;
+-- الشعار: صاحب المحل المعتمد فقط، ومن مجلده فقط
+select pg_temp.as_user('22222222-2222-2222-2222-222222222222');
+select pg_temp.expect_error($q$select public.set_business_logo(public.t_id('مطعم أبو علي'), 'u/22222222-2222-2222-2222-222222222222/0123456789abcdef0123456789abcdef.webp')$q$, 'logo on someone else''s business');
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+select pg_temp.expect_error($q$select public.set_business_logo(public.t_id('مطعم أبو علي'), 'u/22222222-2222-2222-2222-222222222222/0123456789abcdef0123456789abcdef.webp')$q$, 'logo from another user''s folder');
+select public.set_business_logo(public.t_id('مطعم أبو علي'), 'u/11111111-1111-1111-1111-111111111111/0123456789abcdef0123456789abcdef.webp');
+reset role;
+do $$ begin
+  if (select logo from posts where id = public.t_id('مطعم أبو علي')) is null then raise exception 'owner logo not set'; end if;
+end $$;
+
 reset role;
 select 'ALL RLS TESTS PASSED';

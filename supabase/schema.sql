@@ -78,7 +78,18 @@ create index if not exists posts_public on public.posts (status, type, published
 create index if not exists posts_author on public.posts (author_id, created_at);
 create index if not exists posts_owner on public.posts (owner_id);
 create index if not exists posts_guest on public.posts (created_at) where author_id is null;
+-- رسوم الإعلان: الأول مجاني، وما بعده بسعر ثابت تتحقق منه الإدارة قبل النشر.
+alter table public.posts add column if not exists fee_due integer not null default 0 check (fee_due >= 0);
+-- التمييز المدفوع: يظهر المحل/الإعلان أولاً حتى هذا الوقت.
+alter table public.posts add column if not exists featured_until timestamptz;
+-- شعار المطعم/المحل بجانب اسمه.
+alter table public.posts add column if not exists logo text check (logo is null or logo ~ '^u/[0-9a-f-]{36}/[0-9a-f]{32}\.webp$');
 alter table public.posts enable row level security;
+
+-- الأسعار (د.ع): غيّرها هنا ثم أعد تشغيل الملف.
+create or replace function public.ad_fee() returns integer language sql immutable as $$ select 3000 $$;
+create or replace function public.feature_fee() returns integer language sql immutable as $$ select 3000 $$;
+create or replace function public.feature_days() returns integer language sql immutable as $$ select 10 $$;
 
 create or replace function public.valid_media_path(p text, uid uuid) returns boolean
 language sql immutable as $$
@@ -93,8 +104,16 @@ declare uid uuid := auth.uid(); p text;
 begin
   new.status := 'pending'; new.status_reason := null; new.approved_by := null;
   new.published_at := null; new.expires_at := null; new.verified := false; new.is_official := false;
-  new.owner_id := null; new.open_state := 'unknown';
+  new.owner_id := null; new.open_state := 'unknown'; new.featured_until := null; new.logo := null;
   new.author_id := uid; new.created_at := now(); new.updated_at := now();
+  -- الإعلان الأول لكل حساب (أو رقم هاتف للزوار) مجاني، وكل إعلان بعده برسوم ثابتة.
+  -- طلب تسجيل المحل نفسه لا يُحسب ولا يُدفع عليه.
+  new.fee_due := 0;
+  if new.type <> 'business' and exists (
+      select 1 from posts q where q.type <> 'business' and q.status <> 'rejected'
+        and ((uid is not null and q.author_id = uid) or (new.contact_phone is not null and q.contact_phone = new.contact_phone))) then
+    new.fee_due := public.ad_fee();
+  end if;
   if uid is null then
     if new.type = 'business' then raise exception 'المحلات تُضاف من حساب صاحب المحل'; end if;
     if new.guest_name is null or new.contact_phone is null then raise exception 'الاسم ورقم التواصل مطلوبان'; end if;
@@ -144,7 +163,8 @@ create policy posts_read on public.posts for select using (
 create or replace view public.public_posts with (security_barrier = true) as
   select id, type, title, body, category, area, price,
          case when show_phone then contact_phone end as contact_phone, show_phone, whatsapp and show_phone as whatsapp,
-         details, images, business_id, open_state, verified, is_official, published_at, expires_at, updated_at
+         details, images, business_id, open_state, verified, is_official, published_at, expires_at, updated_at,
+         case when featured_until > now() then featured_until end as featured_until, logo
   from public.posts
   where status = 'published' and (expires_at is null or expires_at > now());
 grant select on public.public_posts to anon, authenticated;
@@ -314,6 +334,39 @@ begin
   insert into moderation_log (post_id, actor_id, action, reason) values (p.id, auth.uid(), case when p_approve then 'claim_approve' else 'claim_reject' end, p_note);
 end $$;
 
+-- المدير: تمييز منشور مدفوع (يظهر أولاً) لعدد أيام، أو إلغاء التمييز بـ 0
+create or replace function public.feature_post(p_id bigint, p_days integer default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare d int := coalesce(p_days, public.feature_days());
+begin
+  if not public.is_admin() then raise exception 'غير مسموح'; end if;
+  if d < 0 or d > 365 then raise exception 'عدد أيام غير صالح'; end if;
+  update posts set featured_until = case when d = 0 then null
+      else greatest(coalesce(featured_until, now()), now()) + make_interval(days => d) end
+    where id = p_id and status = 'published';
+  if not found then raise exception 'المنشور غير منشور'; end if;
+  insert into moderation_log (post_id, actor_id, action, reason) values (p_id, auth.uid(), 'feature', d::text || ' days');
+end $$;
+
+-- المدير: تأكيد استلام رسوم الإعلان (يمسح المبلغ المستحق)
+create or replace function public.mark_fee_paid(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'غير مسموح'; end if;
+  update posts set fee_due = 0 where id = p_id;
+  if not found then raise exception 'المنشور غير موجود'; end if;
+  insert into moderation_log (post_id, actor_id, action) values (p_id, auth.uid(), 'fee_paid');
+end $$;
+
+-- صاحب المحل: شعار المحل (يظهر مباشرة بجانب الاسم بعد التحديث التلقائي)
+create or replace function public.set_business_logo(p_id bigint, p_path text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_path is not null and not valid_media_path(p_path, auth.uid()) then raise exception 'مسار صورة غير صالح'; end if;
+  update posts set logo = p_path where id = p_id and type = 'business' and owner_id = auth.uid();
+  if not found then raise exception 'غير مسموح'; end if;
+end $$;
+
 -- صاحب المحل: حالة المحل الآن
 create or replace function public.set_open_state(p_id bigint, p_state text) returns void
 language plpgsql security definer set search_path = public as $$
@@ -371,7 +424,8 @@ revoke all on function public.make_admin(text) from public, anon, authenticated;
 revoke all on function public.handle_new_user() from public, anon, authenticated;
 grant execute on function public.moderate_post(bigint, text, text), public.decide_claim(bigint, boolean, text),
   public.set_open_state(bigint, text), public.update_business(bigint, text, text, text, text, boolean, jsonb, text[]),
-  public.remove_own_post(bigint) to authenticated;
+  public.remove_own_post(bigint), public.feature_post(bigint, integer), public.mark_fee_paid(bigint),
+  public.set_business_logo(bigint, text) to authenticated;
 grant execute on function public.site_stamp() to anon, authenticated;
 
 -- ---------- التخزين ----------

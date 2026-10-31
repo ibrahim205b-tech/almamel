@@ -33,8 +33,8 @@ export function listRow(p: ListItem): SafeHtml {
   const price = priceText(p);
   return html`<li class="row${p.featured ? ' row-featured' : ''}">
     <a class="row-link" href="${postUrl(p)}">
-      <span class="row-thumb">${p.thumb
-        ? html`<img src="${mediaUrl(p.thumb)}" alt="" width="96" height="72" loading="lazy" decoding="async">`
+      <span class="row-thumb${p.logo ? ' row-logo' : ''}">${p.logo || p.thumb
+        ? html`<img src="${mediaUrl((p.logo || p.thumb)!)}" alt="" width="96" height="72" loading="lazy" decoding="async">`
         : icon(TYPES[p.type].icon, 'i i-thumb')}</span>
       <span class="row-body">
         <span class="row-title">${p.title}${p.verified ? html` <span class="verified" title="بيانات موثقة">${icon('badge', 'i i-sm')}<span class="sr">موثّق</span></span>` : ''}</span>
