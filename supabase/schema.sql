@@ -208,7 +208,9 @@ create or replace function public.menu_items_guard() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
   if tg_op = 'UPDATE' then new.business_id := old.business_id; end if;
-  if new.image is not null and new.image !~ ('^u/' || auth.uid()::text || '/') and not public.is_admin() then
+  -- الصورة تُفحص فقط إذا تغيّرت (حتى صاحب المحل يكدر يعدّل صنف صورته رفعتها الإدارة)
+  if new.image is not null and (tg_op = 'INSERT' or new.image is distinct from old.image)
+     and new.image !~ ('^u/' || auth.uid()::text || '/') and not public.is_admin() then
     raise exception 'مسار صورة غير صالح'; end if;
   if tg_op = 'INSERT' and (select count(*) from menu_items where business_id = new.business_id) >= 300 then
     raise exception 'الحد الأقصى ٣٠٠ صنف'; end if;

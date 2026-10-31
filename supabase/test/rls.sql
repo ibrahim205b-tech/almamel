@@ -173,4 +173,18 @@ do $$ begin
   if (select logo from posts where id = public.t_id('محل بشعار غريب')) is not null then raise exception 'foreign logo accepted'; end if;
 end $$;
 reset role;
+-- ===== الإدارة تضيف صنفاً بصورة، وصاحب المحل يعدّل سعره ويغيّر صورته =====
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+insert into menu_items (business_id, section, name, price, image) values (public.t_id('مطعم أبو علي'), 'مقبلات', 'حمص', 2000,
+  'u/33333333-3333-3333-3333-333333333333/0123456789abcdef0123456789abcdef.webp');
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+update menu_items set price = 2500 where name = 'حمص';
+select pg_temp.expect_error($q$update menu_items set image = 'u/22222222-2222-2222-2222-222222222222/0123456789abcdef0123456789abcdef.webp' where name = 'حمص'$q$, 'owner sets image from other folder');
+update menu_items set image = 'u/11111111-1111-1111-1111-111111111111/fedcba9876543210fedcba9876543210.webp' where name = 'حمص';
+reset role;
+do $$ begin
+  if (select price from menu_items where name = 'حمص') <> 2500 then raise exception 'owner could not edit admin-added item'; end if;
+  if (select image from menu_items where name = 'حمص') !~ '^u/1111' then raise exception 'owner could not replace image'; end if;
+end $$;
+
 select 'ALL RLS TESTS PASSED';

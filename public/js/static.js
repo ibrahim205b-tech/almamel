@@ -458,7 +458,8 @@
       });
     });
     [nameF, addrF, noteF].forEach(function (f) { f.addEventListener('input', function () { send.href = shop.getAttribute('data-wa') + '?text=' + encodeURIComponent(message()); }); });
-    bar.addEventListener('click', function () { panel.hidden = false; close.focus(); });
+    bar.addEventListener('click', function () { panel.hidden = false; document.body.classList.add('no-scroll'); close.focus(); });
+    new window.MutationObserver(function () { if (panel.hidden) document.body.classList.remove('no-scroll'); }).observe(panel, { attributes: true, attributeFilter: ['hidden'] });
     close.addEventListener('click', function () { panel.hidden = true; bar.focus(); });
     panel.addEventListener('click', function (e) { if (e.target === panel) panel.hidden = true; });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !panel.hidden) panel.hidden = true; });

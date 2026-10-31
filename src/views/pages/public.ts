@@ -304,7 +304,6 @@ export function detailPage(x: DetailData): SafeHtml {
       </div>
     </article>
 
-    ${x.staticMode ? staticReport(x) : ''}
     ${['business', 'service'].includes(p.type) && !x.preview && !x.staticMode ? html`<section class="block" aria-labelledby="h-reviews">
       <h2 id="h-reviews">التقييمات</h2>
       <p class="muted">التقييمات آراء شخصية لمستخدمين مسجلين، تُراجع قبل ظهورها، ولا تعني أن معاملة تمت فعلاً.</p>
@@ -333,16 +332,6 @@ export function detailPage(x: DetailData): SafeHtml {
     </section>` : ''}
     ${p.type === 'business' && !x.preview ? businessJsonLd(p, d, phone, x.baseUrl) : ''}
   </div>`;
-}
-
-/** في النسخة الثابتة: الإبلاغ وطلب إدارة الصفحة يتمان برسالة واتساب جاهزة إلى رقم الدعم. */
-function staticReport(x: DetailData): SafeHtml {
-  const url = `${x.baseUrl}${postUrl(x.post)}`;
-  const wa = (text: string) => `${waLink(x.s.whatsapp_phone)}?text=${encodeURIComponent(text)}`;
-  return html`<section class="block report" aria-label="إبلاغ وملكية"><div class="btn-row">
-    <a class="btn" href="${wa(`أبلغ عن هذا المنشور في دليل المعامل:\n${url}\nالسبب: `)}" target="_blank" rel="noopener">${icon('flag', 'i i-sm')}إبلاغ عبر واتساب</a>
-    ${x.post.type === 'business' ? html`<a class="btn" href="${wa(`أنا صاحب هذا النشاط وأريد تحديث صفحته:\n${url}`)}" target="_blank" rel="noopener">${icon('store', 'i i-sm')}أنا صاحب هذا النشاط</a>` : ''}
-  </div></section>`;
 }
 
 /** قائمة الطعام أو المنتجات مقسّمة حسب الأقسام، مع زر طلب عبر واتساب لكل صنف. */

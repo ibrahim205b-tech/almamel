@@ -65,19 +65,28 @@
 
   // يعيد ترميز الصورة في المتصفح إلى WebP (يحذف بيانات الموقع الجغرافي ويصغّر الحجم)
   async function toWebp(file, max) {
-    if (!/^image\//.test(file.type)) throw new Error('الملف ليس صورة.');
+    if (file.type && !/^image\//.test(file.type)) throw new Error('الملف ليس صورة.');
     if (file.size > 15 * 1024 * 1024) throw new Error('الصورة كبيرة جداً.');
-    var bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    var bmp;
+    try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+    catch { // متصفحات أقدم: نقرأ الصورة بعنصر img
+      bmp = await new Promise(function (ok, no) { var im = new window.Image(); im.onload = function () { ok(im); }; im.onerror = function () { no(new Error('تعذّر قراءة الصورة. جرّب صورة ثانية.')); }; im.src = URL.createObjectURL(file); });
+      bmp.width = bmp.naturalWidth; bmp.height = bmp.naturalHeight;
+    }
     var scale = Math.min(1, (max || 1600) / Math.max(bmp.width, bmp.height));
     var c = document.createElement('canvas');
     c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
     c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-    for (var q = 0.82; q >= 0.5; q -= 0.12) {
-      var blob = await new Promise(function (r) { c.toBlob(r, 'image/webp', q); });
-      if (!blob || blob.type !== 'image/webp') throw new Error('متصفحك ما يدعم تجهيز الصور. جرّب متصفح Chrome.');
-      if (blob.size <= 1000 * 1024) return blob;
+    // متصفحات الآيفون (Safari وحتى Chrome على الآيفون) ما تكدر تحفظ WebP، فنستخدم JPEG بدلها.
+    // الموقع يعيد ترميز كل صورة عند البناء، فالنتيجة النهائية واحدة.
+    var webp = true;
+    for (var q = 0.82; q >= 0.3; q -= 0.12) {
+      var blob = await new Promise(function (r) { c.toBlob(r, webp ? 'image/webp' : 'image/jpeg', q); });
+      if (!blob) break;
+      if (webp && blob.type !== 'image/webp') { webp = false; q = 0.94; continue; }
+      if (blob.size <= 1000 * 1024) return new window.Blob([blob], { type: 'image/webp' }); // المخزن يقبل نوعاً واحداً
     }
-    throw new Error('تعذّر تصغير الصورة.');
+    throw new Error('تعذّر تجهيز الصورة. جرّب صورة ثانية.');
   }
   async function upload(bucket, path, blob) {
     var r = await sb.storage.from(bucket).upload(path, blob, { contentType: 'image/webp', upsert: false });
@@ -401,6 +410,7 @@
         labeled('الاسم', el('input', { name: 'name', value: it.name, maxlength: 80, required: true })),
         labeled('السعر', el('input', { name: 'price', value: it.price == null ? '' : String(it.price), inputmode: 'numeric' })),
         labeled('الوصف', el('input', { name: 'note', value: it.note, maxlength: 200 })),
+        labeled(it.image ? 'تغيير الصورة' : 'إضافة صورة', el('input', { type: 'file', name: 'image', accept: 'image/*' })),
         el('div', { class: 'check' }, [el('input', { type: 'checkbox', name: 'available', id: 'av-' + it.id, checked: it.available }), el('label', { for: 'av-' + it.id, text: 'متوفر حالياً' })]),
         el('div', { class: 'btn-row' }, [el('button', { class: 'btn btn-primary btn-sm', type: 'submit', text: 'حفظ' }),
           el('button', { class: 'btn btn-danger btn-sm', type: 'button', text: 'حذف الصنف', onclick: async function () {
@@ -414,10 +424,18 @@
         e.preventDefault(); delete f.dataset.submitting;
         var name = f.elements.name.value.trim();
         if (name.length < 2) return say('اسم الصنف قصير.', 'error');
-        var r = await sb.from('menu_items').update({ section: f.elements.section.value.trim(), name: name, price: money(f.elements.price.value),
-          note: f.elements.note.value.trim(), available: f.elements.available.checked }).eq('id', it.id);
-        if (r.error) return say(errText(r.error), 'error');
-        say('تم الحفظ.', 'ok'); load();
+        var upd = { section: f.elements.section.value.trim(), name: name, price: money(f.elements.price.value),
+          note: f.elements.note.value.trim(), available: f.elements.available.checked };
+        busy(f, true);
+        try {
+          var file = f.elements.image.files[0];
+          if (file) { say('جارِ رفع الصورة...', 'ok'); upd.image = await upload('media', 'u/' + s.user.id + '/' + hex() + '.webp', await toWebp(file, 800)); }
+          var r = await sb.from('menu_items').update(upd).eq('id', it.id);
+          if (r.error) throw r.error;
+          if (upd.image && it.image) sb.storage.from('media').remove([it.image]);
+          say('تم الحفظ.', 'ok'); load();
+        } catch (err) { say(errText(err), 'error'); }
+        finally { busy(f, false); }
       });
       var summary = el('summary', {}, [el('span', { class: 'menu-name', text: it.name }), ' ', el('span', { class: 'num menu-price', text: price(it.price) }),
         it.available ? null : el('span', { class: 'badge badge-warn', text: 'غير متوفر' })]);
@@ -433,6 +451,7 @@
       if (f.price.value.trim() && money(f.price.value) == null) return say('السعر أرقام فقط.', 'error');
       busy(addForm, true);
       try {
+        if (f.image.files[0]) say('جارِ رفع الصورة...', 'ok');
         var image = f.image.files[0] ? await upload('media', 'u/' + s.user.id + '/' + hex() + '.webp', await toWebp(f.image.files[0], 800)) : null;
         var r = await sb.from('menu_items').insert({ business_id: bid, section: f.section.value.trim(), name: name, price: money(f.price.value), note: f.note.value.trim(), image: image });
         if (r.error) throw r.error;

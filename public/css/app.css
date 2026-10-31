@@ -425,9 +425,9 @@ button[disabled]{opacity:.6;cursor:progress}
 .cart-bar-t{flex:1;text-align:start}
 .cart-bar.bump{animation:cart-bump .45s var(--ease)}
 @keyframes cart-bump{40%{transform:scale(1.04)}}
-.cart-panel{position:fixed;z-index:70;inset:0;background:rgb(15 30 25 / .5);display:flex;align-items:flex-end;justify-content:center;padding:12px}
+.cart-panel{position:fixed;z-index:70;inset:0;background:rgb(15 30 25 / .5);display:flex;align-items:center;justify-content:center;padding:16px;overscroll-behavior:contain}
 .cart-panel[hidden]{display:none}
-.cart-card{width:min(560px,100%);max-height:88vh;overflow:auto;background:var(--surface);border-radius:var(--r-lg);padding:18px;display:grid;gap:10px}
+.cart-card{width:min(560px,100%);max-height:calc(100dvh - 32px);box-shadow:0 20px 50px -15px rgb(0 0 0 / .45);overflow:auto;background:var(--surface);border-radius:var(--r-lg);padding:18px;display:grid;gap:10px}
 .cart-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .cart-head h2{margin:0;font-size:var(--t-md)}
 .cart-list{list-style:none;margin:0;padding:0}
@@ -507,15 +507,20 @@ body:has(.cart-bar:not([hidden])) .site-footer{padding-bottom:96px}
 .to-top .i{width:22px;height:22px}
 body:has(.cart-bar:not([hidden])) .to-top{bottom:84px}
 .share-btn{margin-top:10px}
-.btn,.add-btn,.cart-bar{position:relative;overflow:hidden}
+.btn,.add-btn{position:relative;overflow:hidden}
+.cart-bar{overflow:hidden} /* يبقى ثابتاً (fixed) أسفل منتصف الشاشة */
 .ripple{position:absolute;left:var(--x);top:var(--y);width:var(--s);height:var(--s);border-radius:50%;background:currentColor;opacity:.25;transform:scale(0);pointer-events:none;animation:ripple .6s ease-out forwards}
 @keyframes ripple{to{transform:scale(1);opacity:0}}
 @media (prefers-reduced-motion:no-preference){
   @keyframes bar-in{from{transform:translateY(120%);opacity:0}to{transform:none;opacity:1}}
   .cart-bar:not([hidden]){animation:bar-in .4s var(--ease) both}
+  @keyframes pop-in{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+  .cart-panel:not([hidden]){animation:fade .2s ease-out}
+  .cart-panel:not([hidden]) .cart-card{animation:pop-in .25s var(--ease)}
   .cart-bar.bump{animation:cart-bump .45s var(--ease)}
   @keyframes hero-glow{0%,100%{transform:translate(0,0)}50%{transform:translate(-18%,12%)}}
   .hero{position:relative;overflow:hidden;isolation:isolate}
   .hero::before{content:"";position:absolute;z-index:-1;width:60%;aspect-ratio:1;top:-30%;inset-inline-end:-15%;border-radius:50%;background:radial-gradient(circle,rgb(255 255 255 / .12),transparent 65%);animation:hero-glow 14s ease-in-out infinite;pointer-events:none}
   .menu-tabs a.active{animation:fade .25s ease-out}
 }
+body.no-scroll{overflow:hidden}
