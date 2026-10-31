@@ -16,13 +16,13 @@ export interface ContentResult { published: number; skipped: string[]; errors: s
 // المفاتيح الخاصة بكل قسم كما تُكتب في الملف (تقابل حقول d_ في نموذج الموقع)
 const DETAIL_KEYS: Record<PostType, string[]> = {
   business: ['address', 'hours', 'services', 'delivery', 'lat', 'lng'],
-  job: ['workplace', 'employment', 'work_hours', 'requirements'],
-  property: ['offer', 'size', 'landmark'],
-  service: ['work_areas', 'experience', 'hours'],
-  market: ['condition'],
-  offer: [],
+  job: ['workplace', 'employment', 'work_hours', 'requirements', 'positions'],
+  property: ['offer', 'size', 'landmark', 'rooms'],
+  service: ['work_areas', 'experience', 'hours', 'home_visit'],
+  market: ['condition', 'negotiable'],
+  offer: ['shop_name', 'old_price', 'valid_days'],
   community: ['event_date', 'location', 'organizer', 'source_name', 'source_url'],
-  help: ['blood_type', 'location'],
+  help: ['blood_type', 'location', 'units', 'needed_by', 'contact_name'],
 };
 const COMMON = ['id', 'type', 'title', 'category', 'area', 'date', 'expires', 'price', 'phone', 'show_phone', 'whatsapp', 'images', 'featured', 'featured_until', 'logo', 'verified', 'official', 'menu', 'consent', 'phone_consent'];
 
@@ -88,7 +88,7 @@ export async function loadContent(db: DB, contentDir: string, uploadDir: string,
       title: str(fm.title), body: m[2].trim(), category_id: String(cat), area_id: String(area), price: str(fm.price),
       contact_phone: str(fm.phone), show_phone: on(fm.show_phone, !!fm.phone && type !== 'help'), whatsapp: on(fm.whatsapp, !!fm.phone),
     };
-    for (const k of DETAIL_KEYS[type]) if (fm[k] !== undefined) form['d_' + k] = str(fm[k]);
+    for (const k of DETAIL_KEYS[type]) if (fm[k] !== undefined) form['d_' + k] = fm[k] === true ? 'on' : fm[k] === false ? '' : str(fm[k]);
     if (type === 'help') { form.d_consent = on(fm.consent); form.d_phone_consent = on(fm.phone_consent); }
     for (const k of Object.keys(form)) if (form[k] === undefined || form[k] === '') delete form[k];
     const parsed = parsePostForm(type, form);

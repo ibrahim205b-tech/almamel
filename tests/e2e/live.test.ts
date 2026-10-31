@@ -142,7 +142,8 @@ test('visitor posts an ad with a photo directly from the site', async () => {
   await p.waitForFunction(() => (document.querySelector('select[name=category]') as HTMLSelectElement).options.length > 1);
   await p.selectOption('select[name=category]', { index: 1 });
   await p.fill('#f-title', 'مطلوب كاشير');
-  await p.fill('#f-d_workplace', 'ماركت الحي');
+  await p.fill('#f-d_job_workplace', 'ماركت الحي');
+  await p.fill('#f-d_job_positions', '٢');
   await p.fill('#f-price', '٤٥٠٠٠٠');
   await p.fill('#f-body', 'دوام صباحي');
   await p.fill('#f-guest_name', 'زائر كريم');
@@ -162,8 +163,33 @@ test('visitor posts an ad with a photo directly from the site', async () => {
   assert.ok(Math.max(meta.width!, meta.height!) <= 1600, 'image resized');
   const row = JSON.parse(posts().at(-1)!.body.toString());
   assert.equal(row.type, 'job'); assert.equal(row.guest_name, 'زائر كريم'); assert.equal(row.price, 450000);
-  assert.equal(row.details.workplace, 'ماركت الحي'); assert.equal(row.contact_phone, '07701234567');
+  assert.equal(row.details.workplace, 'ماركت الحي'); assert.equal(row.details.positions, 2); assert.equal(row.contact_phone, '07701234567');
+  assert.ok(!('blood_type' in row.details) && !('location' in row.details), 'other sections\' fields are not sent');
   assert.ok(!('status' in row) && !('author_id' in row), 'client never sends status or author');
+  await p.context().close();
+});
+
+test('help requests have their own fields: blood type, units, hospital, consent', async () => {
+  const p = await open('/submit/help/');
+  await p.waitForFunction(() => (document.querySelector('select[name=category]') as HTMLSelectElement).options.length > 1);
+  assert.equal((await p.textContent('label[for="f-title"]'))!.trim().startsWith('عنوان الطلب'), true, 'title label follows the section');
+  assert.ok(!(await p.isVisible('#f-price')), 'no price for help requests');
+  await p.selectOption('select[name=category]', { index: 1 });
+  await p.fill('#f-title', 'مطلوب متبرع دم');
+  await p.selectOption('#f-d_help_blood_type', 'O+');
+  await p.fill('#f-d_help_units', '3');
+  await p.fill('#f-d_help_location', 'مستشفى المعامل');
+  await p.fill('#f-body', 'حالة طارئة');
+  await p.fill('#f-guest_name', 'زائر');
+  await p.fill('#f-contact_phone', '07701234568');
+  await p.click('[data-live-submit] button[type=submit]');
+  await p.waitForSelector('.live-msg:has-text("أكّد موافقة صاحب الحالة")');
+  await p.check('#f-d_help_consent');
+  await p.click('[data-live-submit] button[type=submit]');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("وصل إعلانك")');
+  const row = JSON.parse(posts().at(-1)!.body.toString());
+  assert.equal(row.type, 'help');
+  assert.deepEqual([row.details.blood_type, row.details.units, row.details.location, row.details.consent], ['O+', 3, 'مستشفى المعامل', true]);
   await p.context().close();
 });
 

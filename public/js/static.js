@@ -76,15 +76,64 @@
   }
 
   // ---------- أضف إعلانك عبر واتساب ----------
+  // ---------- نموذج حسب القسم: حقول وتسميات وتصنيفات كل قسم ----------
+  function typeForm(form, prefixOf) {
+    var typeSel = form.querySelector('select[name=type]');
+    var cats = JSON.parse(form.getAttribute('data-cats') || '{}');
+    var texts = JSON.parse(form.getAttribute('data-texts') || '{}');
+    var setLabel = function (name, text, hint) {
+      var input = form.querySelector('[name="' + name + '"]');
+      if (!input) return;
+      var lab = form.querySelector('label[for="' + input.id + '"]');
+      if (lab && text) lab.firstChild.textContent = text;
+      if (hint !== undefined) input.placeholder = hint;
+    };
+    var apply = function () {
+      var t = typeSel.value;
+      var any = form.querySelector('[data-for-any]');
+      if (any) any.hidden = !t;
+      Array.prototype.forEach.call(form.querySelectorAll('[data-for]'), function (g) {
+        var on = g.getAttribute('data-for').split(' ').indexOf(t) !== -1;
+        g.hidden = !on;
+        Array.prototype.forEach.call(g.querySelectorAll('input,select,textarea'), function (x) { x.disabled = !on; });
+      });
+      var cat = form.querySelector('select[name=category]');
+      if (cat && cats[t]) {
+        cat.textContent = '';
+        cat.appendChild(new Option('اختر', ''));
+        cats[t].forEach(function (c) { cat.appendChild(new Option(c, c)); });
+      }
+      var tx = texts[t];
+      if (tx) {
+        setLabel('title', tx.title, tx.titleHint);
+        setLabel(form.querySelector('[name=details]') ? 'details' : 'body', tx.body, tx.bodyHint);
+        if (tx.price) setLabel('price', tx.price);
+      }
+    };
+    typeSel.addEventListener('change', apply); apply();
+    return { prefix: function () { return prefixOf(typeSel.value); }, type: function () { return typeSel.value; } };
+  }
+
   var wa = document.querySelector('[data-wa-form]');
   if (wa) {
+    var waForm = typeForm(wa, function (t) { return 'd_' + t + '_'; });
+    var labels = JSON.parse(wa.getAttribute('data-labels') || '{}');
     wa.addEventListener('submit', function (e) {
       e.preventDefault();
       delete wa.dataset.submitting;
       if (!wa.reportValidity()) return;
-      var f = new FormData(wa);
-      var lines = ['إعلان جديد لدليل المعامل', 'النوع: ' + f.get('type'), 'العنوان: ' + f.get('title'), 'المنطقة: ' + f.get('area')];
-      if (f.get('price')) lines.push('السعر: ' + f.get('price') + ' د.ع');
+      var f = new FormData(wa), t = waForm.type(), pre = waForm.prefix();
+      var typeName = wa.querySelector('select[name=type]').selectedOptions[0].textContent;
+      var lines = ['إعلان جديد لدليل المعامل', 'القسم: ' + typeName, 'التصنيف: ' + f.get('category'), 'العنوان: ' + f.get('title'), 'المنطقة: ' + f.get('area')];
+      Object.keys(labels[t] || {}).forEach(function (k) {
+        var meta = labels[t][k], v = f.get(pre + k);
+        if (!v) return;
+        lines.push(meta.l + ': ' + (meta.c ? 'نعم' : meta.o && meta.o[v] ? meta.o[v] : v));
+      });
+      if (f.get('price')) {
+        var priceLabel = wa.querySelector('label[for="' + wa.querySelector('[name=price]').id + '"]').firstChild.textContent.trim();
+        lines.push(priceLabel + ': ' + f.get('price'));
+      }
       lines.push('التفاصيل: ' + f.get('details'), 'الاسم: ' + f.get('name'), 'رقم التواصل: ' + f.get('phone'),
         f.get('show_phone') ? 'أوافق على عرض الرقم في الإعلان' : 'لا أريد عرض رقمي في الإعلان');
       window.location.href = wa.getAttribute('data-wa') + '?text=' + encodeURIComponent(lines.join('\n'));
@@ -116,8 +165,11 @@
       if (f.get('expires')) out.push('expires: ' + f.get('expires'));
       if (f.get('price')) out.push('price: ' + q(f.get('price')));
       if (f.get('phone')) { out.push('phone: ' + q(f.get('phone')), 'show_phone: ' + !!f.get('show_phone'), 'whatsapp: ' + !!f.get('whatsapp')); }
-      ['employment', 'offer', 'condition'].forEach(function (k) { if (f.get(k)) out.push(k + ': ' + f.get(k)); });
-      f.forEach(function (v, k) { if (k.indexOf(t + '_') === 0 && v) out.push(k.slice(t.length + 1) + ': ' + q(v)); });
+      // حقول القسم: «<القسم>_<الحقل>»؛ مربعات الاختيار تُكتب true
+      f.forEach(function (v, k) {
+        if (k.indexOf(t + '_') !== 0 || !v || k === 'category_' + t) return;
+        out.push(k.slice(t.length + 1) + ': ' + (v === 'on' ? 'true' : q(v)));
+      });
       if (f.get('menu')) { out.push('menu:'); String(f.get('menu')).split('\n').filter(Boolean).forEach(function (l) { out.push('  - ' + q(l.trim())); }); }
       if (f.get('images')) { out.push('images:'); String(f.get('images')).split(',').map(function (x) { return x.trim(); }).filter(Boolean).forEach(function (n) { out.push('  - ' + q(n)); }); }
       ['featured', 'verified', 'official', 'consent', 'phone_consent'].forEach(function (k) { if (f.get(k)) out.push(k + ': true'); });

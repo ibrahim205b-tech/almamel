@@ -10,6 +10,7 @@ import { checkbox, field, select, textarea, postUrl } from '../views/components.
 import { icon } from '../views/layout.ts';
 import { adminLivePage, dashboardPage, liveHead, pricingNote, liveLoginPage, liveSubmitPage, menuManagerPage, notConfiguredPage, ownerLandingPage, ownerRegisterPage } from '../views/pages/live.ts';
 import { assetVersion } from '../app.ts';
+import { typeFieldGroup, typeLabelsJson, typeTextJson } from '../views/type-fields.ts';
 
 /**
  * صفحات النسخة الثابتة (GitHub Pages). لا شيء هنا يرسل بيانات إلى خادم:
@@ -29,22 +30,29 @@ export async function staticRoutes(app: FastifyInstance) {
     return reply.type('application/json; charset=utf-8').send(JSON.stringify(items));
   });
 
-  const submitPage = (type: PostType | '', wa: string) => html`<div class="wrap narrow">
+  const PRICED: PostType[] = ['job', 'property', 'market', 'offer'];
+  const submitPage = (type: PostType | '', wa: string, cats: Record<string, string[]>) => html`<div class="wrap narrow">
     <h1>أضف إعلانك</h1>
-    <p class="lede">اكتب تفاصيل إعلانك وراح تنفتح رسالة واتساب جاهزة لإدارة الموقع. الإعلان ينشر بعد المراجعة.</p>
+    <p class="lede">اختر القسم وراح تظهر حقوله الخاصة. بعد الإرسال تنفتح رسالة واتساب جاهزة لإدارة الموقع، والإعلان ينشر بعد المراجعة.</p>
     <p class="note">${icon('shield', 'i i-sm')}لا ترسل وثائق شخصية أو طبية، ولا رقم أي شخص بدون موافقته. اقرأ <a href="/policies/posting">سياسة النشر</a>.</p>
     ${pricingNote}
-    <form class="form" data-wa-form data-wa="${wa}" novalidate>
-      ${select({ name: 'type', label: 'نوع الإعلان', required: true, value: type, placeholder: 'اختر', options: TYPE_KEYS.map((t) => [TYPES[t].single, TYPES[t].single]) })}
-      ${field({ name: 'title', label: 'العنوان', required: true, max: 100 })}
-      ${field({ name: 'area', label: 'المنطقة', value: 'المعامل', required: true, max: 60 })}
-      ${field({ name: 'price', label: 'السعر أو الراتب (د.ع)', attrs: 'inputmode="numeric"' })}
-      ${textarea({ name: 'details', label: 'التفاصيل', required: true, max: 1500, rows: 6, hint: 'العنوان التقريبي، ساعات العمل، الحالة، الشروط... كل ما يساعد الناس.' })}
-      ${field({ name: 'name', label: 'اسمك', required: true, max: 60 })}
-      ${field({ name: 'phone', label: 'رقم التواصل', type: 'tel', dir: 'ltr', required: true, attrs: 'inputmode="tel"' })}
-      ${checkbox({ name: 'show_phone', label: 'أوافق على عرض رقمي في الإعلان', checked: true })}
-      <p class="hint">إذا عندك صور، أرسلها بنفس محادثة الواتساب بعد الرسالة.</p>
-      <button class="btn btn-primary btn-lg" type="submit">${icon('whatsapp')}إرسال عبر واتساب</button>
+    <form class="form" data-wa-form data-wa="${wa}" data-cats="${JSON.stringify(cats)}" data-labels="${typeLabelsJson()}" data-texts="${typeTextJson()}" novalidate>
+      ${select({ name: 'type', label: 'القسم', required: true, value: type, placeholder: 'اختر القسم', options: TYPE_KEYS.filter((t) => t !== 'business').map((t) => [t, TYPES[t].single]) })}
+      <div data-for-any hidden>
+        ${select({ name: 'category', label: 'التصنيف', required: true, placeholder: 'اختر', options: [] })}
+        ${field({ name: 'title', label: 'العنوان', required: true, max: 100 })}
+        ${field({ name: 'area', label: 'المنطقة', value: 'المعامل', required: true, max: 60 })}
+        ${TYPE_KEYS.filter((t) => t !== 'business').map((t) => typeFieldGroup(t, `d_${t}_`))}
+        <div data-for="${PRICED.join(' ')}" hidden>${field({ name: 'price', label: 'السعر (د.ع)', attrs: 'inputmode="numeric"', hint: 'اتركه فارغاً إذا يحدد عند التواصل' })}</div>
+        ${textarea({ name: 'details', label: 'التفاصيل', required: true, max: 1500, rows: 5 })}
+        <fieldset class="group"><legend>التواصل</legend>
+          ${field({ name: 'name', label: 'اسمك', required: true, max: 60, hint: 'للإدارة فقط' })}
+          ${field({ name: 'phone', label: 'رقم التواصل', type: 'tel', dir: 'ltr', required: true, attrs: 'inputmode="tel"' })}
+          ${checkbox({ name: 'show_phone', label: 'أوافق على عرض رقمي في الإعلان', checked: true })}
+        </fieldset>
+        <p class="hint">إذا عندك صور، أرسلها بنفس محادثة الواتساب بعد الرسالة.</p>
+        <button class="btn btn-primary btn-lg" type="submit">${icon('whatsapp')}إرسال عبر واتساب</button>
+      </div>
     </form>
     <noscript><p class="note">أرسل تفاصيل إعلانك على <a href="${wa}">واتساب الدعم</a>.</p></noscript>
   </div>`;
@@ -75,26 +83,17 @@ export async function staticRoutes(app: FastifyInstance) {
     app.get('/owner/menu', (req, reply) => reply.page(req, { title: 'القائمة والأسعار', noindex: true, canonical: null, head: head() }, menuManagerPage()));
     app.get('/admin', (req, reply) => reply.page(req, { title: 'لوحة الإدارة', noindex: true, canonical: null, head: head() }, adminLivePage()));
   } else {
-    app.get('/submit', (req, reply) => reply.page(req, { title: 'أضف إعلانك' }, submitPage('', waLink(req.settings.whatsapp_phone))));
+    app.get('/submit', (req, reply) => reply.page(req, { title: 'أضف إعلانك' }, submitPage('', waLink(req.settings.whatsapp_phone), catsBySection())));
     app.get('/submit/:type', (req, reply) => {
       const type = (req.params as { type: string }).type;
       if (!isPostType(type) || !sectionEnabled(req.settings, type)) return reply.callNotFound();
-      return reply.page(req, { title: `أضف ${TYPES[type].single}`, canonical: '/submit' }, submitPage(TYPES[type].single as PostType, waLink(req.settings.whatsapp_phone)));
+      return reply.page(req, { title: `أضف ${TYPES[type].single}`, canonical: '/submit' }, submitPage(type, waLink(req.settings.whatsapp_phone), catsBySection()));
     });
     app.get('/owner', (req, reply) => reply.page(req, { title: 'أضف مطعمك أو محلك' }, notConfiguredPage(waLink(req.settings.whatsapp_phone))));
   }
 
   app.get('/publish', (req, reply) => {
     const cats = db.prepare('SELECT section, name FROM categories WHERE active = 1 ORDER BY section, sort').all() as { section: PostType; name: string }[];
-    const typeFields: Record<PostType, string[][]> = {
-      business: [['address', 'العنوان التفصيلي *'], ['hours', 'ساعات العمل'], ['services', 'الخدمات'], ['delivery', 'مناطق التوصيل'], ['lat', 'خط العرض (اختياري)'], ['lng', 'خط الطول (اختياري)']],
-      job: [['workplace', 'مكان العمل *'], ['work_hours', 'ساعات العمل'], ['requirements', 'الشروط']],
-      property: [['size', 'المساحة م²'], ['landmark', 'أقرب نقطة دالة']],
-      service: [['work_areas', 'مناطق العمل'], ['experience', 'الخبرة'], ['hours', 'أوقات العمل']],
-      market: [], offer: [],
-      community: [['event_date', 'تاريخ الفعالية (YYYY-MM-DD)'], ['location', 'المكان'], ['organizer', 'الجهة المنظمة']],
-      help: [['blood_type', 'فصيلة الدم (مثل O+)'], ['location', 'المكان العام']],
-    };
     return reply.page(req, { title: 'نشر إعلان (للإدارة)', noindex: true, canonical: null }, html`<div class="wrap narrow">
       <h1>نشر إعلان على الموقع</h1>
       <p class="lede">هذه الصفحة لصاحب الموقع. تملأ الحقول، فيتجهز ملف الإعلان وتنفتح صفحة GitHub لحفظه. بعد الحفظ بدقيقة أو دقيقتين يظهر الإعلان في الموقع.</p>
@@ -105,10 +104,8 @@ export async function staticRoutes(app: FastifyInstance) {
         ${field({ name: 'title', label: 'العنوان', required: true, max: 100 })}
         ${field({ name: 'area', label: 'المنطقة', value: 'المعامل', required: true, max: 60 })}
         <div data-for="job property market offer" hidden>${field({ name: 'price', label: 'السعر أو الراتب (د.ع)', attrs: 'inputmode="numeric"' })}</div>
-        <div data-for="job" hidden>${select({ name: 'employment', label: 'نوع الدوام', required: true, value: 'full', options: [['full', 'دوام كامل'], ['part', 'دوام جزئي'], ['daily', 'عمل يومي'], ['training', 'تدريب'], ['freelance', 'عمل حر']] })}</div>
-        <div data-for="property" hidden>${select({ name: 'offer', label: 'نوع العرض', required: true, value: 'sale', options: [['sale', 'بيع'], ['rent', 'إيجار']] })}</div>
-        <div data-for="market" hidden>${select({ name: 'condition', label: 'الحالة', required: true, value: 'used', options: [['used', 'مستعمل'], ['new', 'جديد']] })}</div>
-        ${TYPE_KEYS.map((t) => typeFields[t].length ? html`<div data-for="${t}" hidden>${typeFields[t].map(([k, l]) => field({ name: `${t}_${k}`, label: l, required: true }))}</div>` : '')}
+        ${TYPE_KEYS.map((t) => typeFieldGroup(t, `${t}_`))}
+        <div data-for="business" hidden><div class="two">${field({ name: 'business_lat', label: 'خط العرض', dir: 'ltr', attrs: 'inputmode="decimal"' })}${field({ name: 'business_lng', label: 'خط الطول', dir: 'ltr', attrs: 'inputmode="decimal"' })}</div></div>
         <div data-for="business" hidden>${textarea({ name: 'menu', label: 'قائمة الأسعار', required: false, rows: 8, hint: 'كل صنف بسطر: «الاسم | السعر» مثل «تكة لحم | 6000»، أو الصق المنيو بصيغة واتساب: سطر القسم «*المشويات*» ثم «• نفر كباب — 12,000». الأحجام: «• بيتزا: صغير 5,000 / وسط 7,000».' })}</div>
         ${textarea({ name: 'body', label: 'الوصف', required: false, rows: 6, max: 4000 })}
         ${field({ name: 'phone', label: 'رقم التواصل', type: 'tel', dir: 'ltr', required: false, attrs: 'inputmode="tel"' })}
@@ -119,7 +116,6 @@ export async function staticRoutes(app: FastifyInstance) {
         ${checkbox({ name: 'featured', label: 'إعلان مميز (يظهر بالصفحة الرئيسية)' })}
         <div data-for="business help" hidden>${checkbox({ name: 'verified', label: 'تم التحقق فعلياً من البيانات (يظهر شارة موثّق)' })}</div>
         <div data-for="community" hidden>${checkbox({ name: 'official', label: 'خبر مؤكد من الإدارة' })}</div>
-        <div data-for="help" hidden>${checkbox({ name: 'consent', label: 'صاحب الحالة وافق على النشر' })}${checkbox({ name: 'phone_consent', label: 'صاحب الرقم وافق على عرضه' })}</div>
         <button class="btn btn-primary btn-lg" type="submit">تجهيز الإعلان</button>
       </form>
       <div data-publish-out hidden>

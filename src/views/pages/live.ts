@@ -4,6 +4,7 @@ import { html, type SafeHtml } from '../../lib/html.ts';
 import { TYPES, TYPE_KEYS, type PostType } from '../../domain/types.ts';
 import { checkbox, field, select, textarea } from '../components.ts';
 import { icon } from '../layout.ts';
+import { typeFieldGroup, typeTextJson } from '../type-fields.ts';
 
 export interface LiveCfg { url: string; key: string; v: string; wa?: string }
 
@@ -25,21 +26,14 @@ export function liveSubmitPage(type: PostType | '', cats: Record<string, string[
     <p class="note">${icon('store', 'i i-sm')}عندك مطعم أو محل؟ <a href="${addShop}" target="_blank" rel="noopener">راسل الإدارة على واتساب</a> ونضيفه لك مع قائمة أسعاره.</p>
     ${pricingNote}
     ${msg}${noJs}
-    <form class="form" data-live-submit data-cats="${JSON.stringify(cats)}" novalidate>
+    <form class="form" data-live-submit data-cats="${JSON.stringify(cats)}" data-texts="${typeTextJson()}" novalidate>
       ${select({ name: 'type', label: 'نوع الإعلان', required: true, value: type === 'business' ? '' : type, placeholder: 'اختر', options: guestTypes.map((t) => [t, TYPES[t].single]) })}
       ${select({ name: 'category', label: 'التصنيف', required: true, placeholder: 'اختر نوع الإعلان أولاً', options: [] })}
       ${field({ name: 'title', label: 'العنوان', required: true, max: 100 })}
       ${select({ name: 'area', label: 'المنطقة', required: true, value: areas[0] ?? 'المعامل', options: areas.map((a) => [a, a]) })}
       <div data-for="${PRICE_TYPES.join(' ')}" hidden>${field({ name: 'price', label: 'السعر أو الراتب (د.ع)', attrs: 'inputmode="numeric"', hint: 'اتركه فارغاً إذا يحدد عند التواصل' })}</div>
-      <div data-for="job" hidden>${field({ name: 'd_workplace', label: 'مكان العمل', max: 150 })}${select({ name: 'd_employment', label: 'نوع الدوام', value: 'full', required: true, options: [['full', 'دوام كامل'], ['part', 'دوام جزئي'], ['daily', 'عمل يومي'], ['training', 'تدريب'], ['freelance', 'عمل حر']] })}</div>
-      <div data-for="property" hidden>${select({ name: 'd_offer', label: 'نوع العرض', value: 'sale', required: true, options: [['sale', 'بيع'], ['rent', 'إيجار']] })}${field({ name: 'd_size', label: 'المساحة (م²)', attrs: 'inputmode="numeric"' })}</div>
-      <div data-for="market" hidden>${select({ name: 'd_condition', label: 'الحالة', value: 'used', required: true, options: [['used', 'مستعمل'], ['new', 'جديد']] })}</div>
-      <div data-for="service" hidden>${field({ name: 'd_work_areas', label: 'مناطق العمل', max: 300 })}</div>
-      <div data-for="community help" hidden>${field({ name: 'd_location', label: 'المكان', max: 150 })}</div>
-      <div data-for="help" hidden>
-        <p class="note note-warn">${icon('shield', 'i i-sm')}لا ترفع وثائق طبية ولا تكتب اسم المريض الكامل أو عنوانه.</p>
-        ${checkbox({ name: 'd_consent', label: 'أؤكد أن صاحب الحالة وافق على نشر الطلب' })}
-      </div>
+      ${guestTypes.map((t) => typeFieldGroup(t, `d_${t}_`))}
+      <div data-for="help" hidden><p class="note note-warn">${icon('shield', 'i i-sm')}لا ترفع وثائق طبية ولا تكتب اسم المريض الكامل أو عنوانه.</p></div>
       ${textarea({ name: 'body', label: 'التفاصيل', required: true, max: 4000, rows: 5 })}
       <fieldset class="group"><legend>التواصل</legend>
         <div data-guest-only>${field({ name: 'guest_name', label: 'اسمك', required: true, max: 60, hint: 'للإدارة فقط، ما يظهر بالإعلان' })}</div>

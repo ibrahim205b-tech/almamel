@@ -198,6 +198,8 @@ export interface DetailData {
   canReview: boolean; canClaim: boolean; ownerActions: SafeHtml; csrf: SafeHtml; s: Settings; baseUrl: string; staticMode?: boolean;
 }
 
+const yes = (v: unknown) => v === true || v === 'true' || v === 'on';
+
 function facts(p: ListItem, d: Record<string, string | number>): [string, SafeHtml | string][] {
   const out: [string, SafeHtml | string][] = [['التصنيف', p.category_name], ['المنطقة', p.area_name]];
   switch (p.type) {
@@ -210,23 +212,28 @@ function facts(p: ListItem, d: Record<string, string | number>): [string, SafeHt
     case 'job':
       out.push(['الراتب', p.price !== null ? `${fmtPrice(p.price)} شهرياً` : 'يحدد عند التواصل'], ['مكان العمل', String(d.workplace ?? '')], ['نوع الدوام', EMPLOYMENT[String(d.employment)] ?? '']);
       if (d.work_hours) out.push(['ساعات العمل', String(d.work_hours)]);
+      if (d.positions) out.push(['عدد الشواغر', fmtNumber(Number(d.positions))]);
       if (p.expires_at) out.push(['ينتهي الإعلان', fmtDate(p.expires_at)]);
       break;
     case 'property':
       out.push(['نوع العرض', d.offer === 'rent' ? 'إيجار' : 'بيع'], ['السعر', p.price !== null ? fmtPrice(p.price) + (d.offer === 'rent' ? ' شهرياً' : '') : 'عند التواصل']);
       if (d.size) out.push(['المساحة', `${fmtNumber(Number(d.size))} م²`]);
+      if (d.rooms) out.push(['عدد الغرف', fmtNumber(Number(d.rooms))]);
       if (d.landmark) out.push(['أقرب نقطة دالة', String(d.landmark)]);
       break;
     case 'service':
       if (d.work_areas) out.push(['مناطق العمل', String(d.work_areas)]);
       if (d.hours) out.push(['أوقات العمل', String(d.hours)]);
       if (d.experience) out.push(['الخبرة', String(d.experience)]);
+      if (yes(d.home_visit)) out.push(['خدمة منزلية', 'يجي للبيت']);
       break;
     case 'market':
-      out.push(['السعر', p.price !== null ? fmtPrice(p.price) : 'عند التواصل'], ['الحالة', d.condition === 'new' ? 'جديد' : 'مستعمل']);
+      out.push(['السعر', p.price !== null ? fmtPrice(p.price) + (yes(d.negotiable) ? ' (قابل للتفاوض)' : '') : 'عند التواصل'], ['الحالة', d.condition === 'new' ? 'جديد' : 'مستعمل']);
       break;
     case 'offer':
-      if (p.price !== null) out.push(['السعر', fmtPrice(p.price)]);
+      if (d.shop_name) out.push(['المحل', String(d.shop_name)]);
+      if (d.old_price) out.push(['السعر قبل العرض', html`<s>${fmtPrice(Number(d.old_price))}</s>`]);
+      if (p.price !== null) out.push(['سعر العرض', fmtPrice(p.price)]);
       if (p.expires_at) out.push(['ينتهي العرض', fmtDate(p.expires_at)]);
       break;
     case 'community':
@@ -237,7 +244,10 @@ function facts(p: ListItem, d: Record<string, string | number>): [string, SafeHt
       break;
     case 'help':
       if (d.blood_type) out.push(['فصيلة الدم المطلوبة', html`<span dir="ltr">${d.blood_type}</span>`]);
+      if (d.units) out.push(['العدد المطلوب', fmtNumber(Number(d.units))]);
       if (d.location) out.push(['المكان', String(d.location)]);
+      if (d.needed_by) out.push(['مطلوب قبل', String(d.needed_by)]);
+      if (d.contact_name) out.push(['المسؤول عن الطلب', String(d.contact_name)]);
       if (p.expires_at) out.push(['ينتهي الطلب', fmtDate(p.expires_at)]);
       break;
   }

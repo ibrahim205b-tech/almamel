@@ -20,7 +20,8 @@ interface Row {
 interface Item { id: number; business_id: number; section: string; name: string; price: number | null; note: string; image: string | null; available: boolean; sort: number }
 
 const DETAIL_KEYS = new Set(['address', 'hours', 'services', 'delivery', 'lat', 'lng', 'workplace', 'employment', 'work_hours', 'requirements',
-  'offer', 'size', 'landmark', 'work_areas', 'experience', 'condition', 'event_date', 'location', 'organizer', 'source_name', 'source_url', 'blood_type', 'consent']);
+  'offer', 'size', 'landmark', 'work_areas', 'experience', 'condition', 'event_date', 'location', 'organizer', 'source_name', 'source_url', 'blood_type', 'consent',
+  'positions', 'rooms', 'home_visit', 'negotiable', 'shop_name', 'old_price', 'units', 'needed_by', 'contact_name']);
 const PATH = /^(guest\/|u\/[0-9a-f-]{36}\/)[0-9a-f]{32}\.webp$/;
 
 async function get<T>(cfg: SupabaseCfg, rel: string): Promise<T> {

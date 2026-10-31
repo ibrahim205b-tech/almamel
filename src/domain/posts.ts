@@ -64,6 +64,7 @@ const DETAILS = {
     d_employment: z.enum(['full', 'part', 'daily', 'training', 'freelance'], { error: 'نوع الدوام: اختر من القائمة' }),
     d_work_hours: optText('ساعات العمل', 100),
     d_requirements: optText('الشروط', 1000),
+    d_positions: z.string().optional().default('').transform((v, ctx) => { const s = digits(v).replace(/[,\s٬]/g, '').trim(); if (!s) return null; if (!/^\d{1,3}$/.test(s)) { ctx.addIssue({ code: 'custom', message: 'عدد الشواغر: رقم فقط' }); return z.NEVER; } return Number(s); }),
   },
   property: {
     d_offer: z.enum(['sale', 'rent'], { error: 'نوع العرض: اختر بيع أو إيجار' }),
@@ -73,14 +74,17 @@ const DETAILS = {
       return Number(s);
     }),
     d_landmark: optText('أقرب نقطة دالة', 100),
+    d_rooms: z.string().optional().default('').transform((v, ctx) => { const s = digits(v).replace(/[,\s٬]/g, '').trim(); if (!s) return null; if (!/^\d{1,2}$/.test(s)) { ctx.addIssue({ code: 'custom', message: 'عدد الغرف: رقم فقط' }); return z.NEVER; } return Number(s); }),
   },
   service: {
     d_work_areas: optText('مناطق العمل', 300),
     d_experience: optText('الخبرة', 300),
     d_hours: optText('أوقات العمل', 200),
+    d_home_visit: checkbox,
   },
   market: {
     d_condition: z.enum(['new', 'used'], { error: 'الحالة: اختر جديد أو مستعمل' }),
+    d_negotiable: checkbox,
   },
   offer: {
     d_business_id: z.string().optional().default('').transform((v) => (/^\d{1,9}$/.test(v) ? Number(v) : null)),
@@ -89,6 +93,8 @@ const DETAILS = {
       if (!Number.isInteger(n) || n < 1 || n > 30) { ctx.addIssue({ code: 'custom', message: 'مدة العرض: من ١ إلى ٣٠ يوماً' }); return z.NEVER; }
       return n;
     }),
+    d_shop_name: optText('اسم المحل', 100),
+    d_old_price: z.string().optional().default('').transform((v, ctx) => { const s = digits(v).replace(/[,\s٬]/g, '').trim(); if (!s) return null; if (!/^\d{1,11}$/.test(s)) { ctx.addIssue({ code: 'custom', message: 'السعر قبل العرض: رقم فقط' }); return z.NEVER; } return Number(s); }),
   },
   community: {
     d_event_date: z.string().optional().default('').refine((v) => !v || /^\d{4}-\d{2}-\d{2}$/.test(v), 'تاريخ الفعالية غير صحيح'),
@@ -102,6 +108,9 @@ const DETAILS = {
   help: {
     d_blood_type: z.enum(['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']).optional().default(''),
     d_location: optText('المكان العام', 150),
+    d_units: z.string().optional().default('').transform((v, ctx) => { const s = digits(v).replace(/[,\s٬]/g, '').trim(); if (!s) return null; if (!/^\d{1,3}$/.test(s)) { ctx.addIssue({ code: 'custom', message: 'العدد المطلوب: رقم فقط' }); return z.NEVER; } return Number(s); }),
+    d_needed_by: z.string().optional().default('').refine((v) => !v || /^\d{4}-\d{2}-\d{2}$/.test(v), 'تاريخ الحاجة غير صحيح'),
+    d_contact_name: optText('اسم المسؤول عن الطلب', 60),
     d_consent: z.string({ error: 'يجب تأكيد موافقة صاحب الحالة على النشر' }).refine((v) => v === 'on', 'يجب تأكيد موافقة صاحب الحالة على النشر'),
     d_phone_consent: checkbox,
   },
@@ -132,7 +141,7 @@ export function parsePostForm(type: PostType, form: Record<string, unknown>): Pa
   const details: Record<string, unknown> = {};
   for (const [k, val] of Object.entries(v)) {
     if (!k.startsWith('d_') || ['d_iam_owner', 'd_business_id', 'd_valid_days', 'd_consent', 'd_phone_consent'].includes(k)) continue;
-    if (val !== '' && val !== null) details[k.slice(2)] = val;
+    if (val !== '' && val !== null && val !== false) details[k.slice(2)] = val;
   }
   const errors: string[] = [];
   if (PHONE_REQUIRED[type] && !v.contact_phone) errors.push('رقم التواصل: مطلوب');

@@ -79,6 +79,22 @@ test('area news get their own page, a homepage block and a source link', async (
   await assert.rejects(buildStatic({ siteUrl: 'https://u.github.io/r', contentDir: dir, outDir: fs.mkdtempSync(path.join(os.tmpdir(), 'o-')), repo: 'u/r', quiet: true }));
 });
 
+test('each section shows its own fields (help, service, market)', async () => {
+  const dir = fixture();
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'almamel-out-'));
+  write(dir, 'h.md', `---\nid: 11\ntype: help\ntitle: "مطلوب متبرع دم"\ncategory: "تبرع بالدم"\ndate: ${today}\nblood_type: "O+"\nunits: 3\nlocation: "مستشفى المعامل"\nneeded_by: "${today}"\ncontact_name: "أبو أحمد"\nconsent: true\n---\nحالة طارئة.\n`);
+  write(dir, 's.md', `---\nid: 12\ntype: service\ntitle: "كهربائي منازل"\ncategory: "كهربائيون"\ndate: ${today}\nphone: "07701234567"\nhome_visit: true\n---\n`);
+  write(dir, 'm.md', `---\nid: 13\ntype: market\ntitle: "ثلاجة"\ncategory: "أثاث مستعمل"\ndate: ${today}\nphone: "07701234567"\ncondition: used\nprice: "200000"\nnegotiable: true\n---\n`);
+  const r = await buildStatic({ siteUrl: 'https://u.github.io/r', contentDir: dir, outDir: out, repo: 'u/r', quiet: true });
+  assert.equal(r.published, 3);
+  const help = fs.readFileSync(path.join(out, 'help/11/index.html'), 'utf8');
+  for (const t of ['العدد المطلوب', 'مستشفى المعامل', 'مطلوب قبل', 'أبو أحمد']) assert.ok(help.includes(t), t);
+  assert.ok(fs.readFileSync(path.join(out, 'services/12/index.html'), 'utf8').includes('خدمة منزلية'));
+  assert.ok(fs.readFileSync(path.join(out, 'market/13/index.html'), 'utf8').includes('قابل للتفاوض'));
+  const submit = fs.readFileSync(path.join(out, 'submit/index.html'), 'utf8');
+  assert.ok(submit.includes('name="d_help_blood_type"') && submit.includes('name="d_property_rooms"') && submit.includes('name="d_job_positions"'));
+});
+
 test('invalid listing files stop the build with clear messages', async () => {
   const dir = fixture();
   write(dir, 'bad1.md', `---\nid: 1\ntype: job\ntitle: "x"\ncategory: "غير موجود"\ndate: ${today}\n---\n`);

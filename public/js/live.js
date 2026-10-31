@@ -104,6 +104,7 @@
   async function initSubmit() {
     var form = $('[data-live-submit]');
     var cats = JSON.parse(form.getAttribute('data-cats') || '{}');
+    var texts = JSON.parse(form.getAttribute('data-texts') || '{}');
     var typeSel = form.elements.type, catSel = form.elements.category;
     var s = await session();
     if (s) $$('[data-guest-only]', form).forEach(function (g) { g.hidden = true; $$('input', g).forEach(function (x) { x.disabled = true; }); });
@@ -114,6 +115,13 @@
       catSel.appendChild(el('option', { value: '', text: t ? 'اختر' : 'اختر نوع الإعلان أولاً' }));
       (cats[t] || []).forEach(function (c) { catSel.appendChild(el('option', { value: c, text: c })); });
       showFor(form, t);
+      // تسميات العنوان والتفاصيل والسعر حسب القسم
+      var tx = texts[t];
+      [['title', tx && tx.title, tx && tx.titleHint], ['body', tx && tx.body, tx && tx.bodyHint], ['price', tx && tx.price]].forEach(function (a) {
+        var input = form.elements[a[0]]; if (!input || !a[1]) return;
+        var lab = form.querySelector('label[for="' + input.id + '"]'); if (lab) lab.firstChild.textContent = a[1];
+        if (a[2] !== undefined) input.placeholder = a[2];
+      });
     };
     typeSel.addEventListener('change', fill); fill();
     form.addEventListener('submit', async function (e) {
@@ -129,14 +137,18 @@
       var name = !s ? f.guest_name.value.trim() : null; if (!s && (name.length < 2 || name.length > 60)) errs.push('اكتب اسمك.');
       var files = Array.prototype.slice.call(f.images.files || []);
       if (files.length > maxImages) errs.push('الحد الأقصى ' + maxImages + ' صور.');
-      if (t === 'help' && !(f.d_consent && f.d_consent.checked)) errs.push('أكّد موافقة صاحب الحالة.');
-      if (t === 'job' && !f.d_workplace.value.trim()) errs.push('اكتب مكان العمل.');
+      var pre = 'd_' + t + '_';
+      if (t === 'help' && !(f[pre + 'consent'] && f[pre + 'consent'].checked)) errs.push('أكّد موافقة صاحب الحالة.');
+      $$('[name^="' + pre + '"][required]', form).forEach(function (x) {
+        if (x.type !== 'checkbox' && !x.value.trim()) { var lab = form.querySelector('label[for="' + x.id + '"]'); errs.push('املأ: ' + (lab ? lab.firstChild.textContent.trim() : x.name) + '.'); }
+      });
       if (errs.length) return say(errs.join(' '), 'error');
       busy(form, true); say('جارِ الإرسال...', 'ok');
       try {
         var details = {};
-        $$('[name^="d_"]', form).forEach(function (x) { if (!x.disabled && (x.type === 'checkbox' ? x.checked : x.value.trim())) details[x.name.slice(2)] = x.type === 'checkbox' ? true : x.value.trim(); });
-        if (details.size) details.size = Number(digits(details.size)) || undefined;
+        // حقول القسم: «d_<القسم>_<الحقل>»
+        $$('[name^="' + pre + '"]', form).forEach(function (x) { if (!x.disabled && (x.type === 'checkbox' ? x.checked : x.value.trim())) details[x.name.slice(pre.length)] = x.type === 'checkbox' ? true : x.value.trim(); });
+        ['size', 'rooms', 'positions', 'units', 'old_price', 'valid_days'].forEach(function (k) { if (details[k]) details[k] = Number(digits(details[k]).replace(/[,\s٬]/g, '')) || undefined; });
         var folder = s ? 'u/' + s.user.id + '/' : 'guest/';
         var images = [];
         for (var i = 0; i < files.length; i++) images.push(await upload('media', folder + hex() + '.webp', await toWebp(files[i])));
