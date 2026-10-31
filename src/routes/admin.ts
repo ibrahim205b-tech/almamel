@@ -27,7 +27,7 @@ const DETAIL_LABEL: Record<string, string> = {
   address: 'العنوان', hours: 'ساعات العمل', services: 'الخدمات', delivery: 'مناطق التوصيل', lat: 'خط العرض', lng: 'خط الطول',
   workplace: 'مكان العمل', employment: 'نوع الدوام', work_hours: 'ساعات العمل', requirements: 'الشروط',
   offer: 'نوع العرض', size: 'المساحة (م²)', landmark: 'أقرب نقطة دالة', work_areas: 'مناطق العمل', experience: 'الخبرة',
-  condition: 'الحالة', valid_days: 'مدة العرض (أيام)', event_date: 'تاريخ الفعالية', location: 'المكان', organizer: 'الجهة المنظمة',
+  condition: 'الحالة', valid_days: 'مدة العرض (أيام)', event_date: 'تاريخ الفعالية', location: 'المكان', organizer: 'الجهة المنظمة', source_name: 'المصدر', source_url: 'رابط المصدر',
   blood_type: 'فصيلة الدم', consent_at: 'تأكيد موافقة صاحب الحالة',
 };
 

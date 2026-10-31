@@ -21,7 +21,7 @@ const DETAIL_KEYS: Record<PostType, string[]> = {
   service: ['work_areas', 'experience', 'hours'],
   market: ['condition'],
   offer: [],
-  community: ['event_date', 'location', 'organizer'],
+  community: ['event_date', 'location', 'organizer', 'source_name', 'source_url'],
   help: ['blood_type', 'location'],
 };
 const COMMON = ['id', 'type', 'title', 'category', 'area', 'date', 'expires', 'price', 'phone', 'show_phone', 'whatsapp', 'images', 'featured', 'verified', 'official', 'menu', 'consent', 'phone_consent'];

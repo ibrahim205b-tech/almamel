@@ -35,6 +35,7 @@ export const csrfField = (ctx: ViewCtx) => html`<input type="hidden" name="_csrf
 function nav(ctx: ViewCtx) {
   const links = TYPE_KEYS.filter((t) => t !== 'offer').map((t) => ({ href: TYPES[t].path, label: TYPES[t].label }));
   links.splice(1, 0, { href: '/restaurants', label: 'المطاعم والتوصيل' });
+  links.unshift({ href: '/news', label: 'أخبار المعامل' });
   return html`<ul class="nav-list">${links.map((l) => html`<li><a href="${l.href}" ${ctx.path.startsWith(l.href) ? raw('aria-current="page"') : ''}>${l.label}</a></li>`)}</ul>`;
 }
 

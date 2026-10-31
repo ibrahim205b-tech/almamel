@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { html } from '../lib/html.ts';
 import { toFtsQuery } from '../lib/arabic.ts';
 import { TYPES, TYPE_KEYS, isPostType, type PostType } from '../domain/types.ts';
-import { canPreview, getPostView, isPostOwner, listFeatured, listPublic, postImages, postItems, PUBLIC_WHERE, type ListQuery } from '../domain/posts.ts';
+import { canPreview, getPostView, isPostOwner, listFeatured, listPublic, NEWS_CATEGORIES, postImages, postItems, PUBLIC_WHERE, type ListQuery } from '../domain/posts.ts';
 import { addClaim, addReport, addReview, EngagementError, publicReviews, reviewSummary } from '../domain/engagement.ts';
 import { POLICIES, sectionEnabled } from '../domain/settings.ts';
 import { availableActions, ACTIONS } from '../domain/workflow.ts';
@@ -54,7 +54,7 @@ export async function publicRoutes(app: FastifyInstance) {
     return reply.page(req, { title: s.site_name, canonical: '/' }, homePage({
       counts, featured: listFeatured(db, 'home'), latest: pick([...TYPE_KEYS], {}, 6), offers: pick(['offer']), jobs: pick(['job']),
       properties: pick(['property']), food: pick(['business'], { foodOnly: true }), services: pick(['service']), market: pick(['market']),
-      community: pick(['community']), help: pick(['help'], {}, 3),
+      community: pick(['community']), help: pick(['help'], {}, 3), news: pick(['community'], { newsOnly: true }),
     }, s, req.user));
   });
 
@@ -93,6 +93,18 @@ export async function publicRoutes(app: FastifyInstance) {
     return reply.page(req, { title: 'المطاعم والتوصيل', description: 'مطاعم وأفران منطقة المعامل: قوائم الطعام والأسعار وأرقام الطلب والتوصيل.' }, listPage({
       title: 'المطاعم والتوصيل', intro: 'قوائم الطعام والأسعار ومناطق التوصيل. الطلب يكون مباشرة من المطعم بالاتصال أو واتساب.', path: '/restaurants', type: 'business',
       result, query: params, featured: [], categories: food, areas: areas(), extra: filterExtras('food', params), canSubmit: sectionEnabled(req.settings, 'business'), submitType: 'business', staticMode: app.cfg.staticMode,
+    }));
+  });
+
+  app.get('/news', (req, reply) => {
+    const { lq, fts, params } = readQuery(req.query as Q, ['community']);
+    lq.newsOnly = true;
+    const result = listPublic(db, lq, fts);
+    const cats = db.prepare(`SELECT id, name FROM categories WHERE section = 'community' AND active = 1 AND name IN (${NEWS_CATEGORIES.map(() => '?').join(',')}) ORDER BY sort`)
+      .all(...NEWS_CATEGORIES).map((r) => [(r as { id: number }).id, (r as { name: string }).name] as [number, string]);
+    return reply.page(req, { title: 'أخبار المعامل', description: 'آخر أخبار منطقة المعامل في قضاء الزوراء ببغداد: الخدمات والمشاريع والتنبيهات، مع رابط كل خبر لمصدره.' }, listPage({
+      title: 'أخبار المعامل', intro: 'آخر ما يُنشر عن منطقة المعامل وقضاء الزوراء: الخدمات والمشاريع والتنبيهات. كل خبر منقول يحمل رابط مصدره الأصلي.', path: '/news', type: 'community',
+      result, query: params, featured: [], categories: cats, areas: areas(), extra: html``, canSubmit: sectionEnabled(req.settings, 'community'), submitType: 'community', staticMode: app.cfg.staticMode,
     }));
   });
 
@@ -204,7 +216,7 @@ export async function publicRoutes(app: FastifyInstance) {
   app.get('/sitemap.xml', (_req, reply) => {
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const base = app.cfg.baseUrl;
-    const urls = ['/', '/about', '/contact', '/restaurants', ...TYPE_KEYS.map((t) => TYPES[t].path), ...Object.keys(POLICIES).map((k) => `/policies/${k}`)]
+    const urls = ['/', '/about', '/contact', '/restaurants', '/news', ...TYPE_KEYS.map((t) => TYPES[t].path), ...Object.keys(POLICIES).map((k) => `/policies/${k}`)]
       .map((u) => `<url><loc>${esc(base + u)}</loc></url>`);
     const posts = db.prepare(`SELECT p.id, p.type, p.updated_at FROM posts p WHERE ${PUBLIC_WHERE} ORDER BY p.updated_at DESC LIMIT 45000`).all() as { id: number; type: PostType; updated_at: number }[];
     for (const p of posts) urls.push(`<url><loc>${esc(`${base}${TYPES[p.type].path}/${p.id}`)}</loc><lastmod>${new Date(p.updated_at * 1000).toISOString().slice(0, 10)}</lastmod></url>`);

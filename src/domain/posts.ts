@@ -94,6 +94,10 @@ const DETAILS = {
     d_event_date: z.string().optional().default('').refine((v) => !v || /^\d{4}-\d{2}-\d{2}$/.test(v), 'تاريخ الفعالية غير صحيح'),
     d_location: optText('المكان', 150),
     d_organizer: optText('الجهة المنظمة', 100),
+    // مصدر الخبر المنقول: اسم الجهة ورابط الخبر الأصلي
+    d_source_name: optText('اسم المصدر', 80),
+    d_source_url: z.string().trim().max(500, 'رابط المصدر طويل جداً').optional().default('')
+      .refine((v) => !v || /^https:\/\/[^\s<>"]+$/.test(v), 'رابط المصدر يجب أن يبدأ بـ https://'),
   },
   help: {
     d_blood_type: z.enum(['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']).optional().default(''),
@@ -188,10 +192,13 @@ const LIST_SELECT = `SELECT p.*, c.name AS category_name, a.name AS area_name,
   EXISTS (SELECT 1 FROM featured_listings f WHERE f.post_id = p.id AND f.starts_at <= unixepoch() AND f.ends_at > unixepoch()) AS featured
   FROM posts p JOIN categories c ON c.id = p.category_id JOIN areas a ON a.id = p.area_id`;
 
+/** تصنيفات «أخبار ومبادرات» التي تظهر في صفحة أخبار المعامل. */
+export const NEWS_CATEGORIES = ['أخبار المنطقة', 'تنبيهات الخدمات العامة'];
+
 export interface ListQuery {
   types?: PostType[]; q?: string | null; category?: number | null; area?: number | null;
   minPrice?: number | null; maxPrice?: number | null; sinceDays?: number | null; openOnly?: boolean;
-  offer?: 'sale' | 'rent' | null; employment?: string | null; foodOnly?: boolean; businessId?: number | null;
+  offer?: 'sale' | 'rent' | null; employment?: string | null; foodOnly?: boolean; newsOnly?: boolean; businessId?: number | null;
   sort?: 'new' | 'price_asc' | 'price_desc'; page?: number; perPage?: number;
 }
 
@@ -209,6 +216,7 @@ export function listPublic(db: DB, q: ListQuery, ftsQuery: string | null = null)
   if (q.offer) { where.push("json_extract(p.details, '$.offer') = ?"); args.push(q.offer); }
   if (q.employment) { where.push("json_extract(p.details, '$.employment') = ?"); args.push(q.employment); }
   if (q.foodOnly) where.push('c.is_food = 1');
+  if (q.newsOnly) { where.push(`c.name IN (${NEWS_CATEGORIES.map(() => '?').join(',')})`); args.push(...NEWS_CATEGORIES); }
   if (q.businessId) { where.push('p.business_id = ?'); args.push(q.businessId); }
   if (ftsQuery) { where.push('p.id IN (SELECT post_id FROM search_index WHERE search_index MATCH ?)'); args.push(ftsQuery); }
   const perPage = Math.min(q.perPage ?? 20, 1000);

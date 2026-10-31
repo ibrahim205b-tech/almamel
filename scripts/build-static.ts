@@ -41,7 +41,7 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
     const app = await buildApp(cfg, { db, logger: false, jobs: false });
 
     const settings = loadSettings(db);
-    const urls = ['/', '/restaurants', '/about', '/contact', '/search', '/submit', '/publish', '/owner',
+    const urls = ['/', '/restaurants', '/news', '/about', '/contact', '/search', '/submit', '/publish', '/owner',
       ...(opts.supabase ? ['/owner/register', '/login', '/owner/dashboard', '/owner/menu', '/admin'] : []), ...TYPE_KEYS.map((t) => TYPES[t].path),
       ...TYPE_KEYS.filter((t) => sectionEnabled(settings, t)).map((t) => `/submit/${t}`),
       ...Object.keys(POLICIES).map((k) => `/policies/${k}`),

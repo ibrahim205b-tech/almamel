@@ -64,6 +64,21 @@ test('whatsapp-style menus become sections, prices and sizes, with a cart on the
   assert.ok(page.includes('المشويات'));
 });
 
+test('area news get their own page, a homepage block and a source link', async () => {
+  const dir = fixture();
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'almamel-out-'));
+  write(dir, 'n.md', `---\nid: 8\ntype: community\ntitle: "حملة خدمية في المعامل"\ncategory: "أخبار المنطقة"\ndate: ${today}\nsource_name: "وكالة الأنباء العراقية"\nsource_url: "https://ina.iq/ar/local/1.html"\n---\nملخص الخبر.\n`);
+  write(dir, 'e.md', `---\nid: 9\ntype: community\ntitle: "دورة خياطة مجانية"\ncategory: "المدارس والدورات"\ndate: ${today}\n---\nتفاصيل.\n`);
+  await buildStatic({ siteUrl: 'https://u.github.io/r', contentDir: dir, outDir: out, repo: 'u/r', quiet: true });
+  const news = fs.readFileSync(path.join(out, 'news/index.html'), 'utf8');
+  assert.ok(news.includes('حملة خدمية في المعامل') && !news.includes('دورة خياطة مجانية'), 'only news categories');
+  assert.ok(fs.readFileSync(path.join(out, 'index.html'), 'utf8').includes('آخر أخبار المعامل'));
+  const page = fs.readFileSync(path.join(out, 'community/8/index.html'), 'utf8');
+  assert.ok(page.includes('href="https://ina.iq/ar/local/1.html"') && page.includes('منقول عن وكالة الأنباء العراقية'));
+  write(dir, 'n.md', `---\nid: 8\ntype: community\ntitle: "خبر"\ncategory: "أخبار المنطقة"\ndate: ${today}\nsource_url: "javascript:alert(1)"\n---\n`);
+  await assert.rejects(buildStatic({ siteUrl: 'https://u.github.io/r', contentDir: dir, outDir: fs.mkdtempSync(path.join(os.tmpdir(), 'o-')), repo: 'u/r', quiet: true }));
+});
+
 test('invalid listing files stop the build with clear messages', async () => {
   const dir = fixture();
   write(dir, 'bad1.md', `---\nid: 1\ntype: job\ntitle: "x"\ncategory: "غير موجود"\ndate: ${today}\n---\n`);

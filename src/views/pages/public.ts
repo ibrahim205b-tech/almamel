@@ -26,7 +26,7 @@ export function searchBox(q = '', type = '', big = false): SafeHtml {
 export interface HomeData {
   counts: Record<string, number>;
   featured: ListItem[]; latest: ListItem[]; offers: ListItem[]; jobs: ListItem[]; properties: ListItem[];
-  food: ListItem[]; services: ListItem[]; market: ListItem[]; community: ListItem[]; help: ListItem[];
+  food: ListItem[]; services: ListItem[]; market: ListItem[]; community: ListItem[]; help: ListItem[]; news: ListItem[];
 }
 
 const quickLinks: [string, string, string][] = [
@@ -66,6 +66,7 @@ export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml 
     ${d.featured.length ? html`<section class="block" aria-labelledby="h-featured"><div class="section-head"><h2 id="h-featured">مميز اليوم</h2></div>${rowList(d.featured, html``)}</section>` : ''}
 
     <div class="columns">
+      ${d.news.length ? block('آخر أخبار المعامل', '/news', d.news, '') : ''}
       ${block('أحدث الإعلانات', '/search', d.latest, 'أول ما توافق الإدارة على إعلانات جديدة راح تظهر هنا.')}
       ${block('عروض المحلات', '/offers', d.offers, 'ما كو عروض حالياً. أصحاب المحلات يگدرون ينشرون عروضهم من صفحة محلهم.')}
       ${block('فرص العمل', '/jobs', d.jobs, 'ما كو وظائف منشورة حالياً.', 'job')}
@@ -209,6 +210,7 @@ function facts(p: ListItem, d: Record<string, string | number>): [string, SafeHt
       if (d.event_date) out.push(['التاريخ', String(d.event_date)]);
       if (d.location) out.push(['المكان', String(d.location)]);
       if (d.organizer) out.push(['الجهة', String(d.organizer)]);
+      if (d.source_url) out.push(['المصدر', html`<a href="${String(d.source_url)}" target="_blank" rel="noopener nofollow">${String(d.source_name || 'الخبر الأصلي')}</a>`]);
       break;
     case 'help':
       if (d.blood_type) out.push(['فصيلة الدم المطلوبة', html`<span dir="ltr">${d.blood_type}</span>`]);
@@ -241,7 +243,7 @@ export function detailPage(x: DetailData): SafeHtml {
         <h1>${p.title}</h1>
         <div class="badges">
           ${p.verified ? html`<span class="badge badge-ok">${icon('badge', 'i i-sm')}${p.type === 'help' ? 'تم التحقق من الطلب' : 'بيانات النشاط موثقة'}</span>` : ''}
-          ${p.type === 'community' ? (p.is_official ? html`<span class="badge badge-ok">${icon('check', 'i i-sm')}خبر مؤكد من الإدارة</span>` : html`<span class="badge">منشور من أحد المستخدمين، غير مؤكد رسمياً</span>`) : ''}
+          ${p.type === 'community' ? (p.is_official ? html`<span class="badge badge-ok">${icon('check', 'i i-sm')}خبر مؤكد من الإدارة</span>` : d.source_url ? html`<span class="badge">منقول عن ${String(d.source_name || 'مصدر إخباري')}، والتفاصيل في الخبر الأصلي</span>` : html`<span class="badge">منشور من أحد المستخدمين، غير مؤكد رسمياً</span>`) : ''}
           ${p.type === 'help' && !p.verified ? html`<span class="badge badge-warn">${icon('alert', 'i i-sm')}لم يتم التحقق من تفاصيل الحالة</span>` : ''}
           ${x.summary.n ? html`<span class="badge">${stars(x.summary.avg ?? 0)} ${fmtNumber(x.summary.avg ?? 0)} من ${fmtNumber(x.summary.n)} تقييم</span>` : ''}
         </div>
