@@ -153,6 +153,47 @@
       copy.textContent = 'تم النسخ';
     });
   }
+  // ---------- تصفح القائمة: بحث وأقسام تتبع التمرير ----------
+  var menu = document.querySelector('[data-menu]');
+  if (menu) {
+    var tabs = menu.querySelector('[data-menu-tabs]');
+    var groups = Array.prototype.slice.call(menu.querySelectorAll('[data-group]'));
+    var setActive = function (id) {
+      if (!tabs) return;
+      Array.prototype.forEach.call(tabs.querySelectorAll('a'), function (a) {
+        var on = a.getAttribute('data-tab') === id;
+        a.classList.toggle('active', on);
+        if (on) tabs.scrollTo({ left: a.offsetLeft - (tabs.clientWidth - a.clientWidth) / 2, behavior: 'smooth' });
+      });
+    };
+    if (tabs && 'IntersectionObserver' in window) {
+      var spy = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { if (e.isIntersecting) setActive(e.target.id); });
+      }, { rootMargin: '-140px 0px -60% 0px' });
+      groups.forEach(function (g) { spy.observe(g); });
+      if (groups[0]) setActive(groups[0].id);
+    }
+    var search = menu.querySelector('[data-menu-search]');
+    if (search) search.addEventListener('input', function () {
+      var t = tokens(search.value), any = false;
+      groups.forEach(function (g) {
+        var shown = 0;
+        Array.prototype.forEach.call(g.querySelectorAll('.menu-item'), function (li) {
+          var name = norm(li.getAttribute('data-item-name'));
+          var ok = !t.length || t.every(function (w) { return name.indexOf(w) !== -1; });
+          li.hidden = !ok; if (ok) shown++;
+        });
+        g.hidden = !shown; if (shown) any = true;
+        var tab = tabs && tabs.querySelector('[data-tab="' + g.id + '"]');
+        if (tab) tab.hidden = !shown;
+      });
+      menu.querySelector('[data-menu-empty]').hidden = any;
+      // إذا كان البحث من أسفل الصفحة، ارجع لبداية النتائج
+      var top = menu.getBoundingClientRect().top + window.scrollY;
+      if (window.scrollY > top) window.scrollTo({ top: top, behavior: 'auto' });
+    });
+  }
+
   // ---------- سلة الطلب في قائمة المحل ----------
   var shop = document.querySelector('[data-cart]');
   if (shop) {
@@ -220,18 +261,24 @@
       sum.textContent = 'المجموع: ' + fmt(total());
       send.href = shop.getAttribute('data-wa') + '?text=' + encodeURIComponent(message());
       Array.prototype.forEach.call(shop.querySelectorAll('[data-add]'), function (a) {
-        var q = cart[a.getAttribute('data-name')];
-        a.lastChild.textContent = q ? 'أضف (' + q.q + ')' : 'أضف';
-        a.classList.toggle('in-cart', !!q);
+        var q = cart[a.getAttribute('data-name')], end = a.parentNode, item = a.closest('.menu-item');
+        end.classList.toggle('has-qty', !!q);
+        end.querySelector('.step-n').textContent = q ? String(q.q) : '';
+        if (item) item.classList.toggle('in-cart', !!q);
       });
     };
     Array.prototype.forEach.call(shop.querySelectorAll('[data-add]'), function (a) {
-      a.removeAttribute('target');
-      a.lastChild.textContent = 'أضف';
-      a.setAttribute('aria-label', 'أضف ' + a.getAttribute('data-name') + ' إلى السلة');
-      a.addEventListener('click', function (e) {
-        e.preventDefault();
-        var k = a.getAttribute('data-name'), p = a.getAttribute('data-price');
+      var k = a.getAttribute('data-name'), p = a.getAttribute('data-price');
+      // − العدد + : يظهران بعد أول إضافة
+      var minus = el('button', 'step-btn', '−'); minus.type = 'button'; minus.setAttribute('aria-label', 'إنقاص ' + k);
+      var n = el('span', 'step-n'); n.setAttribute('aria-live', 'polite');
+      a.parentNode.insertBefore(minus, a); a.parentNode.insertBefore(n, a);
+      minus.addEventListener('click', function () {
+        if (!cart[k]) return;
+        cart[k].q--; if (cart[k].q <= 0) delete cart[k];
+        save(); refresh();
+      });
+      a.addEventListener('click', function () {
         if (!cart[k]) cart[k] = { p: p === '' ? null : Number(p), q: 0 };
         cart[k].q++;
         save(); refresh();

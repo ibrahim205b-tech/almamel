@@ -339,21 +339,30 @@ function menuSection(x: DetailData, phone: string | null): SafeHtml {
   for (const it of x.items) groups.set(it.section || (food ? 'الأصناف' : 'المنتجات'), [...(groups.get(it.section || (food ? 'الأصناف' : 'المنتجات')) ?? []), it]);
   const sections = [...groups.entries()];
   const canOrder = !!(phone && x.post.whatsapp);
-  // في النسخة الثابتة يحوّل static.js زر «اطلب» إلى «أضف» للسلة، ويُرسل الطلب كاملاً برسالة واحدة.
-  const order = (it: ItemRow) => canOrder && it.available
-    ? html`<a class="btn btn-sm btn-wa" href="${waLink(phone!)}?text=${encodeURIComponent(`مرحبا، أريد أطلب: ${it.name}${it.price !== null ? ` (${fmtPrice(it.price)})` : ''} — من دليل المعامل`)}" target="_blank" rel="noopener" aria-label="اطلب ${it.name} عبر واتساب" data-add data-name="${it.name}" data-price="${it.price ?? ''}">${icon('whatsapp', 'i i-sm')}اطلب</a>` : '';
-  const cartAttrs = canOrder && x.staticMode
+  const cart = canOrder && !!x.staticMode;
+  // النسخة الثابتة: زر «+» يضيف للسلة (static.js) ويُرسل الطلب كاملاً برسالة واحدة.
+  // نسخة الخادم: زر «اطلب» يفتح واتساب لكل صنف.
+  const order = (it: ItemRow) => !canOrder || !it.available ? ''
+    : cart ? html`<button class="add-btn" type="button" data-add data-name="${it.name}" data-price="${it.price ?? ''}" aria-label="أضف ${it.name} إلى السلة">+</button>`
+    : html`<a class="btn btn-sm btn-wa" href="${waLink(phone!)}?text=${encodeURIComponent(`مرحبا، أريد أطلب: ${it.name}${it.price !== null ? ` (${fmtPrice(it.price)})` : ''} — من دليل المعامل`)}" target="_blank" rel="noopener" aria-label="اطلب ${it.name} عبر واتساب">${icon('whatsapp', 'i i-sm')}اطلب</a>`;
+  const cartAttrs = cart
     ? raw(` data-cart data-wa="${waLink(phone!)}" data-shop="${escAttr(x.post.title)}" data-shop-id="${x.post.id}"`) : raw('');
-  return html`<section class="menu-block" aria-labelledby="h-menu"${cartAttrs}>
-    <h2 id="h-menu">${food ? 'قائمة الطعام' : 'المنتجات والأسعار'}</h2>
-    ${sections.length > 1 ? html`<nav class="menu-tabs" aria-label="أقسام القائمة">${sections.map(([name], i) => html`<a href="#menu-${i}">${name}</a>`)}</nav>` : ''}
-    ${sections.map(([name, items], i) => html`<div class="menu-group" id="menu-${i}">
-      ${sections.length > 1 || name !== 'الأصناف' ? html`<h3>${name}</h3>` : ''}
-      <ul class="menu-list">${items.map((it) => html`<li class="menu-item${it.available ? '' : ' unavailable'}">
-        ${it.image ? html`<img src="${mediaUrl(it.image)}" alt="" width="72" height="72" loading="lazy" decoding="async">` : ''}
-        <div class="menu-text"><span class="menu-name">${it.name}</span>${it.note ? html`<span class="muted">${it.note}</span>` : ''}${it.available ? '' : html`<span class="badge badge-warn">غير متوفر حالياً</span>`}</div>
-        <div class="menu-end"><span class="num menu-price">${it.price !== null ? fmtPrice(it.price) : 'حسب الطلب'}</span>${order(it)}</div>
+  const showHeads = sections.length > 1 || sections[0][0] !== (food ? 'الأصناف' : 'المنتجات');
+  return html`<section class="menu-block" aria-labelledby="h-menu" data-menu${cartAttrs}>
+    <h2 id="h-menu">${food ? 'قائمة الطعام' : 'المنتجات والأسعار'} <span class="menu-total">${fmtNumber(x.items.length)} صنف</span></h2>
+    <div class="menu-bar">
+      ${x.items.length > 8 ? html`<label class="menu-search">${icon('search', 'i i-sm')}<span class="sr">ابحث في القائمة</span><input type="search" data-menu-search placeholder="ابحث في القائمة..." autocomplete="off"></label>` : ''}
+      ${sections.length > 1 ? html`<nav class="menu-tabs" aria-label="أقسام القائمة" data-menu-tabs>${sections.map(([name], i) => html`<a href="#menu-${i}" data-tab="menu-${i}">${name}</a>`)}</nav>` : ''}
+    </div>
+    ${sections.map(([name, items], i) => html`<div class="menu-group" id="menu-${i}" data-group>
+      ${showHeads ? html`<h3>${name} <span class="menu-count">${fmtNumber(items.length)}</span></h3>` : ''}
+      <ul class="menu-list">${items.map((it) => html`<li class="menu-item${it.available ? '' : ' unavailable'}" data-item-name="${it.name}">
+        ${it.image ? html`<img src="${mediaUrl(it.image)}" alt="" width="88" height="88" loading="lazy" decoding="async">` : ''}
+        <div class="menu-text"><span class="menu-name">${it.name}</span>${it.note ? html`<span class="muted">${it.note}</span>` : ''}
+          <span class="num menu-price">${it.price !== null ? fmtPrice(it.price) : 'حسب الطلب'}</span>${it.available ? '' : html`<span class="badge badge-warn">غير متوفر حالياً</span>`}</div>
+        <div class="menu-end">${order(it)}</div>
       </li>`)}</ul></div>`)}
+    <p class="menu-empty" data-menu-empty hidden>ما كو صنف بهذا الاسم.</p>
   </section>`;
 }
 
