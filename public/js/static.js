@@ -38,6 +38,66 @@
     });
   }
 
+  var calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // شبكة أمان: لا يبقى شيء مخفياً عند الطباعة أو إذا تأخر المراقب
+  function showAll() { Array.prototype.forEach.call(document.querySelectorAll('[data-anim]'), function (n) { n.classList.add('in'); }); }
+  window.addEventListener('beforeprint', showAll);
+  setTimeout(function () { Array.prototype.forEach.call(document.querySelectorAll('[data-anim]:not(.in)'), function (n) { var r = n.getBoundingClientRect(); if (r.top < window.innerHeight) n.classList.add('in'); }); }, 1500);
+
+  // ---------- عدّاد الأقسام يعدّ من الصفر ----------
+  if (!calm && 'IntersectionObserver' in window) {
+    var digits = '٠١٢٣٤٥٦٧٨٩';
+    var toAr = function (n) { return String(n).replace(/\d/g, function (c) { return digits[+c]; }); };
+    var fromAr = function (t) { return parseInt(String(t).replace(/[٠-٩]/g, function (c) { return digits.indexOf(c); }).replace(/[^\d]/g, ''), 10); };
+    var counter = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return; counter.unobserve(e.target);
+        var node = e.target, end = +node.getAttribute('data-n'), t0 = null, ar = node.getAttribute('data-ar') === '1';
+        var step = function (t) { if (t0 === null) t0 = t; var k = Math.min(1, (t - t0) / 700), v = Math.round(end * (1 - Math.pow(1 - k, 3))); node.textContent = ar ? toAr(v) : String(v); if (k < 1) window.requestAnimationFrame(step); };
+        window.requestAnimationFrame(step);
+      });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.tile-count'), function (node) {
+      var n = fromAr(node.textContent); if (!(n > 1)) return;
+      node.setAttribute('data-n', String(n)); node.setAttribute('data-ar', /[٠-٩]/.test(node.textContent) ? '1' : '0');
+      counter.observe(node);
+    });
+  }
+
+  // ---------- تموّج عند الضغط على الأزرار ----------
+  if (!calm) document.addEventListener('pointerdown', function (e) {
+    var b = e.target.closest && e.target.closest('.btn, .add-btn, .cart-bar');
+    if (!b || b.disabled) return;
+    var r = b.getBoundingClientRect(), size = Math.max(r.width, r.height) * 2, dot = document.createElement('span');
+    dot.className = 'ripple';
+    dot.style.setProperty('--x', (e.clientX - r.left - size / 2) + 'px'); dot.style.setProperty('--y', (e.clientY - r.top - size / 2) + 'px'); dot.style.setProperty('--s', size + 'px');
+    b.appendChild(dot); setTimeout(function () { dot.remove(); }, 600);
+  });
+
+  // ---------- زر الرجوع للأعلى ----------
+  (function () {
+    var up = document.createElement('button'); up.type = 'button'; up.className = 'to-top'; up.setAttribute('aria-label', 'للأعلى');
+    up.appendChild(iconEl('arrow-up')); document.body.appendChild(up);
+    var tick = function () { up.classList.toggle('show', window.scrollY > 700); };
+    window.addEventListener('scroll', tick, { passive: true }); tick();
+    up.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: calm ? 'auto' : 'smooth' }); });
+  })();
+
+  // ---------- مشاركة الإعلان ----------
+  (function () {
+    var side = document.querySelector('.detail-side'); if (!side) return;
+    var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn btn-ghost btn-block share-btn';
+    btn.appendChild(iconEl('share')); btn.appendChild(document.createTextNode(' مشاركة'));
+    btn.addEventListener('click', function () {
+      var data = { title: document.title, url: location.href };
+      if (navigator.share) { navigator.share(data).catch(function () {}); return; }
+      var done = function () { btn.lastChild.textContent = ' تم نسخ الرابط'; setTimeout(function () { btn.lastChild.textContent = ' مشاركة'; }, 2000); };
+      if (navigator.clipboard) navigator.clipboard.writeText(location.href).then(done, function () { window.open('https://wa.me/?text=' + encodeURIComponent(location.href), '_blank', 'noopener'); });
+      else window.open('https://wa.me/?text=' + encodeURIComponent(location.href), '_blank', 'noopener');
+    });
+    side.appendChild(btn);
+  })();
+
   // ---------- البحث ----------
   var results = document.querySelector('[data-search-results]');
   if (results) {
@@ -326,9 +386,9 @@
     var close = el('button', 'btn btn-sm', 'إغلاق'); close.type = 'button'; head.appendChild(close);
     var list = el('ul', 'cart-list');
     var sum = el('p', 'cart-sum');
-    var nameF = el('input'); nameF.placeholder = 'اسمك (اختياري)'; nameF.autocomplete = 'name';
-    var addrF = el('textarea'); addrF.rows = 2; addrF.placeholder = 'العنوان أو أقرب نقطة دالة (للتوصيل)';
-    var noteF = el('textarea'); noteF.rows = 2; noteF.placeholder = 'ملاحظات (اختياري)';
+    var nameF = el('input'); nameF.placeholder = 'اسمك (اختياري)'; nameF.autocomplete = 'name'; nameF.setAttribute('aria-label', 'اسمك');
+    var addrF = el('textarea'); addrF.rows = 2; addrF.placeholder = 'العنوان أو أقرب نقطة دالة (للتوصيل)'; addrF.setAttribute('aria-label', 'العنوان');
+    var noteF = el('textarea'); noteF.rows = 2; noteF.placeholder = 'ملاحظات (اختياري)'; noteF.setAttribute('aria-label', 'ملاحظات');
     var send = el('a', 'btn btn-wa btn-block cart-send'); send.target = '_blank'; send.rel = 'noopener';
     send.appendChild(iconEl('whatsapp', 'i')); send.appendChild(document.createTextNode('أرسل الطلب عبر واتساب'));
     var clear = el('button', 'btn btn-sm cart-clear', 'إفراغ السلة'); clear.type = 'button';

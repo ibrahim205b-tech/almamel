@@ -81,6 +81,7 @@ export async function publicRoutes(app: FastifyInstance) {
       return reply.page(req, { title: t.label, description: `${t.label} في منطقة المعامل: ${t.blurb}.`, canonical: t.path + (lq.page && lq.page > 1 ? `?page=${lq.page}` : '') }, listPage({
         title: t.label, intro: t.blurb, path: t.path, type, result, query: params, featured: listFeatured(db, 'section', type),
         categories: options(type), areas: areas(), extra: filterExtras(type, params), canSubmit: sectionEnabled(req.settings, type), submitType: type, staticMode: app.cfg.staticMode,
+        submitHref: type === 'business' && app.cfg.staticMode ? addShopLink(req.settings.whatsapp_phone ?? '') : undefined,
       }));
     });
     app.get(`${t.path}/:id`, (req, reply) => detail(req, reply, type));
@@ -95,6 +96,7 @@ export async function publicRoutes(app: FastifyInstance) {
     return reply.page(req, { title: 'المطاعم والتوصيل', description: 'مطاعم وأفران منطقة المعامل: قوائم الطعام والأسعار وأرقام الطلب والتوصيل.' }, listPage({
       title: 'المطاعم والتوصيل', intro: 'قوائم الطعام والأسعار ومناطق التوصيل. الطلب يكون مباشرة من المطعم بالاتصال أو واتساب.', path: '/restaurants', type: 'business',
       result, query: params, featured: [], categories: food, areas: areas(), extra: filterExtras('food', params), canSubmit: sectionEnabled(req.settings, 'business'), submitType: 'business', staticMode: app.cfg.staticMode,
+      submitHref: app.cfg.staticMode ? addShopLink(req.settings.whatsapp_phone ?? '') : undefined,
     }));
   });
 

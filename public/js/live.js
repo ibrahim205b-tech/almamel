@@ -261,17 +261,17 @@
     var signup = $('[data-signup]');
     if (signup) signup.addEventListener('submit', async function (e) {
       e.preventDefault(); delete signup.dataset.submitting;
-      var f = signup.elements, ph = phone(f.phone.value), errs = [];
-      if (f.name.value.trim().length < 2) errs.push('اكتب الاسم.');
+      var f = signup.elements, ph = phone(f.su_phone.value), errs = [];
+      if (f.su_name.value.trim().length < 2) errs.push('اكتب الاسم.');
       if (!ph) errs.push('رقم الهاتف: رقم عراقي يبدأ بـ 07.');
-      if (f.password.value.length < 10) errs.push('كلمة المرور ١٠ أحرف على الأقل.');
+      if (f.su_password.value.length < 10) errs.push('كلمة المرور ١٠ أحرف على الأقل.');
       if (errs.length) return say(errs.join(' '), 'error');
       busy(signup, true);
-      var r = await sb.auth.signUp({ email: f.email.value.trim(), password: f.password.value, options: { data: { name: f.name.value.trim(), phone: ph } } });
+      var r = await sb.auth.signUp({ email: f.su_email.value.trim(), password: f.su_password.value, options: { data: { name: f.su_name.value.trim(), phone: ph } } });
       busy(signup, false);
       if (r.error) return say(errText(r.error), 'error');
       await sb.auth.signOut();
-      say('تم إنشاء الحساب. الآن شغّل في Supabase ← SQL Editor: select public.make_admin(\'' + f.email.value.trim() + '\'); ثم سجّل الدخول.', 'ok');
+      say('تم إنشاء الحساب. الآن شغّل في Supabase ← SQL Editor: select public.make_admin(\'' + f.su_email.value.trim() + '\'); ثم سجّل الدخول.', 'ok');
     });
     $('[data-reset]').addEventListener('click', async function () {
       var email = form.elements.email.value.trim();

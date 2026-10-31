@@ -131,10 +131,10 @@ export function liveLoginPage(admin = false): SafeHtml {
     ${admin ? html`<details class="panel"><summary>أول مرة؟ إنشاء حساب الإدارة</summary>
       <p class="hint">بعد إنشاء الحساب، شغّل في Supabase ← SQL Editor: <code dir="ltr">select public.make_admin('بريدك');</code> ثم سجّل الدخول.</p>
       <form class="form" data-signup novalidate>
-        ${field({ name: 'name', label: 'الاسم', required: true, max: 60 })}
-        ${field({ name: 'phone', label: 'رقم الهاتف', required: true, type: 'tel', dir: 'ltr', attrs: 'inputmode="tel"' })}
-        ${field({ name: 'email', label: 'البريد الإلكتروني', required: true, type: 'email', dir: 'ltr' })}
-        ${field({ name: 'password', label: 'كلمة المرور', required: true, type: 'password', hint: '١٠ أحرف على الأقل', attrs: 'minlength="10" autocomplete="new-password"' })}
+        ${field({ name: 'su_name', label: 'الاسم', required: true, max: 60 })}
+        ${field({ name: 'su_phone', label: 'رقم الهاتف', required: true, type: 'tel', dir: 'ltr', attrs: 'inputmode="tel"' })}
+        ${field({ name: 'su_email', label: 'البريد الإلكتروني', required: true, type: 'email', dir: 'ltr' })}
+        ${field({ name: 'su_password', label: 'كلمة المرور', required: true, type: 'password', hint: '١٠ أحرف على الأقل', attrs: 'minlength="10" autocomplete="new-password"' })}
         <button class="btn" type="submit">إنشاء الحساب</button>
       </form></details>` : html`<p>عندك مطعم أو محل؟ راسل خدمة العملاء على واتساب ونضيفه لك.</p>`}
   </div>`;

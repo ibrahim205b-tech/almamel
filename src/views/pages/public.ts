@@ -138,6 +138,8 @@ export interface ListPageData {
   result: { items: ListItem[]; total: number; page: number; pages: number };
   featured: ListItem[]; query: URLSearchParams;
   categories: Opt; areas: Opt; extra: SafeHtml; canSubmit: boolean; submitType?: PostType; staticMode?: boolean;
+  /** رابط زر الإضافة إن لم يكن /submit/<type> (المحلات في النسخة الثابتة: واتساب خدمة العملاء). */
+  submitHref?: string;
 }
 
 export function listPage(d: ListPageData): SafeHtml {
@@ -147,7 +149,7 @@ export function listPage(d: ListPageData): SafeHtml {
     <nav class="crumbs" aria-label="مسار التنقل"><a href="/">الرئيسية</a><span aria-hidden="true">/</span><span aria-current="page">${d.title}</span></nav>
     <div class="page-head">
       <div><h1>${d.title}</h1><p class="lede">${d.intro}</p></div>
-      ${d.canSubmit && d.submitType ? html`<a class="btn btn-primary" href="/submit/${d.submitType}">${icon('plus')}أضف ${TYPES[d.submitType].single}</a>` : ''}
+      ${d.canSubmit && d.submitType ? html`<a class="btn btn-primary" href="${d.submitHref ?? `/submit/${d.submitType}`}"${d.submitHref?.startsWith('https://') ? raw(' target="_blank" rel="noopener"') : ''}>${icon('plus')}أضف ${TYPES[d.submitType].single}</a>` : ''}
     </div>
     ${d.staticMode ? html`<div class="filters filter-quick"><label class="sr" for="f-filter">تصفية هذه الصفحة</label><input id="f-filter" type="search" data-filter placeholder="اكتب للتصفية: اسم، منطقة، تصنيف..." maxlength="60"></div>` : html`
     <details class="filters" ${hasFilters ? raw('open') : ''}>
@@ -165,7 +167,7 @@ export function listPage(d: ListPageData): SafeHtml {
     <p class="result-count" role="status">${d.result.total ? `${fmtNumber(d.result.total)} نتيجة` : ''}</p>
     ${rowList(d.result.items, hasFilters
       ? emptyState('ما لگينا نتائج', 'جرّب تغيير التصفية أو كلمة البحث.', { href: d.path, label: 'مسح التصفية' })
-      : emptyState('القسم فارغ حالياً', 'ما كو منشورات معتمدة بهذا القسم بعد.', d.canSubmit && d.submitType ? { href: `/submit/${d.submitType}`, label: 'أضف أول منشور' } : undefined))}
+      : emptyState('القسم فارغ حالياً', 'ما كو منشورات معتمدة بهذا القسم بعد.', d.canSubmit && d.submitType ? { href: d.submitHref ?? `/submit/${d.submitType}`, label: 'أضف أول منشور' } : undefined))}
     ${d.staticMode ? '' : pagination(d.result.page, d.result.pages, q, d.path)}
   </div>`;
 }
