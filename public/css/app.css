@@ -524,3 +524,12 @@ body:has(.cart-bar:not([hidden])) .to-top{bottom:84px}
   .menu-tabs a.active{animation:fade .25s ease-out}
 }
 body.no-scroll{overflow:hidden}
+
+/* ---------- كشف نسبة الطلبات ---------- */
+.month-pick{max-width:220px}
+.commission-sum{font-size:var(--t-md);margin:12px 0}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.data-table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:var(--r);font-size:var(--t-sm)}
+.data-table th,.data-table td{padding:10px 12px;text-align:start;border-bottom:1px solid var(--line);white-space:nowrap}
+.data-table th{font-weight:700;background:var(--board-soft)}
+.data-table .num{font-variant-numeric:tabular-nums}

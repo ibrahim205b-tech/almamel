@@ -64,6 +64,7 @@ export function ownerLandingPage(): SafeHtml {
       <p>${icon('tag', 'i i-sm')}عروض ووظائف لمحلك</p>
       <p>${icon('clock', 'i i-sm')}حالة المحل: مفتوح أو مغلق</p>
       <p>${icon('badge', 'i i-sm')}شارة «موثّق» بعد التحقق من بياناتك</p>
+      <p>${icon('percent', 'i i-sm')}التسجيل مجاني، ونسبة ٥٪ فقط على الطلبات اللي توصلك من الموقع</p>
     </div>
     <p class="btn-row"><a class="btn btn-sign btn-lg" href="/owner/register">${icon('plus')}سجّل مطعمك أو محلك</a><a class="btn btn-lg" href="/login">عندي حساب: دخول</a></p>
   </div>`;
@@ -113,6 +114,8 @@ export function ownerRegisterPage(cats: string[], areas: string[], publicUrl = '
         <label for="f-proof">صورة واجهة المحل أو لافتته <span class="opt">(اختياري، لا تُنشر)</span></label>
         <input id="f-proof" type="file" name="proof" accept="image/*">
       </fieldset>
+      <p class="note">${icon('info', 'i i-sm')}التسجيل بالموقع مجاني. على الطلبات اللي توصلك من سلة الموقع نسبة <b>٥٪</b> من مجموعها، تُدفع آخر كل شهر. تشوف كشف طلباتك بلوحة التحكم، وسعر الأكل للزبون ما يتغير.</p>
+      <div class="check"><input type="checkbox" id="f-commission" name="commission" required><label for="f-commission">أوافق على نسبة ٥٪ من الطلبات اللي تجي من الموقع</label></div>
       <button class="btn btn-primary btn-lg" type="submit">إرسال للتحقق</button>
     </form></div>`;
 }
@@ -149,6 +152,9 @@ export function dashboardPage(): SafeHtml {
     <section class="block" aria-labelledby="h-ads"><h2 id="h-ads">إعلاناتي</h2>
       <p class="btn-row"><a class="btn btn-sm" href="/submit/offer">${icon('percent', 'i i-sm')}أضف عرضاً</a><a class="btn btn-sm" href="/submit/job">${icon('briefcase', 'i i-sm')}أضف وظيفة</a></p>
       <div data-ads></div></section>
+    <section class="block" aria-labelledby="h-orders"><h2 id="h-orders">الطلبات من الموقع</h2>
+      <p class="muted">الطلبات اللي أرسلها الزبائن من سلة الموقع إلى واتسابك. نسبة الموقع ٥٪ من مجموعها، تُدفع آخر كل شهر.</p>
+      <div data-commission></div></section>
     <p class="hint">التغييرات المعتمدة تظهر بالموقع خلال ربع ساعة تقريباً.</p>
   </div>`;
 }
@@ -181,10 +187,14 @@ export function adminLivePage(): SafeHtml {
       <a href="#pending">بانتظار المراجعة <span class="count" data-count="pending"></span></a>
       <a href="#claims">طلبات أصحاب المحلات <span class="count" data-count="claims"></span></a>
       <a href="#published">المنشور حالياً</a>
+      <a href="#commission">نسبة الطلبات</a>
     </nav>
     <section id="pending" class="block"><h2>بانتظار المراجعة</h2><div data-pending><p class="muted">جارِ التحميل...</p></div></section>
     <section id="claims" class="block"><h2>طلبات أصحاب المحلات</h2><div data-claims></div></section>
     <section id="published" class="block"><h2>المنشور حالياً</h2><div data-published></div></section>
+    <section id="commission" class="block"><h2>نسبة الطلبات (٥٪)</h2>
+      <p class="muted">كل طلب يُرسل من سلة الموقع إلى واتساب المطعم يُسجَّل هنا. استلم النسبة من كل مطعم آخر الشهر واضغط «تم الدفع».</p>
+      <div data-commission></div></section>
   </div>`;
 }
 

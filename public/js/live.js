@@ -219,6 +219,7 @@
       if (f.address.value.trim().length < 3) errs.push('اكتب العنوان.');
       if (!ph) errs.push('رقم المحل: رقم عراقي يبدأ بـ 07.');
       if (f.message.value.trim().length < 10) errs.push('اكتب كيف نتأكد إن المحل إلك (١٠ أحرف على الأقل).');
+      if (f.commission && !f.commission.checked) errs.push('وافق على نسبة الطلبات.');
       if (errs.length) return say(errs.join(' '), 'error');
       busy(biz, true); say('جارِ الإرسال...', 'ok');
       try {
@@ -380,6 +381,8 @@
           initDashboard();
         } })]));
     });
+    var cbox = $('[data-commission]');
+    if (cbox) { cbox.closest('section').hidden = !biz.length; if (biz.length) commissionBox(cbox, false); }
   }
 
   // ---------- القائمة ----------
@@ -460,6 +463,45 @@
       finally { busy(addForm, false); }
     });
     load();
+  }
+
+  // ---------- نسبة الموقع من طلبات المطاعم (كشف شهري) ----------
+  function commissionBox(box, admin) {
+    if (!box) return;
+    box.textContent = '';
+    var now = new Date(), cur = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2);
+    var monthIn = el('input', { type: 'month', id: 'f-month', value: cur, max: cur });
+    var out = el('div', { 'aria-live': 'polite' });
+    box.appendChild(el('div', { class: 'field month-pick' }, [el('label', { for: 'f-month', text: 'الشهر' }), monthIn]));
+    box.appendChild(out);
+    async function show() {
+      out.textContent = '';
+      var r = await sb.rpc('commission_report', { p_month: (monthIn.value || cur) + '-01' });
+      if (r.error) { out.appendChild(el('p', { class: 'muted', text: errText(r.error) })); return; }
+      var rows = r.data || [];
+      if (!rows.length) { out.appendChild(el('p', { class: 'muted', text: 'ما وصلت طلبات من سلة الموقع بهذا الشهر.' })); return; }
+      var due = 0, got = 0;
+      var tb = el('tbody');
+      rows.forEach(function (x) {
+        if (x.paid) got += Number(x.paid_amount || 0); else due += Number(x.commission);
+        var status = x.paid ? el('span', { class: 'badge badge-ok', text: 'مدفوع' }) : el('span', { class: 'badge badge-warn', text: 'غير مدفوع' });
+        var cells = [el('td', { text: x.title }), el('td', { class: 'num', text: nf.format(x.orders) }), el('td', { class: 'num', text: nf.format(x.total) + ' د.ع' }),
+          el('td', { class: 'num', text: nf.format(x.paid ? x.paid_amount : x.commission) + ' د.ع' }), el('td', {}, [status])];
+        if (admin) cells.push(el('td', {}, [el('button', { class: 'btn btn-sm' + (x.paid ? '' : ' btn-primary'), type: 'button', text: x.paid ? 'إلغاء' : 'تم الدفع', onclick: async function () {
+          if (!x.paid && !confirm('تأكيد استلام ' + nf.format(x.commission) + ' د.ع من «' + x.title + '»؟')) return;
+          var m = await sb.rpc('mark_commission_paid', { p_business: x.business_id, p_month: (monthIn.value || cur) + '-01', p_paid: !x.paid });
+          if (m.error) return say(errText(m.error), 'error');
+          say(x.paid ? 'أُلغي التأكيد.' : 'تم تسجيل الدفع.', 'ok'); show();
+        } })]));
+        tb.appendChild(el('tr', {}, cells));
+      });
+      var heads = ['المحل', 'الطلبات', 'مجموع الطلبات', 'النسبة (٥٪)', 'الحالة'].concat(admin ? [''] : []);
+      out.appendChild(el('p', { class: 'commission-sum' }, [admin ? 'المستحق غير المدفوع: ' : 'المستحق عليك هذا الشهر: ', el('b', { text: nf.format(due) + ' د.ع' }),
+        got ? '  ·  المستلم: ' + nf.format(got) + ' د.ع' : '']));
+      out.appendChild(el('div', { class: 'table-wrap' }, [el('table', { class: 'data-table' }, [el('thead', {}, [el('tr', {}, heads.map(function (h) { return el('th', { scope: 'col', text: h }); }))]), tb])]));
+    }
+    monthIn.addEventListener('change', show);
+    show();
   }
 
   // ---------- الإدارة ----------
@@ -566,6 +608,7 @@
       });
     }
     load();
+    commissionBox($('[data-commission]'), true);
   }
 
   // ---------- موقع الإدارة: إضافة مطعم أو محل كاملاً ----------

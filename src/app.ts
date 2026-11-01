@@ -68,6 +68,7 @@ export function viewCtx(app: FastifyInstance, req: FastifyRequest, reply: Fastif
     user: req.user, settings: req.settings, csrf: csrfFor(app, req), path: req.url.split('?')[0], baseUrl: app.cfg.baseUrl,
     v, unread: req.user ? unreadCount(app.db, req.user.id) : 0, flash, staticMode: app.cfg.staticMode,
     supabaseOrigin: app.cfg.staticMode && app.cfg.supabaseUrl ? new URL(app.cfg.supabaseUrl).origin : undefined,
+    supabaseKey: app.cfg.staticMode && app.cfg.supabaseUrl ? app.cfg.supabaseAnonKey : undefined,
     adminSite: app.cfg.adminSite, registerSite: app.cfg.registerSite, publicUrl: app.cfg.publicUrl,
   };
 }

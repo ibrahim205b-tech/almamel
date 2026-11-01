@@ -465,6 +465,15 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !panel.hidden) panel.hidden = true; });
     clear.addEventListener('click', function () { cart = {}; save(); refresh(); panel.hidden = true; });
     send.addEventListener('click', function () {
+      // يسجّل الطلب (المبلغ وعدد الأصناف فقط) لحساب نسبة الموقع الشهرية من المطعم
+      var log = document.querySelector('meta[name="order-log"]');
+      if (log && count()) {
+        try {
+          window.fetch(log.content + '/rest/v1/rpc/log_order', { method: 'POST', keepalive: true,
+            headers: { apikey: log.getAttribute('data-key'), Authorization: 'Bearer ' + log.getAttribute('data-key'), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ p_business: Number(shop.getAttribute('data-shop-id')), p_total: total(), p_items: count() }) }).catch(function () {});
+        } catch { /* لا يمنع إرسال الطلب */ }
+      }
       try { localStorage.setItem('cart-customer', JSON.stringify({ n: nameF.value.trim(), a: addrF.value.trim() })); } catch { /* لا شيء */ }
       cart = {}; save(); noteF.value = '';
       setTimeout(function () { refresh(); panel.hidden = true; }, 300);

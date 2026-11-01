@@ -187,4 +187,32 @@ do $$ begin
   if (select image from menu_items where name = 'حمص') !~ '^u/1111' then raise exception 'owner could not replace image'; end if;
 end $$;
 
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+select public.moderate_post(public.t_id('مطعم أبو علي'), 'approve');
+-- ===== نسبة الطلبات: الزائر يسجّل الطلب، صاحب المحل يرى كشفه فقط، والمدير يؤكد الدفع =====
+select pg_temp.as_user(null);
+select public.log_order(public.t_id('مطعم أبو علي'), 20000, 2);
+select public.log_order(public.t_id('مطعم أبو علي'), 20000, 2); -- تكرار خلال دقيقة: يُتجاهل
+select public.log_order(public.t_id('مطعم أبو علي'), 10000, 1);
+select pg_temp.expect_error($q$select public.log_order(public.t_id('وظيفة من زائر'), 5000, 1)$q$, 'order for non-business');
+select pg_temp.expect_error($q$select public.log_order(public.t_id('مطعم أبو علي'), -5, 1)$q$, 'negative order');
+do $$ begin if exists (select 1 from orders) then raise exception 'anon reads orders'; end if; end $$;
+insert into orders (business_id, total, items) select public.t_id('مطعم أبو علي'), 1, 1 where false; -- (لا إدراج مباشر: انظر الاختبار التالي)
+select pg_temp.expect_error($q$insert into orders (business_id, total, items) values (public.t_id('مطعم أبو علي'), 999999, 1)$q$, 'anon inserts order directly');
+select pg_temp.expect_error($q$select * from public.commission_report()$q$, 'anon reads commission report');
+select pg_temp.as_user('22222222-2222-2222-2222-222222222222');
+do $$ begin if exists (select 1 from public.commission_report()) then raise exception 'other user sees commission report'; end if; end $$;
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+do $$ declare r record; begin
+  select * into r from public.commission_report();
+  if r.orders <> 2 or r.total <> 30000 or r.commission <> 1500 or r.paid then raise exception 'owner report wrong: %', row_to_json(r); end if;
+end $$;
+select pg_temp.expect_error($q$select public.mark_commission_paid(public.t_id('مطعم أبو علي'), current_date)$q$, 'owner marks commission paid');
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+select public.mark_commission_paid(public.t_id('مطعم أبو علي'), (now() at time zone 'Asia/Baghdad')::date);
+do $$ begin
+  if not (select paid from public.commission_report() where business_id = public.t_id('مطعم أبو علي')) then raise exception 'commission not marked paid'; end if;
+end $$;
+reset role;
+
 select 'ALL RLS TESTS PASSED';

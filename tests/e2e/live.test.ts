@@ -143,6 +143,24 @@ test('build pulls published Supabase content: restaurant page with menu, images 
   assert.ok(!/method="post"/i.test(submit));
 });
 
+test('cart order is logged (amount only) for the monthly 5% commission', async () => {
+  const page = await open('/businesses/1000001/');
+  await page.context().route('https://wa.me/**', (r) => r.abort());
+  await page.locator('.add-btn[data-name="تكة لحم"]').click();
+  await page.locator('.add-btn[data-name="تكة لحم"]').click();
+  await page.locator('.cart-bar').click();
+  await page.locator('.cart-send').click();
+  await page.waitForTimeout(500);
+  const call = log.filter((r) => r.path === '/rest/v1/rpc/log_order').at(-1);
+  assert.ok(call, 'log_order called');
+  const body = JSON.parse(call.body.toString());
+  assert.equal(body.p_business, 1000001);
+  assert.equal(body.p_items, 2);
+  assert.ok(body.p_total > 0);
+  assert.deepEqual(Object.keys(body).sort(), ['p_business', 'p_items', 'p_total'], 'no customer data sent');
+  await page.context().close();
+});
+
 test('visitor posts an ad with a photo directly from the site', async () => {
   const p = await open('/submit/job/');
   await p.waitForFunction(() => (document.querySelector('select[name=category]') as HTMLSelectElement).options.length > 1);
@@ -215,7 +233,7 @@ test('private registration link: customer adds shop info, logo, photos and menu 
   await p.click('[data-step=account] button[type=submit]');
   await p.waitForSelector('[data-step=business]:not([hidden])');
   await p.fill('#f-title', 'مطعم أبو علي'); await p.selectOption('#f-category', { label: 'مطاعم' }); await p.fill('#f-address', 'الشارع العام');
-  await p.fill('#f-contact_phone', '07705555555'); await p.fill('#f-message', 'اتصلوا على رقم المحل العصر');
+  await p.fill('#f-contact_phone', '07705555555'); await p.fill('#f-message', 'اتصلوا على رقم المحل العصر'); await p.check('#f-commission');
   const img = path.join(os.tmpdir(), 'reg-front.png');
   fs.writeFileSync(img, await sharp({ create: { width: 800, height: 600, channels: 3, background: '#963' } }).png().toBuffer());
   await p.setInputFiles('input[name=photos]', [img, img]);
