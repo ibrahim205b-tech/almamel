@@ -541,7 +541,10 @@
         })
         .catch(function (e) {
           order.disabled = false; orderTxt.textContent = ' أرسل الطلب للمطعم';
-          showErr(/fetch|network|Failed/i.test(e.message) ? 'ما كدرنا نوصل للمطعم. تأكد من الإنترنت وحاول مرة ثانية، أو أرسل الطلب عبر واتساب.' : e.message);
+          var m = e.message || '';
+          showErr(/fetch|network|Failed/i.test(m) ? 'ما كدرنا نوصل للمطعم. تأكد من الإنترنت وحاول مرة ثانية، أو أرسل الطلب عبر واتساب.'
+            : /[\u0600-\u06FF]/.test(m) ? m // رسائل قاعدة البيانات العربية (رقم غير صحيح، صنف غير متوفر...)
+            : 'الطلب من الموقع متوقف مؤقتاً. أرسل طلبك عبر واتساب من الزر تحت.');
         });
     });
     refresh();
