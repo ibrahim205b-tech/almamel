@@ -1,0 +1,67 @@
+# يبني تطبيقي أندرويد لكوكل بلاي (AAB) وللتثبيت المباشر (APK):
+#   customer = «دليل المعامل» للزبائن، kitchen = «طلبات المطاعم» لاستلام الطلبات.
+# التوقيع من أسرار المستودع ALMAMEL_KEYSTORE (base64) و ALMAMEL_KEYSTORE_PASSWORD؛ بدونها يُبنى بتوقيع تجريبي (لا يُرفع للمتجر).
+name: Android apps
+
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Signing key
+        id: key
+        env:
+          KEYSTORE: ${{ secrets.ALMAMEL_KEYSTORE }}
+          KEYSTORE_PASSWORD: ${{ secrets.ALMAMEL_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE" ] && [ -n "$KEYSTORE_PASSWORD" ]; then
+            echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            echo "file=$RUNNER_TEMP/upload.jks" >> "$GITHUB_OUTPUT"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::ALMAMEL_KEYSTORE secrets are not set: building with a debug key (not for Google Play)."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build
+        working-directory: android
+        env:
+          ALMAMEL_KEYSTORE_FILE: ${{ steps.key.outputs.file }}
+          ALMAMEL_KEYSTORE_PASSWORD: ${{ secrets.ALMAMEL_KEYSTORE_PASSWORD }}
+        run: |
+          gradle --no-daemon -PversionCode=$((100 + GITHUB_RUN_NUMBER)) -PsiteUrl="${{ vars.CF_SITE_URL || 'https://almamel.pages.dev' }}" \
+            bundleCustomerRelease bundleKitchenRelease assembleCustomerRelease assembleKitchenRelease
+          mkdir -p out
+          cp app/build/outputs/bundle/customerRelease/*.aab out/almamel-customer.aab
+          cp app/build/outputs/bundle/kitchenRelease/*.aab out/almamel-restaurant.aab
+          cp app/build/outputs/apk/customer/release/*.apk out/almamel-customer.apk
+          cp app/build/outputs/apk/kitchen/release/*.apk out/almamel-restaurant.apk
+          ls -la out
+      - name: Summary
+        run: |
+          {
+            echo "### تطبيقات أندرويد (الإصدار $((100 + GITHUB_RUN_NUMBER)))"
+            echo "- موقّعة بمفتاح الرفع: ${{ steps.key.outputs.signed }}"
+            echo "- almamel-customer.aab / almamel-restaurant.aab: للرفع على كوكل بلاي"
+            echo "- almamel-customer.apk / almamel-restaurant.apk: للتثبيت المباشر والتجربة"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: almamel-android-${{ github.run_number }}
+          path: android/out/
+          retention-days: 90

@@ -28,6 +28,10 @@ test('static build renders every page with the GitHub Pages base path and no ser
   assert.ok(home.includes('href="/almamel/static/css/app.css'));
   assert.ok(home.includes('data-base="/almamel"'));
   assert.ok(home.includes('افتتاح الموقع'));
+  // ربط تطبيقي أندرويد: assetlinks.json للحزمتين بنفس بصمة مفتاح التوقيع
+  const links = JSON.parse(fs.readFileSync(path.join(out, '.well-known', 'assetlinks.json'), 'utf8'));
+  assert.deepEqual(links.map((l: { target: { package_name: string } }) => l.target.package_name), ['com.almamel.dalil', 'com.almamel.restaurant']);
+  assert.match(links[0].target.sha256_cert_fingerprints[0], /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
   assert.ok(home.includes('جميع الحقوق محفوظة © إبراهيم علي الشويلي'));
   assert.ok(home.includes('Content-Security-Policy'));
   assert.ok(!home.includes('href="/almamel/login"') && !home.includes('/admin'));

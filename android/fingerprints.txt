@@ -1,0 +1,4 @@
+# بصمات SHA-256 لمفاتيح توقيع تطبيقي أندرويد، تُنشر في /.well-known/assetlinks.json حتى يفتح التطبيق الموقع بشاشة كاملة.
+# السطر الأول: مفتاح الرفع (upload key). بعد أول رفع على كوكل بلاي أضف هنا بصمة «App signing key»
+# من Play Console ← التطبيق ← Test and release ← App integrity ← App signing (لكل تطبيق).
+09:26:E9:96:87:6A:BC:1C:CE:DD:D6:99:B4:A8:C0:43:8B:69:78:3F:07:94:11:58:77:23:02:C6:E4:61:E3:6D

@@ -104,6 +104,13 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
     write('robots.txt', `User-agent: *\nDisallow: ${base}/publish/\nDisallow: ${base}/idara/\nDisallow: ${base}/tasjeel/\nDisallow: ${base}/mat3am/\nDisallow: ${base}/order/\nSitemap: ${siteUrl}/sitemap.xml\n`);
     write('.nojekyll', '');
     write('build-stamp.txt', stamp);
+    // ربط تطبيقي أندرويد بالموقع (Trusted Web Activity): التطبيق يفتح الموقع بلا شريط متصفح
+    const fpFile = path.join(import.meta.dirname, '..', 'android', 'fingerprints.txt');
+    if (fs.existsSync(fpFile)) {
+      const fps = fs.readFileSync(fpFile, 'utf8').split('\n').map((l) => l.trim()).filter((l) => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/i.test(l)).map((l) => l.toUpperCase());
+      if (fps.length) write('.well-known/assetlinks.json', JSON.stringify(['com.almamel.dalil', 'com.almamel.restaurant'].map((pkg) => ({
+        relation: ['delegate_permission/common.handle_all_urls'], target: { namespace: 'android_app', package_name: pkg, sha256_cert_fingerprints: fps } })), null, 2));
+    }
     fs.cpSync(path.join(import.meta.dirname, '..', 'public'), path.join(opts.outDir, 'static'), { recursive: true });
     if (opts.supabase) {
       fs.mkdirSync(path.join(opts.outDir, 'static', 'vendor'), { recursive: true });
