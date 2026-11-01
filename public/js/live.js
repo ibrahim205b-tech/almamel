@@ -11,7 +11,7 @@
   var TYPE_LABEL = { business: 'نشاط تجاري', job: 'وظيفة', property: 'عقار', service: 'خدمة', market: 'إعلان بيع', offer: 'عرض', community: 'خبر أو فعالية', help: 'طلب مساعدة' };
   var PATHS = { business: '/businesses', job: '/jobs', property: '/properties', service: '/services', market: '/market', offer: '/offers', community: '/community', help: '/help' };
   var nf = new Intl.NumberFormat('ar-IQ');
-  var ADMIN_SITE = meta('admin-site') === '1', REGISTER_SITE = meta('register-site') === '1';
+  var ADMIN_SITE = meta('admin-site') === '1', REGISTER_SITE = meta('register-site') === '1', KITCHEN_SITE = meta('kitchen-site') === '1';
   var FEE = 3000, FEATURE_DAYS = 10; // تطابق ad_fee و feature_fee و feature_days في schema.sql
   var SUPPORT_WA = meta('support-wa');
   function waTo(text) { return SUPPORT_WA ? SUPPORT_WA + '?text=' + encodeURIComponent(text) : ''; }
@@ -266,7 +266,7 @@
       var p = await profile(r.data.user.id);
       var next = new URLSearchParams(location.search).get('next');
       if (ADMIN_SITE && !(p && p.role === 'admin')) { await sb.auth.signOut(); return say('هذا الحساب ليس حساب إدارة. شغّل make_admin لبريدك في Supabase أولاً.', 'error'); }
-      go(next && /^\/[\w\-/?=&%.]*$/.test(next) ? next : p && p.role === 'admin' ? '/admin/' : '/owner/dashboard/');
+      go(next && /^\/[\w\-/?=&%.]*$/.test(next) ? next : KITCHEN_SITE ? '/kitchen/' : p && p.role === 'admin' ? '/admin/' : '/owner/dashboard/');
     });
     var signup = $('[data-signup]');
     if (signup) signup.addEventListener('submit', async function (e) {
@@ -281,6 +281,12 @@
       busy(signup, false);
       if (r.error) return say(errText(r.error), 'error');
       await sb.auth.signOut();
+      if (KITCHEN_SITE) {
+        var w = waTo('سويت حساب لمطعمي بموقع الطلبات. البريد: ' + f.su_email.value.trim() + '\nاسم المطعم: ');
+        say('تم إنشاء الحساب ✅ أرسل بريدك (' + f.su_email.value.trim() + ') لخدمة العملاء حتى نربطه بمطعمك، وبعدها سجّل الدخول.', 'ok');
+        if (w) $('[data-msg]').appendChild(el('a', { class: 'btn btn-wa btn-sm', href: w, target: '_blank', rel: 'noopener', text: ' أرسل لخدمة العملاء' }));
+        return;
+      }
       say('تم إنشاء الحساب. الآن شغّل في Supabase ← SQL Editor: select public.make_admin(\'' + f.su_email.value.trim() + '\'); ثم سجّل الدخول.', 'ok');
     });
     $('[data-reset]').addEventListener('click', async function () {
@@ -504,6 +510,133 @@
     show();
   }
 
+  // ---------- موقع المطعم: استلام الطلبات ----------
+  async function initKitchen() {
+    var s = await requireLogin(); if (!s) return;
+    var p = await profile(s.user.id);
+    var mine = await sb.from('posts').select('id, title, status').eq('type', 'business').or('owner_id.eq.' + s.user.id + ',author_id.eq.' + s.user.id).neq('status', 'removed');
+    var shops = (mine.data || []).filter(function (b) { return b.status === 'published'; });
+    var isAdmin = p && p.role === 'admin';
+    if (!shops.length && !isAdmin) {
+      say('حسابك مو مربوط بأي مطعم بعد. راسل خدمة العملاء وأرسل بريدك حتى نربطه بمطعمك.', 'error');
+      var w = waTo('أريد ربط حسابي بمطعمي في موقع الطلبات. البريد: ' + (s.user.email || ''));
+      if (w) $('[data-msg]').appendChild(el('a', { class: 'btn btn-wa btn-sm', href: w, target: '_blank', rel: 'noopener', text: ' راسل خدمة العملاء' }));
+      $$('section, details').forEach(function (x) { x.hidden = true; });
+      return;
+    }
+    $('[data-who]').textContent = isAdmin && !shops.length ? 'حساب الإدارة: تشوف طلبات كل المطاعم.' : shops.map(function (b) { return b.title; }).join('، ');
+    commissionBox($('[data-commission]'), false);
+
+    // الصوت والإشعارات تحتاج ضغطة من المستخدم أولاً (سياسة المتصفحات)
+    var bar = $('[data-kitchen-bar]'), live = $('[data-live]'), liveText = $('[data-live-text]');
+    var ac = null, started = false, swReg = null;
+    bar.hidden = false;
+    function tone(f, t0, d) {
+      var o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.value = f; o.connect(g); g.connect(ac.destination);
+      g.gain.setValueAtTime(0.0001, ac.currentTime + t0); g.gain.exponentialRampToValueAtTime(0.35, ac.currentTime + t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + t0 + d); o.start(ac.currentTime + t0); o.stop(ac.currentTime + t0 + d + 0.05);
+    }
+    function ring() {
+      if (!ac) return;
+      if (ac.state === 'suspended') ac.resume();
+      tone(988, 0, 0.18); tone(1319, 0.2, 0.18); tone(988, 0.4, 0.18); tone(1319, 0.6, 0.3);
+      try { if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]); } catch { /* لا شيء */ }
+    }
+    async function keepAwake() { try { if (navigator.wakeLock) await navigator.wakeLock.request('screen'); } catch { /* لا شيء */ } }
+    document.addEventListener('visibilitychange', function () { if (started && document.visibilityState === 'visible') keepAwake(); });
+    $('[data-start]').addEventListener('click', async function () {
+      try { var A = window.AudioContext || window.webkitAudioContext; ac = new A(); await ac.resume(); } catch { /* لا شيء */ }
+      ring();
+      try { if ('serviceWorker' in navigator) swReg = await navigator.serviceWorker.register(BASE + '/sw.js', { scope: BASE + '/' }); } catch { /* لا شيء */ }
+      try { if (window.Notification && window.Notification.permission === 'default') await window.Notification.requestPermission(); } catch { /* لا شيء */ }
+      keepAwake();
+      started = true; bar.hidden = true; live.hidden = false;
+      say('جاهز ✅ راح تسمع صوت وتوصلك إشعار مع كل طلب جديد.', 'ok');
+    });
+    $('[data-test-sound]').addEventListener('click', ring);
+    function notify(o) {
+      var title = 'طلب جديد 🔔 ' + nf.format(o.total) + ' د.ع', body = (o.lines || []).map(function (l) { return l.q + '× ' + l.name; }).join('، ') + ' — ' + (o.landmark || '');
+      try {
+        if (!window.Notification || window.Notification.permission !== 'granted') return;
+        if (swReg && swReg.showNotification) swReg.showNotification(title, { body: body, tag: 'order-' + o.id, renotify: true, requireInteraction: true, dir: 'rtl', lang: 'ar', icon: BASE + '/static/img/logo.svg' });
+        else new window.Notification(title, { body: body, tag: 'order-' + o.id });
+      } catch { /* لا شيء */ }
+    }
+
+    var seen = null, rows = [];
+    function ago(t) { var m = Math.round((Date.now() - new Date(t).getTime()) / 60000); return m < 1 ? 'هسه' : m < 60 ? 'قبل ' + m + ' دقيقة' : 'قبل ' + Math.round(m / 60) + ' ساعة'; }
+    async function decide(o, status) {
+      var reason = null, eta = null;
+      if (status === 'rejected') { reason = prompt('سبب الرفض (يشوفه الزبون):', 'المطعم مشغول حالياً'); if (!reason || reason.trim().length < 2) return; }
+      if (status === 'accepted') { eta = Number(o._eta || 30); }
+      var r = await sb.rpc('decide_order', { p_id: o.id, p_status: status, p_reason: reason, p_eta: eta });
+      if (r.error) return say(errText(r.error), 'error');
+      say(status === 'accepted' ? 'تم قبول الطلب. الزبون يشوف الموافقة هسه.' : status === 'rejected' ? 'تم رفض الطلب.' : 'تم.', 'ok');
+      load();
+    }
+    function card(o) {
+      var lines = el('ul', { class: 'order-lines' });
+      (o.lines || []).forEach(function (l) { lines.appendChild(el('li', {}, [el('b', { text: l.q + ' × ' }), l.name, l.price != null ? el('span', { class: 'muted', text: '  ' + nf.format(l.price * l.q) }) : null])); });
+      var facts = el('dl', { class: 'facts' });
+      [['الزبون', o.customer_name || '—'], ['أقرب نقطة دالة', o.landmark || '—'], ['ملاحظات', o.note || '']].forEach(function (kv) {
+        if (kv[1]) facts.appendChild(el('div', {}, [el('dt', { text: kv[0] }), el('dd', { text: kv[1] })]));
+      });
+      var acts = el('div', { class: 'btn-row' });
+      if (o.customer_phone) acts.appendChild(el('a', { class: 'btn', href: 'tel:' + o.customer_phone, dir: 'ltr', text: '📞 ' + o.customer_phone }));
+      if (o.lat && o.lng) acts.appendChild(el('a', { class: 'btn', href: 'https://maps.google.com/?q=' + o.lat + ',' + o.lng, target: '_blank', rel: 'noopener', text: '📍 الموقع على الخريطة' }));
+      var decideRow = el('div', { class: 'btn-row order-decide' });
+      if (o.status === 'new') {
+        var etaSel = el('select', { 'aria-label': 'وقت التجهيز' }, [10, 20, 30, 45, 60, 90].map(function (m) { return el('option', { value: m, text: m + ' دقيقة', selected: m === 30 }); }));
+        etaSel.addEventListener('change', function () { o._eta = etaSel.value; });
+        decideRow.appendChild(el('button', { class: 'btn btn-primary btn-lg', type: 'button', text: '✓ قبول', onclick: function () { decide(o, 'accepted'); } }));
+        decideRow.appendChild(etaSel);
+        decideRow.appendChild(el('button', { class: 'btn btn-danger', type: 'button', text: '✕ رفض', onclick: function () { decide(o, 'rejected'); } }));
+      } else if (o.status === 'accepted') {
+        decideRow.appendChild(el('button', { class: 'btn btn-primary', type: 'button', text: 'تم التوصيل', onclick: function () { decide(o, 'done'); } }));
+        decideRow.appendChild(el('button', { class: 'btn btn-sm', type: 'button', text: 'إلغاء الطلب', onclick: function () { decide(o, 'rejected'); } }));
+      }
+      var st = { new: 'جديد', accepted: 'مقبول' + (o.eta ? ' · ' + o.eta + ' د' : ''), rejected: 'مرفوض', done: 'تم التوصيل' }[o.status];
+      return el('li', { class: 'panel order order-' + o.status }, [
+        el('div', { class: 'order-top' }, [el('b', { text: 'طلب #' + o.id }), el('span', { class: 'status status-' + o.status, text: st }), el('span', { class: 'muted', text: ago(o.created_at) })]),
+        shops.length > 1 || isAdmin ? el('p', { class: 'order-shop', text: o.title }) : null,
+        lines, el('p', { class: 'cart-sum', text: 'المجموع: ' + nf.format(o.total) + ' د.ع' }),
+        o.status === 'rejected' && o.reason ? el('p', { class: 'note', text: 'سبب الرفض: ' + o.reason }) : null,
+        facts, acts, decideRow]);
+    }
+    function draw() {
+      var groups = { new: [], accepted: [], closed: [] };
+      rows.forEach(function (o) { (o.status === 'new' ? groups.new : o.status === 'accepted' ? groups.accepted : groups.closed).push(o); });
+      groups.new.reverse(); // الأقدم أولاً
+      Object.keys(groups).forEach(function (k) {
+        var ul = $('[data-list="' + k + '"]');
+        ul.textContent = '';
+        groups[k].forEach(function (o) { ul.appendChild(card(o)); });
+        if (!groups[k].length) ul.appendChild(el('li', { class: 'muted', text: k === 'new' ? 'ماكو طلبات جديدة.' : 'ماكو.' }));
+        $('[data-n="' + k + '"]').textContent = nf.format(groups[k].length);
+      });
+      document.title = (groups.new.length ? '(' + groups.new.length + ') ' : '') + 'طلبات المطعم';
+      return groups.new.length;
+    }
+    var etaMemo = {};
+    async function load() {
+      var r = await sb.rpc('kitchen_orders');
+      if (r.error) { liveText.textContent = 'انقطع الاتصال، نحاول مرة ثانية...'; live.classList.add('off'); return; }
+      live.classList.remove('off');
+      rows.forEach(function (o) { if (o._eta) etaMemo[o.id] = o._eta; });
+      rows = r.data || [];
+      rows.forEach(function (o) { if (etaMemo[o.id]) o._eta = etaMemo[o.id]; });
+      var fresh = rows.filter(function (o) { return o.status === 'new' && seen && !seen[o.id]; });
+      seen = seen || {};
+      rows.forEach(function (o) { seen[o.id] = true; });
+      var pending = draw();
+      liveText.textContent = 'متصل · آخر تحديث ' + new Date().toLocaleTimeString('ar-IQ', { hour: 'numeric', minute: '2-digit' });
+      if (fresh.length) { fresh.forEach(notify); say('🔔 وصل طلب جديد!', 'ok'); }
+      if (started && pending) ring(); // يرن كل دورة ما دام أكو طلب بانتظار رد
+    }
+    await load();
+    window.setInterval(load, 6000);
+  }
+
   // ---------- الإدارة ----------
   async function initAdmin() {
     var s = await requireLogin(); if (!s) return;
@@ -599,6 +732,13 @@
           x.verified ? el('span', { class: 'badge badge-ok', text: 'موثّق' }) : null,
           el('div', { class: 'btn-row' }, [
             x.type === 'business' ? el('a', { class: 'btn btn-sm btn-primary', href: BASE + '/admin/menu/?b=' + x.id, text: 'القائمة والأسعار' }) : null,
+            x.type === 'business' ? el('button', { class: 'btn btn-sm', type: 'button', text: x.owner_id ? 'تغيير حساب المطعم' : 'ربط حساب المطعم', onclick: async function () {
+              var email = prompt('بريد حساب صاحب المطعم (يسويه من موقع المطعم /mat3am):');
+              if (!email || email.indexOf('@') < 1) return;
+              var r = await sb.rpc('assign_owner', { p_business: x.id, p_email: email.trim() });
+              if (r.error) return say(errText(r.error), 'error');
+              say('تم ربط الحساب بـ «' + x.title + '». صاحب المطعم يكدر يستلم الطلبات هسه.', 'ok'); load();
+            } }) : null,
             el('button', { class: 'btn btn-sm', type: 'button', text: 'إخفاء', onclick: function () { act(x.id, 'hide', true); } }),
             el('button', { class: 'btn btn-sm btn-danger', type: 'button', text: 'حذف', onclick: function () { act(x.id, 'remove', true); } }),
             x.type === 'business' || x.type === 'help' ? el('button', { class: 'btn btn-sm', type: 'button', text: x.verified ? 'إلغاء التوثيق' : 'توثيق (بعد التحقق)', onclick: function () { act(x.id, x.verified ? 'unverify' : 'verify'); } }) : null,
@@ -678,6 +818,6 @@
     });
   }
 
-  var init = { 'add-business': initAddBusiness, submit: initSubmit, register: initRegister, login: initLogin, dashboard: initDashboard, menu: initMenu, admin: initAdmin }[page.getAttribute('data-page')];
+  var init = { kitchen: initKitchen, 'add-business': initAddBusiness, submit: initSubmit, register: initRegister, login: initLogin, dashboard: initDashboard, menu: initMenu, admin: initAdmin }[page.getAttribute('data-page')];
   if (init) Promise.resolve(init()).catch(function (e) { say(errText(e), 'error'); });
 })();

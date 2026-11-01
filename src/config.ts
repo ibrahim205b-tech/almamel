@@ -20,6 +20,8 @@ export interface Config {
   adminSite: boolean;
   /** صفحة تسجيل المحلات الخاصة (رابط يُرسل للزبون فقط). */
   registerSite: boolean;
+  /** موقع المطعم المنفصل: استلام الطلبات وإدارة القائمة. */
+  kitchenSite: boolean;
   /** رابط الموقع العام (يظهر في موقع الإدارة). */
   publicUrl: string;
 }
@@ -48,6 +50,7 @@ export function loadConfig(overrides: Partial<Config> = {}, env = process.env): 
     supabaseAnonKey: '',
     adminSite: false,
     registerSite: false,
+    kitchenSite: false,
     publicUrl: '',
     ...overrides,
   };

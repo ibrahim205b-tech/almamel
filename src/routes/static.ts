@@ -8,7 +8,7 @@ import { sectionEnabled } from '../domain/settings.ts';
 import { staticSearchPage } from '../views/pages/public.ts';
 import { checkbox, field, select, textarea, postUrl } from '../views/components.ts';
 import { icon } from '../views/layout.ts';
-import { adminBusinessPage, adminLivePage, dashboardPage, liveHead, pricingNote, liveLoginPage, liveSubmitPage, menuManagerPage, notConfiguredPage, ownerLandingPage, ownerRegisterPage } from '../views/pages/live.ts';
+import { adminBusinessPage, adminLivePage, dashboardPage, liveHead, pricingNote, liveLoginPage, liveSubmitPage, menuManagerPage, kitchenPage, orderStatusPage, notConfiguredPage, ownerLandingPage, ownerRegisterPage } from '../views/pages/live.ts';
 import { assetVersion } from '../app.ts';
 import { typeFieldGroup, typeLabelsJson, typeTextJson } from '../views/type-fields.ts';
 
@@ -59,7 +59,7 @@ export async function staticRoutes(app: FastifyInstance) {
 
   const live = !!(app.cfg.supabaseUrl && app.cfg.supabaseAnonKey);
   const v = assetVersion();
-  const head = (req?: { settings: Record<string, string> }) => liveHead({ url: app.cfg.supabaseUrl, key: app.cfg.supabaseAnonKey, v, wa: req ? waLink(req.settings.whatsapp_phone ?? '') : '', admin: app.cfg.adminSite, register: app.cfg.registerSite });
+  const head = (req?: { settings: Record<string, string> }) => liveHead({ url: app.cfg.supabaseUrl, key: app.cfg.supabaseAnonKey, v, wa: req ? waLink(req.settings.whatsapp_phone ?? '') : '', admin: app.cfg.adminSite, register: app.cfg.registerSite, kitchen: app.cfg.kitchenSite });
   const catsBySection = () => {
     const out: Record<string, string[]> = {};
     for (const r of db.prepare('SELECT section, name FROM categories WHERE active = 1 ORDER BY section, sort').all() as { section: string; name: string }[]) (out[r.section] ??= []).push(r.name);
@@ -78,9 +78,12 @@ export async function staticRoutes(app: FastifyInstance) {
     });
     app.get('/owner', (req, reply) => reply.page(req, { title: 'أضف مطعمك أو محلك', description: 'سجّل مطعمك أو محلك في دليل المعامل وأدر قائمة الطعام والأسعار بنفسك.' }, ownerLandingPage()));
     app.get('/owner/register', (req, reply) => reply.page(req, { title: 'سجّل مطعمك أو محلك', noindex: true, head: head() }, ownerRegisterPage(catsBySection().business ?? [], areaNames(), app.cfg.publicUrl)));
-    app.get('/login', (req, reply) => reply.page(req, { title: app.cfg.adminSite ? 'دخول الإدارة' : 'دخول أصحاب المحلات', noindex: true, head: head() }, liveLoginPage(app.cfg.adminSite)));
+    app.get('/login', (req, reply) => reply.page(req, { title: app.cfg.adminSite ? 'دخول الإدارة' : app.cfg.kitchenSite ? 'دخول المطعم' : 'دخول أصحاب المحلات', noindex: true, head: head(req) }, liveLoginPage(app.cfg.adminSite, app.cfg.kitchenSite)));
+    app.get('/kitchen', (req, reply) => reply.page(req, { title: 'طلبات المطعم', noindex: true, canonical: null, head: html`${head(req)}<link rel="manifest" href="/manifest.webmanifest">` }, kitchenPage()));
+    // صفحة متابعة الطلب للزبون (الموقع العام)
+    app.get('/order', (req, reply) => reply.page(req, { title: 'حالة طلبك', noindex: true, canonical: null }, orderStatusPage()));
     app.get('/owner/dashboard', (req, reply) => reply.page(req, { title: 'لوحة التحكم', noindex: true, canonical: null, head: head(req) }, dashboardPage()));
-    app.get('/owner/menu', (req, reply) => reply.page(req, { title: 'القائمة والأسعار', noindex: true, canonical: null, head: head() }, menuManagerPage()));
+    app.get('/owner/menu', (req, reply) => reply.page(req, { title: 'القائمة والأسعار', noindex: true, canonical: null, head: head() }, menuManagerPage(app.cfg.kitchenSite ? '/kitchen' : '/owner/dashboard')));
     app.get('/admin', (req, reply) => reply.page(req, { title: 'لوحة الإدارة', noindex: true, canonical: null, head: head() }, adminLivePage()));
     // موقع الإدارة: إضافة المطاعم والمحلات بصورها وقائمتها، وإدارة قائمة أي محل
     app.get('/admin/business', (req, reply) => reply.page(req, { title: 'إضافة مطعم أو محل', noindex: true, canonical: null, head: head() }, adminBusinessPage(catsBySection().business ?? [], areaNames())));

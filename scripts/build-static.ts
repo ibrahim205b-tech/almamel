@@ -20,7 +20,9 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
   /** موقع الإدارة المنفصل: صفحات الإدارة فقط، بلا محتوى عام. publicUrl رابط الموقع العام. */
   admin?: { publicUrl: string };
   /** صفحة تسجيل المحلات الخاصة: صفحة واحدة تُرسل للزبون، وطلبه يصل للإدارة. */
-  register?: { publicUrl: string } }) {
+  register?: { publicUrl: string };
+  /** موقع المطعم المنفصل: يستلم الطلبات بإشعار وصوت، ويدير القائمة. */
+  kitchen?: { publicUrl: string } }) {
   const log = (s: string) => { if (!opts.quiet) console.log(s); };
   const siteUrl = opts.siteUrl.replace(/\/+$/, '');
   const base = new URL(siteUrl).pathname.replace(/\/+$/, '');
@@ -28,8 +30,8 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
   const uploadDir = path.join(tmp, 'media');
   const db = openDatabase(':memory:');
   try {
-    const side = opts.admin ?? opts.register;
-    if (side && !opts.supabase) throw new Error('موقع الإدارة وصفحة التسجيل يحتاجان إعداد Supabase في site.config.json');
+    const side = opts.admin ?? opts.register ?? opts.kitchen;
+    if (side && !opts.supabase) throw new Error('موقع الإدارة وصفحة التسجيل وموقع المطعم تحتاج إعداد Supabase في site.config.json');
     const content = side ? { published: 0, skipped: [], errors: [] } : await loadContent(db, opts.contentDir, uploadDir);
     for (const s of content.skipped) log(`تخطي: ${s}`);
     if (content.errors.length) throw new Error('أخطاء في ملفات الإعلانات:\n- ' + content.errors.join('\n- '));
@@ -42,16 +44,17 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
     }
 
     const cfg = loadConfig({ env: 'development', baseUrl: siteUrl, databasePath: ':memory:', uploadDir, cookieSecure: false, adminRequireMfa: false, staticMode: true, repo: opts.repo,
-      supabaseUrl: opts.supabase?.url ?? '', supabaseAnonKey: opts.supabase?.key ?? '', adminSite: !!opts.admin, registerSite: !!opts.register, publicUrl: side?.publicUrl ?? '' },
+      supabaseUrl: opts.supabase?.url ?? '', supabaseAnonKey: opts.supabase?.key ?? '', adminSite: !!opts.admin, registerSite: !!opts.register, kitchenSite: !!opts.kitchen, publicUrl: side?.publicUrl ?? '' },
       { SESSION_SECRET: crypto.randomBytes(32).toString('hex') });
     const app = await buildApp(cfg, { db, logger: false, jobs: false });
 
     const settings = loadSettings(db);
     // الموقع العام لا يحتوي تسجيل المحلات ولا لوحات التحكم؛ هذه في موقع الإدارة المنفصل فقط.
-    const urls = opts.register ? ['/owner/register'] : opts.admin ? ['/login', '/admin', '/admin/business', '/admin/menu'] : ['/', '/restaurants', '/news', '/about', '/contact', '/search', '/submit', '/publish',
+    const urls = opts.register ? ['/owner/register'] : opts.kitchen ? ['/login', '/kitchen', '/owner/menu'] : opts.admin ? ['/login', '/admin', '/admin/business', '/admin/menu'] : ['/', '/restaurants', '/news', '/about', '/contact', '/search', '/submit', '/publish',
       ...TYPE_KEYS.map((t) => TYPES[t].path),
       ...TYPE_KEYS.filter((t) => t !== 'business' && sectionEnabled(settings, t)).map((t) => `/submit/${t}`),
       ...Object.keys(POLICIES).map((k) => `/policies/${k}`),
+      ...(opts.supabase ? ['/order'] : []),
       ...listPublic(db, { types: [...TYPE_KEYS], perPage: 1000 }).items.map(postUrl)];
 
     const withBase = (s: string) => s
@@ -78,13 +81,19 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
       // الصفحة الرئيسية لموقع الإدارة تحوّل للوحة الإدارة، والموقع كله خارج محركات البحث
       if (opts.admin) write('index.html', `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0;url=${base}/admin/"><title>الإدارة</title><a href="${base}/admin/">لوحة الإدارة</a>`);
       if (opts.admin) write('404.html', `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0;url=${base}/admin/"><title>الإدارة</title>`);
+      if (opts.kitchen) {
+        for (const f of ['index.html', '404.html']) write(f, `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0;url=${base}/kitchen/"><title>طلبات المطعم</title><a href="${base}/kitchen/">الطلبات</a>`);
+        // عامل خدمة بسيط: يسمح بإشعارات النظام على أندرويد ويفتح الصفحة عند الضغط على الإشعار
+        write('sw.js', fs.readFileSync(path.join(import.meta.dirname, '..', 'public', 'js', 'kitchen-sw.js')));
+        write('manifest.webmanifest', JSON.stringify({ name: 'طلبات المطعم - دليل المعامل', short_name: 'طلبات المطعم', start_url: `${base}/kitchen/`, scope: `${base}/`, display: 'standalone', dir: 'rtl', lang: 'ar', background_color: '#0F4337', theme_color: '#0F4337', icons: [{ src: `${base}/static/img/logo.svg`, sizes: 'any', type: 'image/svg+xml' }] }));
+      }
       write('robots.txt', 'User-agent: *\nDisallow: /\n');
       write('.nojekyll', '');
       fs.cpSync(path.join(import.meta.dirname, '..', 'public'), path.join(opts.outDir, 'static'), { recursive: true });
       fs.mkdirSync(path.join(opts.outDir, 'static', 'vendor'), { recursive: true });
       fs.copyFileSync(path.join(import.meta.dirname, '..', 'node_modules', '@supabase', 'supabase-js', 'dist', 'umd', 'supabase.js'), path.join(opts.outDir, 'static', 'vendor', 'supabase.js'));
       await app.close();
-      log(`تم بناء ${opts.admin ? 'موقع الإدارة' : 'صفحة التسجيل'}: ${urls.length} صفحة في ${opts.outDir} (الرابط: ${siteUrl}/)`);
+      log(`تم بناء ${opts.admin ? 'موقع الإدارة' : opts.kitchen ? 'موقع المطعم' : 'صفحة التسجيل'}: ${urls.length} صفحة في ${opts.outDir} (الرابط: ${siteUrl}/)`);
       return { pages: urls.length, published: 0 };
     }
     const notFound = await app.inject({ method: 'GET', url: '/__not_found__' });
@@ -92,7 +101,7 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
     write('search.json', (await app.inject({ method: 'GET', url: '/search.json' })).body.replace(/"\/(?!\/)/g, `"${base}/`));
     write('sitemap.xml', (await app.inject({ method: 'GET', url: '/sitemap.xml' })).body);
     write('manifest.webmanifest', (await app.inject({ method: 'GET', url: '/manifest.webmanifest' })).body.replace(/"\/(?!\/)/g, `"${base}/`));
-    write('robots.txt', `User-agent: *\nDisallow: ${base}/publish/\nDisallow: ${base}/idara/\nDisallow: ${base}/tasjeel/\nSitemap: ${siteUrl}/sitemap.xml\n`);
+    write('robots.txt', `User-agent: *\nDisallow: ${base}/publish/\nDisallow: ${base}/idara/\nDisallow: ${base}/tasjeel/\nDisallow: ${base}/mat3am/\nDisallow: ${base}/order/\nSitemap: ${siteUrl}/sitemap.xml\n`);
     write('.nojekyll', '');
     write('build-stamp.txt', stamp);
     fs.cpSync(path.join(import.meta.dirname, '..', 'public'), path.join(opts.outDir, 'static'), { recursive: true });
@@ -118,7 +127,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const pub = { publicUrl: process.env.PUBLIC_URL || `https://${owner}.github.io/${name}/` };
   const admin = process.env.ADMIN_SITE === '1' ? pub : undefined;
   const register = process.env.REGISTER_SITE === '1' ? pub : undefined;
-  buildStatic({ siteUrl, contentDir: process.env.CONTENT_DIR || 'content', outDir: process.env.OUT_DIR || (admin ? 'dist-admin' : register ? 'dist-register' : 'dist'), repo, supabase: supabaseConfig(), cacheDir: '.cache/supabase-media', admin, register })
+  const kitchen = process.env.KITCHEN_SITE === '1' ? pub : undefined;
+  buildStatic({ siteUrl, contentDir: process.env.CONTENT_DIR || 'content', outDir: process.env.OUT_DIR || (admin ? 'dist-admin' : register ? 'dist-register' : kitchen ? 'dist-kitchen' : 'dist'), repo, supabase: supabaseConfig(), cacheDir: '.cache/supabase-media', admin, register, kitchen })
     .catch((e) => { console.error(String(e.message ?? e)); process.exit(1); });
 }
 

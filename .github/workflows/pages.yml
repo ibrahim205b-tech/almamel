@@ -81,9 +81,17 @@ jobs:
           SITE_URL: ${{ steps.pages.outputs.base_url }}/tasjeel
           PUBLIC_URL: ${{ steps.pages.outputs.base_url }}/
           OUT_DIR: dist/tasjeel
+      - name: Build restaurant orders site (/mat3am, for restaurants only)
+        if: steps.check.outputs.build == 'true'
+        run: node scripts/build-static.ts
+        env:
+          KITCHEN_SITE: '1'
+          SITE_URL: ${{ steps.pages.outputs.base_url }}/mat3am
+          PUBLIC_URL: ${{ steps.pages.outputs.base_url }}/
+          OUT_DIR: dist/mat3am
       # نسخة جاهزة لـ Cloudflare Pages: تُبنى هنا (البناء على Cloudflare يفشل بخطأ داخلي عندهم)
       # وتُدفع إلى فرع cf-pages؛ مشروع Cloudflare ينشر هذا الفرع كما هو بلا أمر بناء.
-      - name: Build Cloudflare copy (public + /idara + /tasjeel)
+      - name: Build Cloudflare copy (public + /idara + /tasjeel + /mat3am)
         if: steps.check.outputs.build == 'true'
         env:
           CF: ${{ vars.CF_SITE_URL || 'https://almamel.pages.dev' }}
@@ -91,6 +99,7 @@ jobs:
           SITE_URL="$CF" OUT_DIR=dist-cf node scripts/build-static.ts
           ADMIN_SITE=1 SITE_URL="$CF/idara" PUBLIC_URL="$CF/" OUT_DIR=dist-cf/idara node scripts/build-static.ts
           REGISTER_SITE=1 SITE_URL="$CF/tasjeel" PUBLIC_URL="$CF/" OUT_DIR=dist-cf/tasjeel node scripts/build-static.ts
+          KITCHEN_SITE=1 SITE_URL="$CF/mat3am" PUBLIC_URL="$CF/" OUT_DIR=dist-cf/mat3am node scripts/build-static.ts
       - name: Push Cloudflare copy to the cf-pages branch
         if: steps.check.outputs.build == 'true'
         env:

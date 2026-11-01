@@ -87,11 +87,11 @@
   (function () {
     var side = document.querySelector('.detail-side'); if (!side) return;
     var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn btn-ghost btn-block share-btn';
-    btn.appendChild(iconEl('share')); btn.appendChild(document.createTextNode(' مشاركة'));
+    var shareTxt = document.createTextNode(' مشاركة'); btn.appendChild(iconEl('share')); btn.appendChild(shareTxt);
     btn.addEventListener('click', function () {
       var data = { title: document.title, url: location.href };
       if (navigator.share) { navigator.share(data).catch(function () {}); return; }
-      var done = function () { btn.lastChild.textContent = ' تم نسخ الرابط'; setTimeout(function () { btn.lastChild.textContent = ' مشاركة'; }, 2000); };
+      var done = function () { shareTxt.textContent = ' تم نسخ الرابط'; setTimeout(function () { shareTxt.textContent = ' مشاركة'; }, 2000); };
       if (navigator.clipboard) navigator.clipboard.writeText(location.href).then(done, function () { window.open('https://wa.me/?text=' + encodeURIComponent(location.href), '_blank', 'noopener'); });
       else window.open('https://wa.me/?text=' + encodeURIComponent(location.href), '_blank', 'noopener');
     });
@@ -392,8 +392,25 @@
     var send = el('a', 'btn btn-wa btn-block cart-send'); send.target = '_blank'; send.rel = 'noopener';
     send.appendChild(iconEl('whatsapp', 'i')); send.appendChild(document.createTextNode('أرسل الطلب عبر واتساب'));
     var clear = el('button', 'btn btn-sm cart-clear', 'إفراغ السلة'); clear.type = 'button';
-    try { var saved = JSON.parse(localStorage.getItem('cart-customer')) || {}; nameF.value = saved.n || ''; addrF.value = saved.a || ''; } catch { /* لا شيء */ }
-    [head, list, sum, nameF, addrF, noteF, send, clear].forEach(function (x) { card.appendChild(x); });
+    // الطلب من داخل الموقع (إذا كان مفعّلاً): يوصل للمطعم مباشرة بإشعار وصوت
+    var LOG = document.querySelector('meta[name="order-log"]');
+    var phoneF = el('input'); phoneF.type = 'tel'; phoneF.dir = 'ltr'; phoneF.inputMode = 'tel'; phoneF.autocomplete = 'tel';
+    phoneF.placeholder = 'رقم هاتفك 07xxxxxxxxx'; phoneF.setAttribute('aria-label', 'رقم هاتفك');
+    var locBtn = el('button', 'btn btn-block loc-btn'); locBtn.type = 'button';
+    var locTxt = document.createTextNode(' استخدم موقعي الحالي'); locBtn.appendChild(iconEl('pin', 'i')); locBtn.appendChild(locTxt);
+    var locNote = el('p', 'hint loc-note', 'يساعد المطعم يوصلك بسرعة. موقعك يشوفه المطعم فقط.');
+    var loc = null;
+    var order = el('button', 'btn btn-primary btn-block btn-lg cart-order'); order.type = 'button';
+    var orderTxt = document.createTextNode(' أرسل الطلب للمطعم'); order.appendChild(iconEl('check', 'i')); order.appendChild(orderTxt);
+    var err = el('p', 'cart-err'); err.setAttribute('role', 'alert'); err.hidden = true;
+    if (LOG) {
+      addrF.placeholder = 'أقرب نقطة دالة (مطلوب): مثلاً قرب جامع ...، الزقاق الثاني';
+      addrF.setAttribute('aria-label', 'أقرب نقطة دالة');
+      send.className = 'btn btn-sm btn-block cart-send cart-send-alt'; send.lastChild.textContent = ' أو أرسل الطلب عبر واتساب';
+    }
+    try { var saved = JSON.parse(localStorage.getItem('cart-customer')) || {}; nameF.value = saved.n || ''; addrF.value = saved.a || ''; phoneF.value = saved.p || ''; } catch { /* لا شيء */ }
+    (LOG ? [head, list, sum, nameF, phoneF, locBtn, locNote, addrF, noteF, err, order, send, clear] : [head, list, sum, nameF, addrF, noteF, send, clear])
+      .forEach(function (x) { card.appendChild(x); });
     panel.appendChild(card);
     document.body.appendChild(bar); document.body.appendChild(panel);
 
@@ -405,6 +422,8 @@
       });
       lines.push('', 'المجموع: ' + fmt(total()) + (priced() ? '' : ' (بعض الأصناف حسب الطلب)'));
       if (nameF.value.trim()) lines.push('الاسم: ' + nameF.value.trim());
+      if (LOG && phoneF.value.trim()) lines.push('الهاتف: ' + phoneF.value.trim());
+      if (loc) lines.push('الموقع: https://maps.google.com/?q=' + loc.lat + ',' + loc.lng);
       if (addrF.value.trim()) lines.push('العنوان: ' + addrF.value.trim());
       if (noteF.value.trim()) lines.push('ملاحظات: ' + noteF.value.trim());
       return lines.join('\n');
@@ -474,10 +493,122 @@
             body: JSON.stringify({ p_business: Number(shop.getAttribute('data-shop-id')), p_total: total(), p_items: count() }) }).catch(function () {});
         } catch { /* لا يمنع إرسال الطلب */ }
       }
-      try { localStorage.setItem('cart-customer', JSON.stringify({ n: nameF.value.trim(), a: addrF.value.trim() })); } catch { /* لا شيء */ }
+      try { localStorage.setItem('cart-customer', JSON.stringify({ n: nameF.value.trim(), a: addrF.value.trim(), p: phoneF.value.trim() })); } catch { /* لا شيء */ }
       cart = {}; save(); noteF.value = '';
       setTimeout(function () { refresh(); panel.hidden = true; }, 300);
     });
+
+    // ---------- إرسال الطلب للمطعم من داخل الموقع ----------
+    var showErr = function (t) { err.textContent = t; err.hidden = !t; if (t) err.scrollIntoView({ block: 'nearest' }); };
+    [phoneF, addrF].forEach(function (f) { f.addEventListener('input', function () { if (!err.hidden) showErr(''); }); });
+    locBtn.addEventListener('click', function () {
+      if (!navigator.geolocation) { locNote.textContent = 'جهازك ما يدعم تحديد الموقع. اكتب أقرب نقطة دالة بالتفصيل.'; return; }
+      locBtn.disabled = true; locNote.textContent = 'جارِ تحديد موقعك...';
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        loc = { lat: Math.round(pos.coords.latitude * 1e6) / 1e6, lng: Math.round(pos.coords.longitude * 1e6) / 1e6 };
+        locBtn.disabled = false; locBtn.classList.add('done');
+        locTxt.textContent = ' تم تحديد موقعك ✓';
+        locNote.textContent = 'الدقة بحدود ' + Math.round(pos.coords.accuracy) + ' متر. اكتب أقرب نقطة دالة حتى يكون التوصيل أسهل.';
+      }, function (e) {
+        locBtn.disabled = false;
+        locNote.textContent = e.code === 1 ? 'ما سمحت بتحديد الموقع. تكدر تسمح من إعدادات المتصفح، أو اكتب أقرب نقطة دالة بالتفصيل.' : 'ما كدرنا نحدد موقعك. اكتب أقرب نقطة دالة بالتفصيل.';
+      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+    });
+    var normPhone = function (v) {
+      v = String(v || '').replace(/[٠-٩]/g, function (c) { return '٠١٢٣٤٥٦٧٨٩'.indexOf(c); }).replace(/[^\d+]/g, '');
+      if (/^\+?964/.test(v)) v = '0' + v.replace(/^\+?964/, '');
+      return /^07\d{9}$/.test(v) ? v : null;
+    };
+    order.addEventListener('click', function () {
+      var ph = normPhone(phoneF.value);
+      if (!count()) return showErr('السلة فارغة.');
+      if (!ph) { phoneF.focus(); return showErr('اكتب رقم هاتفك (رقم عراقي يبدأ بـ 07).'); }
+      if (addrF.value.trim().length < 3) { addrF.focus(); return showErr('اكتب أقرب نقطة دالة حتى يوصلك الطلب.'); }
+      showErr(''); order.disabled = true; orderTxt.textContent = ' جارِ الإرسال...';
+      var key = LOG.getAttribute('data-key');
+      window.fetch(LOG.content + '/rest/v1/rpc/place_order', { method: 'POST',
+        headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_business: Number(shop.getAttribute('data-shop-id')), p_items: Object.keys(cart).map(function (k) { return { name: k, q: cart[k].q }; }),
+          p_phone: ph, p_name: nameF.value.trim() || null, p_landmark: addrF.value.trim(), p_lat: loc ? loc.lat : null, p_lng: loc ? loc.lng : null, p_note: noteF.value.trim() || null }) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j && j.message) || 'تعذّر الإرسال'); return j; }); })
+        .then(function (token) {
+          try {
+            localStorage.setItem('cart-customer', JSON.stringify({ n: nameF.value.trim(), a: addrF.value.trim(), p: ph }));
+            localStorage.setItem('last-order', token);
+          } catch { /* لا شيء */ }
+          cart = {}; save();
+          window.location.href = BASE + '/order/?t=' + encodeURIComponent(token);
+        })
+        .catch(function (e) {
+          order.disabled = false; orderTxt.textContent = ' أرسل الطلب للمطعم';
+          showErr(/fetch|network|Failed/i.test(e.message) ? 'ما كدرنا نوصل للمطعم. تأكد من الإنترنت وحاول مرة ثانية، أو أرسل الطلب عبر واتساب.' : e.message);
+        });
+    });
     refresh();
+  }
+
+  // ---------- صفحة «حالة طلبك» للزبون ----------
+  var track = document.querySelector('[data-order-status]');
+  var LOG2 = document.querySelector('meta[name="order-log"]');
+  if (track && LOG2) {
+    var box = track.querySelector('[data-order-box]');
+    var token = new URLSearchParams(location.search).get('t');
+    try { token = token || localStorage.getItem('last-order'); } catch { /* لا شيء */ }
+    var key2 = LOG2.getAttribute('data-key'), lastStatus = null, timer = null;
+    var fmt2 = function (n) { return Number(n).toLocaleString('en-US') + ' د.ع'; };
+    var STEPS = { new: ['بانتظار رد المطعم', 'وصل طلبك للمطعم. راح يوصلك الرد خلال دقائق.'], accepted: ['تم قبول طلبك ✅', 'المطعم يجهز طلبك هسه.'],
+      rejected: ['اعتذر المطعم عن الطلب', ''], done: ['تم التوصيل', 'بالعافية! شكراً لطلبك من دليل المعامل.'] };
+    var beep = function () {
+      try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch { /* لا شيء */ }
+      try {
+        var A = window.AudioContext || window.webkitAudioContext; if (!A) return; var ac = new A(), o = ac.createOscillator(), g = ac.createGain();
+        o.frequency.value = 880; o.connect(g); g.connect(ac.destination); g.gain.setValueAtTime(0.2, ac.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.6);
+        o.start(); o.stop(ac.currentTime + 0.6);
+      } catch { /* لا شيء */ }
+    };
+    var render = function (o) {
+      box.textContent = '';
+      var st = STEPS[o.status] || [o.status, ''];
+      box.appendChild(el('p', 'order-shop', o.title));
+      var h = el('h2', 'order-state ost-' + o.status, st[0]); box.appendChild(h);
+      if (o.status === 'accepted' && o.eta) box.appendChild(el('p', 'order-eta', 'الوقت المتوقع: حوالي ' + o.eta + ' دقيقة'));
+      if (o.status === 'rejected' && o.reason) box.appendChild(el('p', 'note', 'السبب: ' + o.reason));
+      if (st[1]) box.appendChild(el('p', 'muted', st[1]));
+      if (o.status === 'new') { var sp = el('div', 'order-wait'); sp.setAttribute('aria-hidden', 'true'); box.insertBefore(sp, h); }
+      var ul = el('ul', 'order-lines');
+      (o.lines || []).forEach(function (l) { ul.appendChild(el('li', '', l.q + ' × ' + l.name + (l.price != null ? '  —  ' + fmt2(l.price * l.q) : ''))); });
+      box.appendChild(ul);
+      box.appendChild(el('p', 'cart-sum', 'المجموع: ' + fmt2(o.total)));
+      var mins = (Date.now() - new Date(o.created_at).getTime()) / 60000;
+      var row = el('div', 'btn-row');
+      if (o.status === 'new' && mins > 4 && o.business_phone) {
+        // المطعم ما رد: نعطي الزبون طريق ثاني
+        var txt = 'مرحبا، أرسلت طلب من دليل المعامل رقم ' + o.id + ' وما وصلني رد:\n' + (o.lines || []).map(function (l) { return '• ' + l.q + ' × ' + l.name; }).join('\n');
+        var wa = el('a', 'btn btn-wa'); wa.href = 'https://wa.me/964' + o.business_phone.slice(1) + '?text=' + encodeURIComponent(txt); wa.target = '_blank'; wa.rel = 'noopener';
+        wa.appendChild(iconEl('whatsapp', 'i')); wa.appendChild(document.createTextNode(' المطعم ما رد؟ راسله على واتساب'));
+        row.appendChild(wa);
+      }
+      if (o.business_phone) { var call = el('a', 'btn'); call.href = 'tel:' + o.business_phone; call.appendChild(iconEl('phone', 'i')); call.appendChild(document.createTextNode(' اتصل بالمطعم')); row.appendChild(call); }
+      var back = el('a', 'btn'); back.href = BASE + '/businesses/' + o.business_id + '/'; back.textContent = o.status === 'rejected' || o.status === 'done' ? 'طلب جديد' : 'رجوع للمطعم'; row.appendChild(back);
+      box.appendChild(row);
+      box.appendChild(el('p', 'hint', 'رقم الطلب: ' + o.id + ' · هذه الصفحة تتحدث تلقائياً.'));
+      if (lastStatus && lastStatus !== o.status) beep();
+      lastStatus = o.status;
+      document.title = st[0] + ' — ' + o.title;
+    };
+    var poll = function () {
+      window.fetch(LOG2.content + '/rest/v1/rpc/order_status', { method: 'POST',
+        headers: { apikey: key2, Authorization: 'Bearer ' + key2, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_token: token }) })
+        .then(function (r) { return r.json(); })
+        .then(function (rows) {
+          var o = Array.isArray(rows) ? rows[0] : rows;
+          if (!o) { box.textContent = ''; box.appendChild(el('p', 'muted', 'ما لكينا هذا الطلب. ممكن صار له أكثر من يومين.')); window.clearInterval(timer); return; }
+          render(o);
+          if (o.status === 'rejected' || o.status === 'done') window.clearInterval(timer);
+        })
+        .catch(function () { /* نحاول بالدورة الجاية */ });
+    };
+    if (!token || !/^[0-9a-f-]{36}$/i.test(token)) { box.textContent = ''; box.appendChild(el('p', 'muted', 'ما عندك طلب حالي.')); }
+    else { poll(); timer = window.setInterval(poll, 5000); }
   }
 })();

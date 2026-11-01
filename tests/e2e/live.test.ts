@@ -34,6 +34,11 @@ const published = [
     details: {}, images: [], business_id: null, open_state: 'unknown', verified: false, is_official: false, published_at: new Date().toISOString(), expires_at: null, updated_at: new Date().toISOString() },
 ];
 
+const TOKEN = '11111111-2222-3333-4444-555555555555';
+const shot = async (pg: Page, name: string) => { if (process.env.SHOTS) await pg.screenshot({ path: path.join(process.env.SHOTS, name + '.png') }); };
+const order = { id: 77, business_id: 1000001, status: 'new', reason: null, eta: null, created_at: new Date().toISOString(), decided_at: null, total: 12000,
+  lines: [{ name: 'تكة لحم', price: 6000, q: 2 }] };
+
 function mock(req: http.IncomingMessage, res: http.ServerResponse, body: Buffer) {
   const u = new URL(req.url!, 'http://x');
   const send = (code: number, data: unknown) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); };
@@ -48,10 +53,14 @@ function mock(req: http.IncomingMessage, res: http.ServerResponse, body: Buffer)
   if (p.startsWith('/storage/v1/object/')) return send(200, { Key: p.replace('/storage/v1/object/', '') });
   if (p === '/rest/v1/public_posts') return send(200, published);
   if (p === '/rest/v1/rpc/site_stamp') return send(200, 'stamp-1');
+  if (p === '/rest/v1/rpc/place_order') return send(200, TOKEN);
+  if (p === '/rest/v1/rpc/order_status') return send(200, [{ ...order, business_phone: '07705555555', title: 'مطعم المحاكاة' }]);
+  if (p === '/rest/v1/rpc/kitchen_orders') return send(200, [{ ...order, title: 'مطعم المحاكاة', items: 2, customer_name: 'زبون', customer_phone: '07701234567', landmark: 'قرب الجامع', lat: 33.4, lng: 44.3, note: null }]);
   if (p.startsWith('/rest/v1/rpc/')) return send(200, null);
   if (p === '/rest/v1/profiles') { const admin = u.searchParams.get('id') === 'eq.' + ADMIN; const prof = { name: admin ? 'المدير' : 'أبو علي', phone: '07701111111', role: admin ? 'admin' : 'owner' }; return send(200, one ? prof : [prof]); }
   if (p === '/rest/v1/menu_items' && req.method === 'GET') { const rows = menu.filter((m) => (u.searchParams.get('business_id') ?? '').includes('1000001') ? m.business_id === 1000001 : true); return send(200, rows); }
   if (p === '/rest/v1/posts' && req.method === 'POST') { const row = { id: 1000005 }; return one ? send(201, row) : String(req.headers.prefer ?? '').includes('representation') ? send(201, [row]) : send(201, null); }
+  if (p === '/rest/v1/posts' && req.method === 'GET' && u.searchParams.get('type') === 'eq.business') return send(200, [{ id: 1000001, title: 'مطعم المحاكاة', status: 'published' }]);
   if (p === '/rest/v1/posts' && req.method === 'GET') {
     if (u.searchParams.get('status') === 'eq.pending') return send(200, [{ id: 1000009, type: 'market', title: 'سلعة بانتظار المراجعة', body: 'تفاصيل', category: 'هواتف', area: 'المعامل', price: 1000, contact_phone: '07701234567', show_phone: true, guest_name: 'زائر', details: {}, images: [], created_at: new Date().toISOString(), owner_id: null }]);
     if (u.searchParams.get('id')) { const r = { id: 1000001, title: 'مطعم المحاكاة', status: 'published', owner_id: UID, author_id: UID }; return send(200, one ? r : [r]); }
@@ -106,6 +115,9 @@ before(async () => {
   // رابط التسجيل الخاص الذي يُرسل للزبون
   await buildStatic({ siteUrl: siteUrl + '/almamel-tasjeel', contentDir: content, outDir: path.join(root, 'almamel-tasjeel'), repo: 'u/almamel', quiet: true,
     supabase: { url: mockUrl, key: 'test-anon-key' }, register: { publicUrl: siteUrl + '/almamel/' } });
+  // موقع المطعم: استلام الطلبات
+  await buildStatic({ siteUrl: siteUrl + '/almamel-mat3am', contentDir: content, outDir: path.join(root, 'almamel-mat3am'), repo: 'u/almamel', quiet: true,
+    supabase: { url: mockUrl, key: 'test-anon-key' }, kitchen: { publicUrl: siteUrl + '/almamel/' } });
   browser = await chromium.launch();
 });
 
@@ -159,6 +171,58 @@ test('cart order is logged (amount only) for the monthly 5% commission', async (
   assert.ok(body.p_total > 0);
   assert.deepEqual(Object.keys(body).sort(), ['p_business', 'p_items', 'p_total'], 'no customer data sent');
   await page.context().close();
+});
+
+test('customer orders in-site with phone, landmark and GPS location, then tracks the order', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 900 }, locale: 'ar-IQ', geolocation: { latitude: 33.41, longitude: 44.32 }, permissions: ['geolocation'] });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => cspErrors.push('pageerror: ' + e.message));
+  page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy|Refused/i.test(m.text())) cspErrors.push(m.text()); });
+  await page.goto(siteUrl + '/almamel/businesses/1000001/');
+  await page.locator('.add-btn[data-name="تكة لحم"]').click();
+  await page.locator('.add-btn[data-name="تكة لحم"]').click();
+  await page.locator('.cart-bar').click();
+  await page.locator('.cart-order').click();
+  await page.waitForSelector('.cart-err:has-text("رقم هاتفك")');
+  await page.fill('[aria-label="رقم هاتفك"]', '٠٧٧٠١٢٣٤٥٦٧');
+  await page.locator('.loc-btn').click();
+  await page.waitForSelector('.loc-btn.done');
+  await page.fill('[aria-label="أقرب نقطة دالة"]', 'قرب جامع الرحمن');
+  await shot(page, 'checkout');
+  await page.locator('.cart-order').click();
+  await page.waitForURL(/\/almamel\/order\/\?t=/);
+  const body = JSON.parse(log.filter((r) => r.path === '/rest/v1/rpc/place_order').at(-1)!.body.toString());
+  assert.equal(body.p_business, 1000001);
+  assert.deepEqual(body.p_items, [{ name: 'تكة لحم', q: 2 }]);
+  assert.equal(body.p_phone, '07701234567');
+  assert.equal(body.p_landmark, 'قرب جامع الرحمن');
+  assert.equal(body.p_lat, 33.41); assert.equal(body.p_lng, 44.32);
+  assert.ok(!('p_total' in body), 'price is computed by the server, not sent by the browser');
+  await page.waitForSelector('[data-order-box] h2:has-text("بانتظار رد المطعم")');
+  assert.ok((await page.textContent('[data-order-box]'))!.includes('تكة لحم'));
+  await shot(page, 'order-status');
+  await ctx.close();
+});
+
+test('restaurant site: login, start receiving, see the new order with phone and map, accept it', async () => {
+  const p = await open('/login/', 390, '/almamel-mat3am');
+  await p.fill('#f-email', 'owner@x.iq'); await p.fill('#f-password', 'owner-pass-1234');
+  await p.click('[data-login] button[type=submit]');
+  await p.waitForURL(/\/almamel-mat3am\/kitchen\//);
+  await p.waitForSelector('[data-list="new"] .order-new');
+  const card = (await p.textContent('[data-list="new"]'))!;
+  assert.ok(card.includes('تكة لحم') && card.includes('قرب الجامع') && card.includes('07701234567'));
+  assert.ok(await p.locator('[data-list="new"] a[href^="https://maps.google.com/?q=33.4,44.3"]').count());
+  await p.click('[data-start]');
+  await p.waitForSelector('[data-live]:not([hidden])');
+  await shot(p, 'kitchen');
+  await p.selectOption('[aria-label="وقت التجهيز"]', '45');
+  await p.click('[data-list="new"] button:has-text("قبول")');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("قبول")');
+  const call = JSON.parse(log.filter((r) => r.path === '/rest/v1/rpc/decide_order').at(-1)!.body.toString());
+  assert.equal(call.p_id, 77); assert.equal(call.p_status, 'accepted'); assert.equal(call.p_eta, 45);
+  assert.ok(fs.existsSync(path.join(dist, '..', 'almamel-mat3am', 'sw.js')), 'service worker for notifications');
+  await p.context().close();
 });
 
 test('visitor posts an ad with a photo directly from the site', async () => {

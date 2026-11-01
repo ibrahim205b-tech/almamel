@@ -533,3 +533,43 @@ body.no-scroll{overflow:hidden}
 .data-table th,.data-table td{padding:10px 12px;text-align:start;border-bottom:1px solid var(--line);white-space:nowrap}
 .data-table th{font-weight:700;background:var(--board-soft)}
 .data-table .num{font-variant-numeric:tabular-nums}
+
+/* ---------- الطلب من داخل الموقع ---------- */
+.loc-btn{justify-content:center}
+.loc-btn.done{background:var(--ok-bg);border-color:#A9D8B7;color:#0F4D25}
+.loc-note{margin:-4px 0 0}
+.cart-err{margin:0;padding:10px 12px;border-radius:var(--r);background:var(--danger-bg,#FDECEC);color:#8A1C1C;font-weight:600}
+.cart-err[hidden]{display:none}
+.cart-send-alt{background:transparent;border-color:transparent;color:var(--board);text-decoration:underline;box-shadow:none}
+
+/* صفحة «حالة طلبك» */
+.order-card{display:grid;gap:10px;text-align:center}
+.order-shop{margin:0;font-weight:700;color:var(--board)}
+.order-state{margin:0;font-size:var(--t-lg,1.5rem)}
+.ost-accepted,.ost-done{color:#0F6B35}
+.ost-rejected{color:#8A1C1C}
+.order-eta{margin:0;font-size:var(--t-md);font-weight:700}
+.order-lines{list-style:none;margin:0;padding:0;text-align:start;display:grid;gap:6px}
+.order-lines li{padding:8px 0;border-bottom:1px solid var(--line)}
+.order-card .btn-row{justify-content:center}
+.order-wait{width:56px;height:56px;margin:0 auto;border-radius:50%;border:5px solid var(--board-soft);border-top-color:var(--board);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* موقع المطعم */
+.kitchen-bar{display:grid;gap:8px;justify-items:start;padding:16px;border-radius:var(--r-lg);background:var(--sign);margin:12px 0}
+.kitchen-bar[hidden],.kitchen-live[hidden]{display:none}
+.kitchen-live{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0;font-weight:600;color:#0F6B35}
+.kitchen-live .dot{width:10px;height:10px;border-radius:50%;background:#1DA851;box-shadow:0 0 0 0 rgb(29 168 81 / .6);animation:pulse 1.6s infinite}
+.kitchen-live.off{color:#8A1C1C}
+.kitchen-live.off .dot{background:#C62828;animation:none}
+@keyframes pulse{70%{box-shadow:0 0 0 10px rgb(29 168 81 / 0)}100%{box-shadow:0 0 0 0 rgb(29 168 81 / 0)}}
+.orders{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.order{display:grid;gap:8px}
+.order-new{border:2px solid var(--sign);box-shadow:0 0 0 4px rgb(255 196 0 / .25)}
+.order-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.order-top b{font-size:var(--t-md)}
+.order .facts{margin:0}
+.order-decide select{min-height:44px;padding:0 10px;border-radius:var(--r);border:1px solid var(--line-strong);font:inherit;background:var(--surface);color:var(--ink)}
+.status-new{background:var(--warn-bg);color:#4D3300}
+.status-accepted,.status-done{background:var(--ok-bg);color:#0F4D25}
+@media (prefers-reduced-motion:reduce){.order-wait,.kitchen-live .dot{animation:none}}

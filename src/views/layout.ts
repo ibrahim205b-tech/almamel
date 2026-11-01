@@ -19,6 +19,7 @@ export interface ViewCtx {
   supabaseKey?: string; // المفتاح العام (لتسجيل طلبات السلة)
   adminSite?: boolean; // موقع الإدارة المنفصل
   registerSite?: boolean; // صفحة تسجيل المحلات الخاصة
+  kitchenSite?: boolean; // موقع المطعم: استلام الطلبات
   publicUrl?: string;
   flash?: { kind: 'ok' | 'error'; text: string } | null;
 }
@@ -45,6 +46,24 @@ function registerHeader(ctx: ViewCtx): SafeHtml {
       <img src="/static/img/logo.svg" width="40" height="40" alt="">
       <span class="brand-name">${ctx.settings.site_name}</span>
     </a></div></header>`;
+}
+
+/** رأس موقع المطعم: الطلبات والقائمة فقط. */
+function kitchenHeader(ctx: ViewCtx): SafeHtml {
+  const cur = (p: string) => ctx.path === p ? raw('aria-current="page"') : '';
+  return html`<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="/kitchen" aria-label="طلبات المطعم">
+      <img src="/static/img/logo.svg" width="40" height="40" alt="">
+      <span class="brand-name">طلبات المطعم</span>
+    </a>
+  </div>
+  <nav class="site-menu admin-menu" aria-label="المطعم"><div class="wrap menu-inner"><ul class="nav-list">
+    <li><a href="/kitchen" ${cur('/kitchen')}>${icon('bell')}الطلبات</a></li>
+    <li><a href="/owner/menu" ${cur('/owner/menu')}>${icon('list')}القائمة والأسعار</a></li>
+    ${ctx.publicUrl ? html`<li><a href="${ctx.publicUrl}" target="_blank" rel="noopener">${icon('home')}الموقع العام</a></li>` : ''}
+  </ul></div></nav>
+</header>`;
 }
 
 /** رأس موقع الإدارة المنفصل: روابط الإدارة فقط، ورابط للموقع العام. */
@@ -112,7 +131,7 @@ ${meta.head ?? ''}
 <a class="skip" href="#main">انتقل إلى المحتوى</a>
 <div class="creator-bar"><div class="wrap"><span>المُنشئ: <strong>إبراهيم علي</strong></span></div></div>
 ${s.announcement ? html`<div class="announce" role="note">${s.announcement}</div>` : ''}
-${ctx.adminSite ? adminHeader(ctx) : ctx.registerSite ? registerHeader(ctx) : html`<header class="site-header">
+${ctx.adminSite ? adminHeader(ctx) : ctx.kitchenSite ? kitchenHeader(ctx) : ctx.registerSite ? registerHeader(ctx) : html`<header class="site-header">
   <div class="wrap header-row">
     <a class="brand" href="/" aria-label="${s.site_name}، الصفحة الرئيسية">
       <img src="/static/img/logo.svg" width="40" height="40" alt="">
@@ -143,7 +162,7 @@ ${ctx.adminSite ? adminHeader(ctx) : ctx.registerSite ? registerHeader(ctx) : ht
 ${ctx.flash ? html`<div class="wrap"><p class="flash flash-${ctx.flash.kind}" role="${ctx.flash.kind === 'error' ? 'alert' : 'status'}">${ctx.flash.text}</p></div>` : ''}
 ${body}
 </main>
-${ctx.adminSite || ctx.registerSite ? html`<footer class="site-footer"><div class="wrap copyright"><p>${COPYRIGHT}</p></div></footer>` : html`<footer class="site-footer">
+${ctx.adminSite || ctx.registerSite || ctx.kitchenSite ? html`<footer class="site-footer"><div class="wrap copyright"><p>${COPYRIGHT}</p></div></footer>` : html`<footer class="site-footer">
   <div class="wrap footer-grid">
     <section aria-labelledby="f-about">
       <h2 id="f-about" class="footer-title">${s.site_name}</h2>

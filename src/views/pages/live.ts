@@ -6,10 +6,10 @@ import { checkbox, field, select, textarea } from '../components.ts';
 import { icon } from '../layout.ts';
 import { typeFieldGroup, typeTextJson } from '../type-fields.ts';
 
-export interface LiveCfg { url: string; key: string; v: string; wa?: string; admin?: boolean; register?: boolean }
+export interface LiveCfg { url: string; key: string; v: string; wa?: string; admin?: boolean; register?: boolean; kitchen?: boolean }
 
 /** وسوم الإعداد ومكتبة Supabase وسكربت الصفحات التفاعلية. */
-export const liveHead = (c: LiveCfg) => html`<meta name="sb-url" content="${c.url}"><meta name="sb-key" content="${c.key}"><meta name="support-wa" content="${c.wa ?? ''}"><meta name="admin-site" content="${c.admin ? '1' : '0'}"><meta name="register-site" content="${c.register ? '1' : '0'}">
+export const liveHead = (c: LiveCfg) => html`<meta name="sb-url" content="${c.url}"><meta name="sb-key" content="${c.key}"><meta name="support-wa" content="${c.wa ?? ''}"><meta name="admin-site" content="${c.admin ? '1' : '0'}"><meta name="register-site" content="${c.register ? '1' : '0'}"><meta name="kitchen-site" content="${c.kitchen ? '1' : '0'}">
 <script src="/static/vendor/supabase.js?v=${c.v}" defer></script><script src="/static/js/live.js?v=${c.v}" defer></script>`;
 
 const msg = html`<div class="live-msg" data-msg role="status" aria-live="polite"></div>`;
@@ -120,10 +120,10 @@ export function ownerRegisterPage(cats: string[], areas: string[], publicUrl = '
     </form></div>`;
 }
 
-export function liveLoginPage(admin = false): SafeHtml {
+export function liveLoginPage(admin = false, kitchen = false): SafeHtml {
   return html`<div class="wrap narrow" data-page="login">
-    <h1>${admin ? 'دخول الإدارة' : 'دخول أصحاب المحلات'}</h1>
-    ${admin ? '' : html`<p class="lede">لنشر إعلان عادي ما تحتاج حساب: <a href="/submit">أضف إعلانك</a>.</p>`}
+    <h1>${admin ? 'دخول الإدارة' : kitchen ? 'دخول المطعم' : 'دخول أصحاب المحلات'}</h1>
+    ${admin ? '' : kitchen ? html`<p class="lede">من هنا يستلم المطعم طلبات الزبائن من دليل المعامل، بإشعار وصوت، ويقبلها أو يرفضها.</p>` : html`<p class="lede">لنشر إعلان عادي ما تحتاج حساب: <a href="/submit">أضف إعلانك</a>.</p>`}
     ${msg}${noJs}
     <form class="form" data-login novalidate>
       ${field({ name: 'email', label: 'البريد الإلكتروني', required: true, type: 'email', dir: 'ltr', attrs: 'autocomplete="email"' })}
@@ -131,8 +131,8 @@ export function liveLoginPage(admin = false): SafeHtml {
       <button class="btn btn-primary btn-block" type="submit">دخول</button>
     </form>
     <p><button class="linklike link" type="button" data-reset>نسيت كلمة المرور؟</button></p>
-    ${admin ? html`<details class="panel"><summary>أول مرة؟ إنشاء حساب الإدارة</summary>
-      <p class="hint">بعد إنشاء الحساب، شغّل في Supabase ← SQL Editor: <code dir="ltr">select public.make_admin('بريدك');</code> ثم سجّل الدخول.</p>
+    ${admin || kitchen ? html`<details class="panel"><summary>${admin ? 'أول مرة؟ إنشاء حساب الإدارة' : 'أول مرة؟ إنشاء حساب للمطعم'}</summary>
+      <p class="hint">${admin ? html`بعد إنشاء الحساب، شغّل في Supabase ← SQL Editor: <code dir="ltr">select public.make_admin('بريدك');</code> ثم سجّل الدخول.` : 'بعد إنشاء الحساب، أرسل بريدك لخدمة العملاء حتى نربطه بمطعمك، وبعدها سجّل الدخول.'}</p>
       <form class="form" data-signup novalidate>
         ${field({ name: 'su_name', label: 'الاسم', required: true, max: 60 })}
         ${field({ name: 'su_phone', label: 'رقم الهاتف', required: true, type: 'tel', dir: 'ltr', attrs: 'inputmode="tel"' })}
@@ -235,4 +235,34 @@ export function adminBusinessPage(cats: string[], areas: string[]): SafeHtml {
 
 export function notConfiguredPage(wa: string): SafeHtml {
   return html`<div class="wrap narrow"><h1>هذه الخدمة قيد الإعداد</h1><p>أرسل طلبك على <a href="${wa}">واتساب الدعم</a> وراح نضيفه.</p></div>`;
+}
+
+/** موقع المطعم: استلام الطلبات مباشرة بإشعار وصوت، مع القبول والرفض. */
+export function kitchenPage(): SafeHtml {
+  return html`<div class="wrap" data-page="kitchen">
+    <div class="page-head"><div><h1>الطلبات</h1><p class="lede" data-who></p></div>
+      <div class="btn-row"><button class="btn" type="button" data-logout>${icon('logout')}خروج</button></div></div>
+    ${msg}${noJs}
+    <div class="kitchen-bar" data-kitchen-bar hidden>
+      <button class="btn btn-primary btn-lg" type="button" data-start>${icon('bell')}ابدأ استلام الطلبات</button>
+      <p class="hint">اضغط حتى يشتغل صوت التنبيه والإشعارات. خلي هذه الصفحة مفتوحة والشاشة شغالة.</p>
+    </div>
+    <p class="kitchen-live" data-live hidden><span class="dot" aria-hidden="true"></span><span data-live-text>متصل، بانتظار الطلبات</span>
+      <button class="linklike" type="button" data-test-sound>تجربة الصوت</button></p>
+    <section class="block" aria-labelledby="h-new"><h2 id="h-new">طلبات جديدة <span class="count" data-n="new">٠</span></h2><ul class="orders" data-list="new"></ul></section>
+    <section class="block" aria-labelledby="h-acc"><h2 id="h-acc">قيد التجهيز والتوصيل <span class="count" data-n="accepted">٠</span></h2><ul class="orders" data-list="accepted"></ul></section>
+    <details class="block panel"><summary>طلبات منتهية (آخر يومين) <span class="count" data-n="closed">٠</span></summary><ul class="orders" data-list="closed"></ul></details>
+    <section class="block" aria-labelledby="h-orders"><h2 id="h-orders">كشف الطلبات الشهري</h2>
+      <p class="muted">نسبة الموقع ٥٪ من مجموع الطلبات المقبولة، تُدفع آخر كل شهر.</p>
+      <div data-commission></div></section>
+  </div>`;
+}
+
+/** صفحة الزبون: متابعة حالة الطلب بعد إرساله للمطعم. */
+export function orderStatusPage(): SafeHtml {
+  return html`<div class="wrap narrow" data-order-status>
+    <h1>حالة طلبك</h1>
+    <div class="order-card panel" data-order-box aria-live="polite"><p class="muted">جارِ التحميل...</p></div>
+    <noscript><p class="note">هذه الصفحة تحتاج JavaScript.</p></noscript>
+  </div>`;
 }

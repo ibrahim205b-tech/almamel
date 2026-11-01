@@ -215,4 +215,49 @@ do $$ begin
 end $$;
 reset role;
 
+-- ===== الطلب من داخل الموقع =====
+select pg_temp.as_user(null);
+do $$ declare t uuid; r record; begin
+  t := public.place_order(public.t_id('مطعم أبو علي'), '[{"name":"حمص","q":2},{"name":"حمص","q":1}]', '07701234567', 'زبون', 'قرب جامع الرحمن', 33.4, 44.3, 'بدون بصل');
+  select * into r from public.order_status(t);
+  if r.status <> 'new' or r.total <> 2500 * 3 then raise exception 'order total/status wrong: %', row_to_json(r); end if;
+  perform set_config('test.token', t::text, false);
+end $$;
+select pg_temp.expect_error($q$select public.place_order(public.t_id('مطعم أبو علي'), '[{"name":"تكة","q":1}]', '07701234567', null, 'قرب الجامع')$q$, 'unavailable item');
+select pg_temp.expect_error($q$select public.place_order(public.t_id('مطعم أبو علي'), '[{"name":"غير موجود","q":1}]', '07701234567', null, 'قرب الجامع')$q$, 'unknown item');
+select pg_temp.expect_error($q$select public.place_order(public.t_id('مطعم أبو علي'), '[{"name":"حمص","q":1}]', '123', null, 'قرب الجامع')$q$, 'bad phone');
+select pg_temp.expect_error($q$select public.place_order(public.t_id('مطعم أبو علي'), '[{"name":"حمص","q":1}]', '07701234567', null, '')$q$, 'no landmark');
+select pg_temp.expect_error($q$select public.place_order(public.t_id('وظيفة من زائر'), '[{"name":"حمص","q":1}]', '07701234567', null, 'قرب الجامع')$q$, 'order to non-restaurant');
+select pg_temp.expect_error($q$select * from public.kitchen_orders()$q$, 'anon reads kitchen orders');
+do $$ begin if exists (select 1 from orders) then raise exception 'anon reads orders table'; end if; end $$;
+select pg_temp.as_user('22222222-2222-2222-2222-222222222222');
+do $$ begin if exists (select 1 from public.kitchen_orders()) then raise exception 'other user sees kitchen orders'; end if; end $$;
+select pg_temp.expect_error($q$select public.decide_order((select max(id) from public.commission_report() limit 0), 'accepted')$q$, 'other user decides');
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+do $$ declare r record; begin
+  select * into r from public.kitchen_orders() where status = 'new';
+  if r.customer_phone <> '07701234567' or r.landmark <> 'قرب جامع الرحمن' or r.lat is null then raise exception 'kitchen order wrong: %', row_to_json(r); end if;
+  perform public.decide_order(r.id, 'accepted', null, 30);
+  perform set_config('test.order', r.id::text, false);
+end $$;
+select pg_temp.expect_error($q$select public.decide_order(current_setting('test.order')::bigint, 'accepted')$q$, 'accept twice');
+select pg_temp.as_user('22222222-2222-2222-2222-222222222222');
+select pg_temp.expect_error($q$select public.decide_order(current_setting('test.order')::bigint, 'done')$q$, 'other user completes order');
+select pg_temp.as_user(null);
+do $$ declare r record; begin
+  select * into r from public.order_status(current_setting('test.token')::uuid);
+  if r.status <> 'accepted' or r.eta <> 30 then raise exception 'customer status wrong: %', row_to_json(r); end if;
+end $$;
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+select public.decide_order(current_setting('test.order')::bigint, 'done');
+do $$ begin
+  if (select orders from public.commission_report() where business_id = public.t_id('مطعم أبو علي')) <> 3 then raise exception 'accepted order not in commission'; end if;
+end $$;
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+select public.assign_owner(public.t_id('مطعم أبو علي'), 'other@x.iq');
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+select pg_temp.expect_error($q$select public.assign_owner(public.t_id('مطعم أبو علي'), 'owner@x.iq')$q$, 'owner assigns owner');
+reset role;
+do $$ begin if (select owner_id from posts where id = public.t_id('مطعم أبو علي')) <> '22222222-2222-2222-2222-222222222222' then raise exception 'assign_owner failed'; end if; end $$;
+
 select 'ALL RLS TESTS PASSED';
