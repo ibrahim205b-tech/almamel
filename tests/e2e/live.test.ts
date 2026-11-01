@@ -128,7 +128,7 @@ after(async () => {
 });
 
 async function open(urlPath: string, w = 390, site = '/almamel'): Promise<Page> {
-  const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, locale: 'ar-IQ' });
+  const ctx = await browser.newContext(process.env.SHOTS ? { viewport: { width: 360, height: 640 }, deviceScaleFactor: 3, locale: 'ar-IQ' } : { viewport: { width: w, height: 900 }, locale: 'ar-IQ' });
   const page = await ctx.newPage();
   page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy|Refused/i.test(m.text())) cspErrors.push(m.text()); });
   page.on('pageerror', (e) => cspErrors.push('pageerror: ' + e.message));
@@ -174,7 +174,7 @@ test('cart order is logged (amount only) for the monthly 5% commission', async (
 });
 
 test('customer orders in-site with phone, landmark and GPS location, then tracks the order', async () => {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 900 }, locale: 'ar-IQ', geolocation: { latitude: 33.41, longitude: 44.32 }, permissions: ['geolocation'] });
+  const ctx = await browser.newContext({ ...(process.env.SHOTS ? { viewport: { width: 360, height: 640 }, deviceScaleFactor: 3 } : { viewport: { width: 390, height: 900 } }), locale: 'ar-IQ', geolocation: { latitude: 33.41, longitude: 44.32 }, permissions: ['geolocation'] });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => cspErrors.push('pageerror: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy|Refused/i.test(m.text())) cspErrors.push(m.text()); });
