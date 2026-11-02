@@ -225,6 +225,20 @@ test('restaurant site: login, start receiving, see the new order with phone and 
   await p.context().close();
 });
 
+test('no page is wider than the screen (RTL pages must not scroll sideways)', async () => {
+  const pages: [string, string][] = [['/almamel', '/submit/'], ['/almamel', '/submit/job/'], ['/almamel', '/submit/help/'], ['/almamel', '/order/'],
+    ['/almamel', '/businesses/1000001/'], ['/almamel-admin', '/login/'], ['/almamel-tasjeel', '/'], ['/almamel-mat3am', '/login/']];
+  for (const w of [360, 1366]) {
+    for (const [site, u] of pages) {
+      const p = await open(u, w, site);
+      await p.waitForTimeout(300);
+      const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      assert.ok(wide <= 1, `${site}${u} at ${w}px is ${wide}px wider than the screen`);
+      await p.context().close();
+    }
+  }
+});
+
 test('visitor posts an ad with a photo directly from the site', async () => {
   const p = await open('/submit/job/');
   await p.waitForFunction(() => (document.querySelector('select[name=category]') as HTMLSelectElement).options.length > 1);
