@@ -22,7 +22,9 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
   /** صفحة تسجيل المحلات الخاصة: صفحة واحدة تُرسل للزبون، وطلبه يصل للإدارة. */
   register?: { publicUrl: string };
   /** موقع المطعم المنفصل: يستلم الطلبات بإشعار وصوت، ويدير القائمة. */
-  kitchen?: { publicUrl: string } }) {
+  kitchen?: { publicUrl: string };
+  /** نسخة احتياطية لا تُفهرس في محركات البحث (حتى لا تنافس الرابط الأساسي). */
+  noindex?: boolean }) {
   const log = (s: string) => { if (!opts.quiet) console.log(s); };
   const siteUrl = opts.siteUrl.replace(/\/+$/, '');
   const base = new URL(siteUrl).pathname.replace(/\/+$/, '');
@@ -57,8 +59,14 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
       ...(opts.supabase ? ['/order'] : []),
       ...listPublic(db, { types: [...TYPE_KEYS], perPage: 1000 }).items.map(postUrl)];
 
+    // الصفحات تُنشر كمجلدات (about/index.html)، فالرابط الأساسي ينتهي بـ / حتى لا يمر كوكل بتحويل
+    const slash = (u: string) => (u.startsWith(siteUrl) && !u.endsWith('/') && !/\.[a-z0-9]+$/i.test(u) ? u + '/' : u);
     const withBase = (s: string) => s
+      .replace(/(<link rel="canonical" href="|<meta property="og:url" content=")([^"]+)"/g, (_m, a: string, u: string) => `${a}${slash(u)}"`)
+      .replace('<meta charset="utf-8">', opts.noindex ? '<meta charset="utf-8">\n<meta name="robots" content="noindex">' : '<meta charset="utf-8">')
       .replace(/(\s(?:href|src|action|poster)=")\/(?!\/)/g, `$1${base}/`)
+      // روابط الصفحات الداخلية بـ / بالنهاية (بدون تحويل إضافي للزائر ولمحركات البحث)
+      .replace(/(\shref=")([^"#?]*)([?#][^"]*)?"/g, (m, a: string, p: string, q = '') => (p.startsWith(base + '/') && !p.endsWith('/') && !/\.[a-z0-9]+$/i.test(p) && !p.startsWith(base + '/static/') && !p.startsWith(base + '/media/') ? `${a}${p}/${q}"` : m))
       .replace('<html lang="ar" dir="rtl">', `<html lang="ar" dir="rtl" data-base="${base}">`);
 
     fs.rmSync(opts.outDir, { recursive: true, force: true });
@@ -98,10 +106,10 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
     }
     const notFound = await app.inject({ method: 'GET', url: '/__not_found__' });
     write('404.html', withBase(notFound.body));
-    write('search.json', (await app.inject({ method: 'GET', url: '/search.json' })).body.replace(/"\/(?!\/)/g, `"${base}/`));
-    write('sitemap.xml', (await app.inject({ method: 'GET', url: '/sitemap.xml' })).body);
+    write('search.json', (await app.inject({ method: 'GET', url: '/search.json' })).body.replace(/"u":"\/([^"]*?)\/?"/g, '"u":"/$1/"').replace(/"\/(?!\/)/g, `"${base}/`));
+    write('sitemap.xml', (await app.inject({ method: 'GET', url: '/sitemap.xml' })).body.replace(/<loc>([^<]+)<\/loc>/g, (_m, u: string) => `<loc>${slash(u)}</loc>`));
     write('manifest.webmanifest', (await app.inject({ method: 'GET', url: '/manifest.webmanifest' })).body.replace(/"\/(?!\/)/g, `"${base}/`));
-    write('robots.txt', `User-agent: *\nDisallow: ${base}/publish/\nDisallow: ${base}/idara/\nDisallow: ${base}/tasjeel/\nDisallow: ${base}/mat3am/\nDisallow: ${base}/order/\nSitemap: ${siteUrl}/sitemap.xml\n`);
+    write('robots.txt', `User-agent: *\nDisallow: ${base}/publish/\nDisallow: ${base}/idara/\nDisallow: ${base}/tasjeel/\nDisallow: ${base}/mat3am/\nDisallow: ${base}/order/\n${opts.noindex ? '' : `Sitemap: ${siteUrl}/sitemap.xml\n`}`);
     write('.nojekyll', '');
     write('build-stamp.txt', stamp);
     // ربط تطبيقي أندرويد بالموقع (Trusted Web Activity): التطبيق يفتح الموقع بلا شريط متصفح
@@ -135,7 +143,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const admin = process.env.ADMIN_SITE === '1' ? pub : undefined;
   const register = process.env.REGISTER_SITE === '1' ? pub : undefined;
   const kitchen = process.env.KITCHEN_SITE === '1' ? pub : undefined;
-  buildStatic({ siteUrl, contentDir: process.env.CONTENT_DIR || 'content', outDir: process.env.OUT_DIR || (admin ? 'dist-admin' : register ? 'dist-register' : kitchen ? 'dist-kitchen' : 'dist'), repo, supabase: supabaseConfig(), cacheDir: '.cache/supabase-media', admin, register, kitchen })
+  const noindex = process.env.SITE_NOINDEX === '1';
+  buildStatic({ siteUrl, contentDir: process.env.CONTENT_DIR || 'content', outDir: process.env.OUT_DIR || (admin ? 'dist-admin' : register ? 'dist-register' : kitchen ? 'dist-kitchen' : 'dist'), repo, supabase: supabaseConfig(), cacheDir: '.cache/supabase-media', admin, register, kitchen, noindex })
     .catch((e) => { console.error(String(e.message ?? e)); process.exit(1); });
 }
 

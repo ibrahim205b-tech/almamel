@@ -92,7 +92,7 @@ function nav(ctx: ViewCtx) {
 
 export function layout(ctx: ViewCtx, meta: PageMeta, body: SafeHtml): string {
   const s = ctx.settings;
-  const title = meta.title === s.site_name ? s.site_name : `${meta.title} | ${s.site_name}`;
+  const title = meta.title === s.site_name || meta.title.startsWith(s.site_name + ' |') ? meta.title : `${meta.title} | ${s.site_name}`;
   const desc = meta.description || s.tagline;
   const canonical = meta.canonical === null ? null : ctx.baseUrl + (meta.canonical ?? ctx.path);
   const ogImage = meta.image ? ctx.baseUrl + meta.image : `${ctx.baseUrl}/static/img/og.png`;

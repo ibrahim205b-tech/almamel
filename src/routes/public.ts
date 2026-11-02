@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { html } from '../lib/html.ts';
+import { html, raw } from '../lib/html.ts';
 import { addShopLink, toFtsQuery } from '../lib/arabic.ts';
 import { TYPES, TYPE_KEYS, isPostType, type PostType } from '../domain/types.ts';
 import { canPreview, getPostView, isPostOwner, listFeatured, listPublic, NEWS_CATEGORIES, postImages, postItems, PUBLIC_WHERE, type ListQuery } from '../domain/posts.ts';
@@ -51,7 +51,16 @@ export async function publicRoutes(app: FastifyInstance) {
     for (const r of db.prepare(`SELECT p.type, count(*) AS n FROM posts p WHERE ${PUBLIC_WHERE} GROUP BY p.type`).all() as { type: string; n: number }[]) counts[r.type] = r.n;
     counts.food = db.prepare(`SELECT count(*) FROM posts p JOIN categories c ON c.id = p.category_id WHERE ${PUBLIC_WHERE} AND p.type = 'business' AND c.is_food = 1`).pluck().get() as number;
     const s = req.settings;
-    return reply.page(req, { title: s.site_name, canonical: '/' }, homePage({
+    // ما يظهر بنتائج البحث: الاسم، والكلمات اللي يبحث بيها الناس، وبيانات الموقع (اسم الموقع ومربع البحث)
+    const base = app.cfg.baseUrl;
+    const site = JSON.stringify([
+      { '@context': 'https://schema.org', '@type': 'WebSite', name: s.site_name, alternateName: ['دليل المعامل', 'دليل منطقة المعامل', 'Almamel', 'Dalil Al-Maamel'], url: base + '/', inLanguage: 'ar',
+        potentialAction: { '@type': 'SearchAction', target: { '@type': 'EntryPoint', urlTemplate: `${base}/search/?q={search_term_string}` }, 'query-input': 'required name=search_term_string' } },
+      { '@context': 'https://schema.org', '@type': 'Organization', name: s.site_name, url: base + '/', logo: `${base}/static/img/icon-512.png`, areaServed: 'المعامل، قضاء الزوراء، بغداد' },
+    ]).replace(/</g, '\\u003c');
+    return reply.page(req, { title: `${s.site_name} | مطاعم ومحلات ووظائف وخدمات منطقة المعامل في بغداد`, canonical: '/',
+      description: `${s.site_name}: دليل منطقة المعامل وقضاء الزوراء في بغداد. مطاعم وقوائم طعام واطلب لباب البيت، محلات وأسواق، وظائف، خدمات ومهن، عقارات، بيع وشراء، وأخبار المنطقة.`,
+      head: raw(`<script type="application/ld+json">${site}</script>`) }, homePage({
       counts, featured: listFeatured(db, 'home'), latest: pick([...TYPE_KEYS], {}, 6), offers: pick(['offer']), jobs: pick(['job']),
       properties: pick(['property']), food: pick(['business'], { foodOnly: true }, 11), services: pick(['service']), market: pick(['market']),
       community: pick(['community']), help: pick(['help'], {}, 3), news: pick(['community'], { newsOnly: true }),

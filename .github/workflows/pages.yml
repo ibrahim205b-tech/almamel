@@ -65,6 +65,8 @@ jobs:
         run: node scripts/build-static.ts
         env:
           SITE_URL: ${{ steps.pages.outputs.base_url }}
+          # النسخة على GitHub احتياطية: لا تُفهرس، حتى يظهر almamel.pages.dev وحده بنتائج البحث
+          SITE_NOINDEX: '1'
       - name: Build admin site (/idara, not linked from the public site)
         if: steps.check.outputs.build == 'true'
         run: node scripts/build-static.ts
