@@ -78,7 +78,7 @@ export async function staticRoutes(app: FastifyInstance) {
     });
     app.get('/owner', (req, reply) => reply.page(req, { title: 'أضف مطعمك أو محلك', description: 'سجّل مطعمك أو محلك في دليل المعامل وأدر قائمة الطعام والأسعار بنفسك.' }, ownerLandingPage()));
     app.get('/owner/register', (req, reply) => reply.page(req, { title: 'سجّل مطعمك أو محلك', noindex: true, head: head() }, ownerRegisterPage(catsBySection().business ?? [], areaNames(), app.cfg.publicUrl)));
-    app.get('/login', (req, reply) => reply.page(req, { title: app.cfg.adminSite ? 'دخول الإدارة' : app.cfg.kitchenSite ? 'دخول أصحاب المحلات والمطاعم' : 'دخول أصحاب المحلات', noindex: true, head: head(req) }, liveLoginPage(app.cfg.adminSite, app.cfg.kitchenSite)));
+    app.get('/login', (req, reply) => reply.page(req, { title: app.cfg.adminSite ? 'دخول الإدارة' : app.cfg.kitchenSite ? 'دخول أصحاب المحلات والمطاعم' : 'دخول أصحاب المحلات', noindex: true, head: head(req) }, liveLoginPage(app.cfg.adminSite, app.cfg.kitchenSite, app.cfg.publicUrl)));
     app.get('/kitchen', (req, reply) => reply.page(req, { title: 'طلبات المطعم', noindex: true, canonical: null, head: html`${head(req)}<link rel="manifest" href="/manifest.webmanifest">` }, kitchenPage()));
     // صفحة متابعة الطلب للزبون (الموقع العام)
     app.get('/order', (req, reply) => reply.page(req, { title: 'حالة طلبك', noindex: true, canonical: null }, orderStatusPage()));

@@ -63,6 +63,9 @@ function mock(req: http.IncomingMessage, res: http.ServerResponse, body: Buffer)
   if (p === '/rest/v1/rpc/kitchen_orders') return send(200, [{ ...order, title: 'مطعم المحاكاة', items: 2, customer_name: 'زبون', customer_phone: '07701234567', landmark: 'قرب الجامع', lat: 33.4, lng: 44.3, note: null }]);
   if (p.startsWith('/rest/v1/rpc/')) return send(200, null);
   if (p === '/rest/v1/profiles') { const admin = u.searchParams.get('id') === 'eq.' + ADMIN; const prof = { name: admin ? 'المدير' : 'أبو علي', phone: '07701111111', role: admin ? 'admin' : 'owner' }; return send(200, one ? prof : [prof]); }
+  if (p === '/rest/v1/menu_items' && req.method === 'GET' && u.searchParams.get('approved') === 'eq.false') {
+    return send(200, [{ id: 31, name: 'قميص قطن', price: 15000, note: 'مقاسات كاملة', section: 'رجالي', image: 'u/' + UID + '/' + 'c'.repeat(32) + '.webp', business_id: 1000001, posts: { title: 'مطعم المحاكاة', status: 'published' } }]);
+  }
   if (p === '/rest/v1/menu_items' && req.method === 'GET') { const rows = menu.filter((m) => (u.searchParams.get('business_id') ?? '').includes('1000001') ? m.business_id === 1000001 : true); return send(200, rows); }
   if (p === '/rest/v1/posts' && req.method === 'POST') { const row = { id: 1000005 }; return one ? send(201, row) : String(req.headers.prefer ?? '').includes('representation') ? send(201, [row]) : send(201, null); }
   if (p === '/rest/v1/posts' && req.method === 'GET' && u.searchParams.get('or')?.includes('owner_id') && !u.searchParams.get('type')) {
@@ -299,6 +302,31 @@ test('owner portal: shop owner edits details and photos of their page and opens 
   assert.equal(call.p_details.hours, 'يومياً من ١٢ الظهر لـ ١٢ بالليل');
   assert.equal(call.p_images.length, 2);
   assert.match(call.p_images[1], new RegExp(`^u/${UID}/[0-9a-f]{32}\\.webp$`));
+  await p.context().close();
+});
+
+test('«أنا صاحب محل» is the first item of the ☰ menu and leads to the owner sign-in', async () => {
+  const p = await open('/', 390);
+  await p.click('.menu-toggle');
+  const first = p.locator('#site-menu .menu-inner > *').first();
+  assert.equal(await first.getAttribute('class'), 'owner-cta');
+  assert.ok((await first.textContent())!.includes('أنا صاحب محل'));
+  assert.equal(await first.getAttribute('href'), '/almamel/mat3am/');
+  await p.context().close();
+  const d = await open('/', 1280);
+  assert.ok(await d.locator('.header-actions .btn-owner').isVisible(), 'desktop header button');
+  await d.context().close();
+});
+
+test('admin approves a product an owner added with its photo', async () => {
+  const p = await adminLogin(1280);
+  await p.waitForSelector('[data-products] li:has-text("قميص قطن")');
+  assert.equal(await p.textContent('[data-stat="products"]'), '١');
+  await p.click('[data-products] button:has-text("موافقة ونشر")');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("قميص قطن")');
+  const call = log.filter((r) => r.path === '/rest/v1/menu_items' && r.method === 'PATCH').at(-1)!;
+  assert.equal(call.query.get('id'), 'eq.31');
+  assert.deepEqual(JSON.parse(call.body.toString()), { approved: true });
   await p.context().close();
 });
 

@@ -120,7 +120,7 @@ export function ownerRegisterPage(cats: string[], areas: string[], publicUrl = '
     </form></div>`;
 }
 
-export function liveLoginPage(admin = false, kitchen = false): SafeHtml {
+export function liveLoginPage(admin = false, kitchen = false, publicUrl = ''): SafeHtml {
   return html`<div class="wrap narrow" data-page="login">
     <h1>${admin ? 'دخول الإدارة' : kitchen ? 'دخول المطعم' : 'دخول أصحاب المحلات'}</h1>
     ${admin ? '' : kitchen ? html`<p class="lede">لوحة صاحب المحل أو المطعم: أضف منتجاتك وأسعارك وصورك، عدّل معلومات محلك، واستلم الطلبات.</p>` : html`<p class="lede">لنشر إعلان عادي ما تحتاج حساب: <a href="/submit">أضف إعلانك</a>.</p>`}
@@ -131,7 +131,8 @@ export function liveLoginPage(admin = false, kitchen = false): SafeHtml {
       <button class="btn btn-primary btn-block" type="submit">دخول</button>
     </form>
     <p><button class="linklike link" type="button" data-reset>نسيت كلمة المرور؟</button></p>
-    ${admin || kitchen ? html`<details class="panel"><summary>${admin ? 'أول مرة؟ إنشاء حساب الإدارة' : 'أول مرة؟ إنشاء حساب للمطعم'}</summary>
+    ${kitchen ? html`<div class="owner-join"><p><b>ما عندك حساب؟</b> سجّل محلك أو مطعمك، وبعد موافقة الإدارة تدير صفحتك من هنا.</p><a class="btn btn-sign btn-lg btn-block" href="${(publicUrl || '/').replace(/\/+$/, '')}/tasjeel/">${icon('plus')}سجّل محلك الآن</a></div>` : ''}
+    ${admin || kitchen ? html`<details class="panel"><summary>${admin ? 'أول مرة؟ إنشاء حساب الإدارة' : 'محلك مضاف من الإدارة؟ أنشئ حسابك هنا'}</summary>
       <p class="hint">${admin ? html`بعد إنشاء الحساب، شغّل في Supabase ← SQL Editor: <code dir="ltr">select public.make_admin('بريدك');</code> ثم سجّل الدخول.` : 'بعد إنشاء الحساب، أرسل بريدك لخدمة العملاء حتى نربطه بمطعمك، وبعدها سجّل الدخول.'}</p>
       <form class="form" data-signup novalidate>
         ${field({ name: 'su_name', label: 'الاسم', required: true, max: 60 })}
@@ -187,17 +188,20 @@ export function adminLivePage(): SafeHtml {
     <ul class="stats" aria-label="ملخص">
       <li class="stat"><a href="#pending"><span class="stat-ico">${icon('clock')}</span><b class="stat-n" data-stat="pending">—</b>بانتظار المراجعة</a></li>
       <li class="stat"><a href="#claims"><span class="stat-ico">${icon('store')}</span><b class="stat-n" data-stat="claims">—</b>طلبات أصحاب المحلات</a></li>
+      <li class="stat"><a href="#products"><span class="stat-ico">${icon('image')}</span><b class="stat-n" data-stat="products">—</b>منتجات بانتظار الموافقة</a></li>
       <li class="stat"><a href="#published"><span class="stat-ico">${icon('check')}</span><b class="stat-n" data-stat="published">—</b>منشور حالياً</a></li>
       <li class="stat stat-gold"><a href="#commission"><span class="stat-ico">${icon('percent')}</span><b class="stat-n" data-stat="due">—</b>نسبة مستحقة هذا الشهر (د.ع)</a></li>
     </ul>
     <nav class="menu-tabs" aria-label="أقسام الإدارة">
       <a href="#pending">بانتظار المراجعة <span class="count" data-count="pending"></span></a>
       <a href="#claims">طلبات أصحاب المحلات <span class="count" data-count="claims"></span></a>
+      <a href="#products">منتجات جديدة <span class="count" data-count="products"></span></a>
       <a href="#published">المنشور حالياً</a>
       <a href="#commission">نسبة الطلبات</a>
     </nav>
     <section id="pending" class="block"><h2>بانتظار المراجعة</h2><div data-pending><div class="skeleton" aria-label="جارِ التحميل"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div></div></section>
     <section id="claims" class="block"><h2>طلبات أصحاب المحلات</h2><div data-claims></div></section>
+    <section id="products" class="block"><h2>منتجات جديدة بانتظار الموافقة</h2><p class="muted">منتجات أضافها أصحاب المحلات بصورها. السعر والتوفر يتعدلون بدون موافقة.</p><div data-products></div></section>
     <section id="published" class="block"><h2>المنشور حالياً</h2><div data-published></div></section>
     <section id="commission" class="block"><h2>نسبة الطلبات (٥٪)</h2>
       <p class="muted">كل طلب يُرسل من سلة الموقع إلى واتساب المطعم يُسجَّل هنا. استلم النسبة من كل مطعم آخر الشهر واضغط «تم الدفع».</p>

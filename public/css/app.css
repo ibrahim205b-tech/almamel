@@ -788,3 +788,27 @@ body.no-scroll{overflow:hidden}
 .owner-edit[open]>summary::after{transform:rotate(-135deg) translateY(-1px)}
 .owner-edit .form{margin-top:10px}
 .field .label{font-weight:600;font-size:var(--t-sm);color:var(--navy)}
+
+/* ---------- «أنا صاحب محل» ---------- */
+.owner-cta{display:flex;align-items:center;gap:14px;margin:6px 0 10px;padding:14px 16px;border-radius:var(--r-lg);background:linear-gradient(135deg,#E8CF91,var(--gold));color:var(--navy);text-decoration:none;box-shadow:0 12px 26px -14px rgb(180 143 67 / .9)}
+.owner-cta:hover{color:var(--navy)}
+.owner-cta>.i:first-child{width:46px;height:46px;padding:11px;border-radius:14px;background:var(--navy);color:var(--gold);flex:none}
+.owner-cta span{flex:1;display:grid;gap:2px;line-height:1.35}
+.owner-cta b{font:700 var(--t-md)/1.2 var(--font-display)}
+.owner-cta small{font-size:var(--t-xs);color:#4A3A12}
+.owner-cta>.i:last-child{transform:rotate(180deg);opacity:.7}
+[dir=rtl] .owner-cta>.i:last-child{transform:none}
+.btn-owner{display:none;background:transparent;border-color:rgb(214 182 108 / .55);color:var(--gold);box-shadow:none;min-height:42px}
+.btn-owner:hover{background:rgb(214 182 108 / .12);color:#F1DDA6;border-color:var(--gold)}
+@media (min-width:768px){.owner-cta{display:none}.btn-owner{display:inline-flex}}
+.owner-join{margin-top:24px;padding:18px;border-radius:var(--r-lg);background:var(--gold-soft);border:1px solid var(--warn-line);display:grid;gap:10px}
+.owner-join p{margin:0}
+
+/* منتجات بانتظار الموافقة (الإدارة) */
+.product-review{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+@media (min-width:900px){.product-review{grid-template-columns:1fr 1fr}}
+.product-review li{display:flex;gap:14px;align-items:flex-start;padding:14px}
+.product-review img{width:110px;height:110px;object-fit:cover;border-radius:var(--r);flex:none}
+.pr-body{display:grid;gap:4px;min-width:0;flex:1}
+.pr-body .btn-row{margin:6px 0 0}
+@media (min-width:900px){.stats{grid-template-columns:repeat(5,1fr)}}

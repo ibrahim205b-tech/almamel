@@ -148,12 +148,14 @@ ${ctx.adminSite ? adminHeader(ctx) : ctx.kitchenSite ? kitchenHeader(ctx) : ctx.
       ${brandName(s.site_name)}
     </a>
     <div class="header-actions">
+      ${ctx.staticMode ? html`<a class="btn btn-owner" href="/mat3am/">${icon('store')}<span>أنا صاحب محل</span></a>` : ''}
       ${canPost ? html`<a class="btn btn-sign" href="/submit" aria-label="أضف إعلانك">${icon('plus')}<span>أضف إعلانك</span></a>` : ''}
       <a class="btn-icon menu-toggle" href="#site-menu" role="button" aria-expanded="false" aria-controls="site-menu">${icon('menu')}<span class="sr">القائمة</span></a>
     </div>
   </div>
   <nav id="site-menu" class="site-menu" aria-label="الأقسام">
     <div class="wrap menu-inner">
+      ${ctx.staticMode ? html`<a class="owner-cta" href="/mat3am/">${icon('store')}<span><b>أنا صاحب محل</b><small>أضف منتجاتك بصورها وأسعارها، وأدر صفحة محلك</small></span>${icon('chevron')}</a>` : ''}
       ${nav(ctx)}
       ${ctx.staticMode ? html`<ul class="nav-list nav-account"><li><a href="/search">${icon('search')}البحث</a></li>
         <li><a href="${addShopLink(s0(ctx))}" target="_blank" rel="noopener">${icon('utensils')}أضف مطعمك أو محلك</a></li>

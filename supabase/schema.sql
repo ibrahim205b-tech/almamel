@@ -189,6 +189,10 @@ create table if not exists public.menu_items (
   updated_at  timestamptz not null default now()
 );
 create index if not exists menu_items_business on public.menu_items (business_id, sort);
+-- موافقة الإدارة على منتجات أصحاب المحلات (الموجود سابقاً يبقى معتمداً)
+alter table public.menu_items add column if not exists approved boolean not null default true;
+alter table public.menu_items alter column approved set default false;
+create index if not exists menu_items_pending on public.menu_items (approved) where not approved;
 alter table public.menu_items enable row level security;
 
 -- يدير القائمة: المالك المعتمد، أو صاحب الطلب أثناء التحقق، أو المدير.
@@ -214,6 +218,13 @@ begin
     raise exception 'مسار صورة غير صالح'; end if;
   if tg_op = 'INSERT' and (select count(*) from menu_items where business_id = new.business_id) >= 300 then
     raise exception 'الحد الأقصى ٣٠٠ صنف'; end if;
+  -- منتج جديد من صاحب المحل، أو تغيير اسمه أو وصفه أو صورته: ينتظر موافقة الإدارة.
+  -- السعر والقسم والتوفر يتعدلون بدون موافقة. منتجات محل لم يُعتمد بعد تُراجع ويا المحل نفسه.
+  if not public.is_admin() then
+    if tg_op = 'INSERT' then new.approved := not public.is_public_business(new.business_id);
+    elsif new.name is distinct from old.name or new.note is distinct from old.note or new.image is distinct from old.image then new.approved := false;
+    else new.approved := old.approved; end if;
+  end if;
   new.updated_at := now();
   return new;
 end $$;
@@ -221,7 +232,7 @@ drop trigger if exists menu_items_guard on public.menu_items;
 create trigger menu_items_guard before insert or update on public.menu_items for each row execute function public.menu_items_guard();
 
 drop policy if exists menu_read on public.menu_items;
-create policy menu_read on public.menu_items for select using (public.is_public_business(business_id) or public.can_manage(business_id));
+create policy menu_read on public.menu_items for select using ((public.is_public_business(business_id) and approved) or public.can_manage(business_id));
 drop policy if exists menu_write on public.menu_items;
 create policy menu_write on public.menu_items for insert to authenticated with check (public.can_manage(business_id));
 drop policy if exists menu_update on public.menu_items;
@@ -542,7 +553,7 @@ begin
   for it in select * from jsonb_array_elements(p_items) loop
     q := least(greatest(coalesce((it->>'q')::int, 0), 0), 50);
     if q = 0 then continue; end if;
-    select * into m from menu_items where business_id = p_business and name = it->>'name' and available order by id limit 1;
+    select * into m from menu_items where business_id = p_business and name = it->>'name' and available and approved order by id limit 1;
     if not found then raise exception 'الصنف «%» غير متوفر حالياً', it->>'name'; end if;
     out_lines := out_lines || jsonb_build_object('name', m.name, 'price', m.price, 'q', q);
     tot := tot + coalesce(m.price, 0) * q; cnt := cnt + q;

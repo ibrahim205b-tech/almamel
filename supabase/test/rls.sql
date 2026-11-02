@@ -185,10 +185,32 @@ reset role;
 do $$ begin
   if (select price from menu_items where name = 'حمص') <> 2500 then raise exception 'owner could not edit admin-added item'; end if;
   if (select image from menu_items where name = 'حمص') !~ '^u/1111' then raise exception 'owner could not replace image'; end if;
+  if (select approved from menu_items where name = 'حمص') then raise exception 'changed image should wait for approval'; end if;
 end $$;
-
+-- منتج جديد من صاحب محل منشور ينتظر الموافقة، والزائر ما يشوفه؛ تغيير السعر ما يحتاج موافقة
 select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
 select public.moderate_post(public.t_id('مطعم أبو علي'), 'approve');
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+insert into menu_items (business_id, section, name, price) values (public.t_id('مطعم أبو علي'), 'مقبلات', 'فلافل', 1000);
+select pg_temp.as_user(null);
+do $$ begin
+  if exists (select 1 from menu_items where name in ('فلافل', 'حمص')) then raise exception 'pending products visible to visitors'; end if;
+end $$;
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+update menu_items set approved = true where name = 'فلافل'; -- محاولة اعتماد ذاتي: الحارس يتجاهلها
+reset role;
+do $$ begin if (select approved from menu_items where name = 'فلافل') then raise exception 'owner approved own product'; end if; end $$;
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+update menu_items set approved = true where name in ('فلافل', 'حمص');
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+update menu_items set price = 1250 where name = 'فلافل';
+select pg_temp.as_user(null);
+do $$ begin
+  if (select count(*) from menu_items where name in ('فلافل', 'حمص')) <> 2 then raise exception 'approved products not visible'; end if;
+  if (select price from menu_items where name = 'فلافل') <> 1250 then raise exception 'price change hid the product'; end if;
+end $$;
+reset role;
+
 -- ===== نسبة الطلبات: الزائر يسجّل الطلب، صاحب المحل يرى كشفه فقط، والمدير يؤكد الدفع =====
 select pg_temp.as_user(null);
 select public.log_order(public.t_id('مطعم أبو علي'), 20000, 2);

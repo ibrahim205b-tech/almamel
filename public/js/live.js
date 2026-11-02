@@ -541,7 +541,8 @@
         finally { busy(f, false); }
       });
       var summary = el('summary', {}, [el('span', { class: 'menu-name', text: it.name }), ' ', el('span', { class: 'num menu-price', text: price(it.price) }),
-        it.available ? null : el('span', { class: 'badge badge-warn', text: 'غير متوفر' })]);
+        it.available ? null : el('span', { class: 'badge badge-warn', text: 'غير متوفر' }),
+        it.approved === false ? el('span', { class: 'status status-pending', text: 'بانتظار موافقة الإدارة' }) : null]);
       return el('li', { class: 'menu-item' + (it.available ? '' : ' unavailable') }, [
         it.image ? el('img', { src: mediaUrl(it.image), alt: '', width: 72, height: 72, loading: 'lazy' }) : null,
         el('details', { class: 'menu-edit' }, [summary, f])]);
@@ -558,7 +559,7 @@
         var image = f.image.files[0] ? await upload('media', 'u/' + s.user.id + '/' + hex() + '.webp', await toWebp(f.image.files[0], 800)) : null;
         var r = await sb.from('menu_items').insert({ business_id: bid, section: f.section.value.trim(), name: name, price: money(f.price.value), note: f.note.value.trim(), image: image });
         if (r.error) throw r.error;
-        addForm.reset(); say('تمت إضافة «' + name + '».', 'ok'); load();
+        addForm.reset(); say(ADMIN_SITE ? 'تمت إضافة «' + name + '».' : 'وصل «' + name + '» ✅ يظهر بصفحتك بعد موافقة الإدارة (تغيير السعر والتوفر ما يحتاج موافقة).', 'ok'); load();
       } catch (err) { say(errText(err), 'error'); }
       finally { busy(addForm, false); }
     });
@@ -822,6 +823,32 @@
       $('[data-count=claims]').textContent = String((cl.data || []).length);
       stat('claims', (cl.data || []).length);
       if (!(cl.data || []).length) cbox.appendChild(el('p', { class: 'empty-inline', text: 'ما كو طلبات.' }));
+
+      // منتجات أصحاب المحلات بانتظار الموافقة
+      var pr = await sb.from('menu_items').select('id, name, price, note, section, image, business_id, posts(title, status)').eq('approved', false).order('updated_at').limit(200);
+      var prows = (pr.data || []).filter(function (x) { return x.posts && x.posts.status === 'published'; });
+      var pbx = $('[data-products]'); pbx.textContent = '';
+      $('[data-count=products]').textContent = String(prows.length); stat('products', prows.length);
+      if (!prows.length) pbx.appendChild(el('p', { class: 'empty-inline', text: 'ما كو منتجات جديدة.' }));
+      var prl = el('ul', { class: 'product-review' }); pbx.appendChild(prl);
+      prows.forEach(function (it) {
+        prl.appendChild(el('li', { class: 'panel' }, [
+          it.image ? el('a', { href: mediaUrl(it.image), target: '_blank', rel: 'noopener' }, [el('img', { src: mediaUrl(it.image), alt: 'صورة ' + it.name, width: 120, height: 120, loading: 'lazy' })]) : el('span', { class: 'muted', text: 'بدون صورة' }),
+          el('div', { class: 'pr-body' }, [el('b', { text: it.name }), el('span', { class: 'muted', text: it.posts.title + (it.section ? ' · ' + it.section : '') }),
+            el('span', { class: 'num', text: price(it.price) }), it.note ? el('span', { text: it.note }) : null,
+            el('div', { class: 'btn-row' }, [
+              el('button', { class: 'btn btn-primary btn-sm', type: 'button', text: 'موافقة ونشر', onclick: async function () {
+                var r = await sb.from('menu_items').update({ approved: true }).eq('id', it.id);
+                if (r.error) return say(errText(r.error), 'error'); say('تمت الموافقة على «' + it.name + '». يظهر بصفحة المحل خلال دقائق.', 'ok'); load();
+              } }),
+              el('button', { class: 'btn btn-sm', type: 'button', text: 'رفض وحذف', onclick: async function () {
+                if (!confirm('حذف «' + it.name + '» من قائمة ' + it.posts.title + '؟')) return;
+                var r = await sb.from('menu_items').delete().eq('id', it.id);
+                if (r.error) return say(errText(r.error), 'error');
+                if (it.image) await sb.storage.from('media').remove([it.image]);
+                say('تم الحذف.', 'ok'); load();
+              } })])])]));
+      });
 
       var pub = await sb.from('posts').select('*').eq('status', 'published').order('published_at', { ascending: false }).limit(100);
       var pbox = $('[data-published]'); pbox.textContent = '';
