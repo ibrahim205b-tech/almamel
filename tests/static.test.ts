@@ -55,6 +55,22 @@ test('static build renders every page with the GitHub Pages base path and no ser
   assert.ok(fs.readFileSync(path.join(out, 'sitemap.xml'), 'utf8').includes('https://user.github.io/almamel/businesses/5'));
 });
 
+test('every ready kit (libraries, pharmacies, barbers, phones) parses and belongs to a real category', async () => {
+  const { parseMenuText } = await import('../src/static/menu-text.ts');
+  const { KITS } = await import('../src/views/category-kits.ts');
+  const { openDatabase } = await import('../src/db/index.ts');
+  const db = openDatabase(':memory:');
+  const cats = db.prepare("SELECT name FROM categories WHERE section = 'business'").pluck().all() as string[];
+  db.close();
+  for (const [cat, kit] of Object.entries(KITS)) {
+    assert.ok(cats.includes(cat), `category exists: ${cat}`);
+    const r = parseMenuText(kit.menu.split('\n'));
+    assert.equal(r.error, undefined, cat);
+    assert.ok(r.items.length >= 12 && r.items.every((i) => i.section), `${cat}: ${r.items.length} items in sections`);
+    assert.ok(kit.groups.flatMap((g) => g[1]).length >= 10, `${cat}: services checklist`);
+  }
+});
+
 test('libraries category: ready service list parses into sections and the page says «الخدمات والأسعار»', async () => {
   const { parseMenuText } = await import('../src/static/menu-text.ts');
   const { LIBRARY_MENU, LIBRARY_CATEGORY } = await import('../src/views/category-kits.ts');

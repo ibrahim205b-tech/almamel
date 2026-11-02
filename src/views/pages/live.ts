@@ -147,7 +147,7 @@ export function liveLoginPage(admin = false, kitchen = false, publicUrl = ''): S
 
 export function dashboardPage(publicUrl = '', support = ''): SafeHtml {
   const pub = (p: string) => (publicUrl ? publicUrl.replace(/\/+$/, '') + p : p);
-  return html`<div class="wrap" data-page="dashboard">
+  return html`<div class="wrap" data-page="dashboard" data-kits="${kitsJson()}">
     <div class="page-head"><div><h1>صفحتي</h1><p class="lede" data-who></p></div>
       <div class="btn-row">${publicUrl ? html`<a class="btn btn-sign" href="${support}" target="_blank" rel="noopener">${icon('whatsapp')}خدمة العملاء</a>` : html`<a class="btn btn-sign" href="/owner/register">${icon('plus')}إضافة مطعم أو محل</a>`}<button class="btn" type="button" data-logout>${icon('logout')}خروج</button></div></div>
     ${msg}${noJs}

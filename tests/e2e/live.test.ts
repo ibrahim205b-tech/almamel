@@ -368,8 +368,17 @@ test('library category: choosing it shows the services checklist and fills a rea
   assert.equal(await p.inputValue('[data-add-business] [name=services]'), 'الخدمات: استنساخ، تقديم إلكتروني (جامعات، تعيينات، منح)');
   assert.ok((await p.inputValue('[data-add-business] [name=menu]')).startsWith('*طباعة واستنساخ*'));
   if (process.env.SHOTS) { await p.setViewportSize({ width: 390, height: 1500 }); await p.locator('.kit-services').scrollIntoViewIfNeeded(); await p.waitForTimeout(300); await p.locator('.kit-services').screenshot({ path: path.join(process.env.SHOTS, 'library.png') }); await p.setViewportSize({ width: 1280, height: 900 }); }
-  await p.selectOption('[data-add-business] select[name=category]', { index: 1 });
+  await p.selectOption('[data-add-business] select[name=category]', 'صيدليات');
+  await p.waitForSelector('.kit-item:has-text("قياس الضغط")');
+  assert.equal(await p.inputValue('[data-add-business] [name=services]'), '', 'previous kit choices cleared');
+  assert.ok((await p.inputValue('[data-add-business] [name=menu]')).startsWith('*خدمات*'), 'pharmacy list replaces the library list');
+  await p.selectOption('[data-add-business] select[name=category]', 'حلاقة وصالونات تجميل');
+  assert.ok((await p.inputValue('[data-add-business] [name=menu]')).startsWith('*حلاقة رجالية*'));
+  await p.selectOption('[data-add-business] select[name=category]', 'هواتف وصيانة');
+  assert.ok(await p.locator('.kit-item:has-text("تبديل شاشة")').isVisible());
+  await p.selectOption('[data-add-business] select[name=category]', 'ملابس');
   assert.equal(await p.inputValue('[data-add-business] [name=menu]'), '', 'untouched ready list removed when switching away');
+  assert.ok(await p.locator('.kit-services').isHidden());
   await p.context().close();
 });
 

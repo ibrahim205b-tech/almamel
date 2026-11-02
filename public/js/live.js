@@ -425,6 +425,8 @@
     return el('details', { class: 'owner-block owner-edit' }, [el('summary', {}, [el('h4', { text: 'تعديل معلومات المحل وصوره' })]), f]);
   }
 
+  var KITS = (function () { var n = document.querySelector('[data-kits]'); try { return n ? JSON.parse(n.getAttribute('data-kits')) : {}; } catch { return {}; } })();
+
   async function initDashboard() {
     var s = await requireLogin(); if (!s) return;
     if (new URLSearchParams(location.search).get('sent')) say('وصل طلبك. الإدارة راح تتحقق وتتواصل وياك. تگدر من هسه تجهز قائمة الأسعار.', 'ok');
@@ -448,7 +450,7 @@
       var card = el('li', { class: 'panel owner-card' }, [head, el('p', { class: 'muted', text: b.category + '، ' + b.area })]);
       if (b.status_reason && b.status !== 'published') card.appendChild(el('p', { class: 'note', text: b.status_reason }));
       if (c && c.status === 'rejected' && c.note) card.appendChild(el('p', { class: 'note note-warn', text: c.note }));
-      var row = el('div', { class: 'btn-row' }, [el('a', { class: 'btn btn-primary', href: BASE + '/owner/menu/?b=' + b.id, text: /مطاعم|أفران/.test(b.category) ? 'قائمة الطعام' : /مكتبات/.test(b.category) ? 'الخدمات والأسعار' : 'المنتجات والأسعار' })]);
+      var row = el('div', { class: 'btn-row' }, [el('a', { class: 'btn btn-primary', href: BASE + '/owner/menu/?b=' + b.id, text: /مطاعم|أفران/.test(b.category) ? 'قائمة الطعام' : (KITS[b.category] ? KITS[b.category].label : 'المنتجات والأسعار') })]);
       if (b.status === 'published') row.appendChild(el('a', { class: 'btn', href: BASE + PATHS.business + '/' + b.id + '/', text: 'عرض الصفحة' }));
       card.appendChild(row);
       if (owner && b.status === 'published') {
@@ -532,18 +534,20 @@
         groups[sec].forEach(function (it) { ul.appendChild(itemRow(it)); });
         box.appendChild(el('section', { class: 'block' }, [el('h2', { text: sec }), ul]));
       });
-      var kit = $('[data-page=menu]').getAttribute('data-kits') ? JSON.parse($('[data-page=menu]').getAttribute('data-kits')).library : null;
-      var isLib = kit && b.category === kit.cat;
-      if (isLib) { $('h1').textContent = 'الخدمات والأسعار'; kit.groups.forEach(function (g) { if (!groups[g[0]]) dl.appendChild(el('option', { value: g[0] })); }); }
-      if (!items.length && isLib) {
-        var ready = parseMenu(kit.menu);
-        box.appendChild(el('div', { class: 'empty kit-start' }, [el('p', { class: 'empty-title', text: 'ابدأ بقائمة جاهزة للمكتبة' }),
-          el('p', { text: ready.length + ' خدمة جاهزة: طباعة واستنساخ، صور، خدمات إلكترونية، قرطاسية، ملازم. عدّل أسعارها بعدين.' }),
+      var kitsAttr = $('[data-page=menu]').getAttribute('data-kits'), kit = kitsAttr ? JSON.parse(kitsAttr)[b.category] : null;
+      if (kit) {
+        $('h1').textContent = kit.label;
+        parseMenu(kit.menu).forEach(function (it) { if (it.section && !groups[it.section] && !dl.querySelector('option[value="' + it.section + '"]')) dl.appendChild(el('option', { value: it.section })); });
+      }
+      if (!items.length && kit) {
+        var ready = parseMenu(kit.menu), secs = ready.map(function (it) { return it.section; }).filter(function (x, i, a) { return x && a.indexOf(x) === i; });
+        box.appendChild(el('div', { class: 'empty kit-start' }, [el('p', { class: 'empty-title', text: 'ابدأ بقائمة جاهزة لـ «' + b.category + '»' }),
+          el('p', { text: ready.length + ' صنف جاهز: ' + secs.join('، ') + '. عدّل أسعارها بعدين.' }),
           el('button', { class: 'btn btn-sign', type: 'button', text: 'أضف القائمة الجاهزة', onclick: async function (e) {
             e.target.disabled = true;
             var r = await sb.from('menu_items').insert(ready.map(function (it, k) { return { business_id: bid, section: it.section, name: it.name, price: it.price, note: it.note, sort: k }; }));
             if (r.error) { e.target.disabled = false; return say(errText(r.error), 'error'); }
-            say('تمت إضافة ' + ready.length + ' خدمة ✅ عدّل الأسعار من كل خدمة.' + (ADMIN_SITE ? '' : ' تظهر بصفحتك بعد موافقة الإدارة.'), 'ok'); load();
+            say('تمت إضافة ' + ready.length + ' صنف ✅ عدّل الأسعار من كل صنف.' + (ADMIN_SITE ? '' : ' تظهر بصفحتك بعد موافقة الإدارة.'), 'ok'); load();
           } })]));
       } else if (!items.length) box.appendChild(el('p', { class: 'muted', text: 'القائمة فارغة. أضف أول صنف من فوق.' }));
     }
@@ -935,36 +939,37 @@
 
   // ---------- موقع الإدارة: إضافة مطعم أو محل كاملاً ----------
   // نفس قواعد src/static/menu-text.ts: أقسام «*القسم*»، أصناف «• الاسم — السعر»، أحجام «الاسم: صغير 5,000 / وسط 7,000»، أو «الاسم | السعر».
-  // أصناف لها محتوى جاهز (المكتبات): مربعات اختيار للخدمات + قائمة أسعار يبدأ بيها
+  // أصناف لها محتوى جاهز (مكتبات، صيدليات، حلاقة، هواتف): مربعات اختيار للخدمات + قائمة أسعار يبدأ بيها
   function kitForm(form) {
     if (!form || !form.getAttribute('data-kits') || !form.elements.category) return;
-    var kit = JSON.parse(form.getAttribute('data-kits')).library;
+    var kits = JSON.parse(form.getAttribute('data-kits'));
     var cat = form.elements.category, services = form.elements.services, menu = form.elements.menu;
-    var box = el('fieldset', { class: 'group kit-services' }, [el('legend', { text: 'الخدمات اللي تقدمها' }), el('p', { class: 'hint', text: 'اختار كل الخدمات المتوفرة بمكتبتك، وتظهر بصفحتك.' })]);
-    kit.groups.forEach(function (g, gi) {
-      var grid = el('div', { class: 'kit-grid' });
-      g[1].forEach(function (name, i) {
-        var id = 'kit-' + gi + '-' + i, cb = el('input', { type: 'checkbox', id: id, value: name });
-        cb.addEventListener('change', sync);
-        grid.appendChild(el('label', { class: 'kit-item', for: id }, [cb, el('span', { text: name })]));
-      });
-      box.appendChild(el('h4', { class: 'kit-group', text: g[0] })); box.appendChild(grid);
-    });
-    box.hidden = true;
+    var templates = Object.keys(kits).map(function (k) { return kits[k].menu; });
+    var box = el('fieldset', { class: 'group kit-services' }); box.hidden = true;
     cat.closest('.field').after(box);
-    var note = el('p', { class: 'note kit-note', text: 'حطينالك قائمة أسعار جاهزة للمكتبة. عدّل الأسعار حسب محلك، واحذف اللي ما تقدمه، وتكدر تضيف صور بعدين.' });
-    note.hidden = true; if (menu) menu.closest('.field').before(note);
+    var note = el('p', { class: 'note kit-note' }); note.hidden = true; if (menu) menu.closest('.field').before(note);
     function sync() {
       var picked = Array.prototype.map.call(box.querySelectorAll('input:checked'), function (x) { return x.value; });
       if (services) services.value = picked.length ? 'الخدمات: ' + picked.join('، ') : '';
     }
     cat.addEventListener('change', function () {
-      var on = cat.value === kit.cat;
-      box.hidden = !on; note.hidden = !on;
-      if (menu) {
-        if (on && !menu.value.trim()) menu.value = kit.menu;
-        else if (!on && menu.value === kit.menu) menu.value = '';
-      }
+      var kit = kits[cat.value];
+      box.textContent = ''; box.hidden = !kit; note.hidden = !kit;
+      if (services && /^الخدمات: /.test(services.value)) services.value = '';
+      if (menu && (!kit || !menu.value.trim() || templates.indexOf(menu.value) !== -1)) menu.value = kit ? kit.menu : (templates.indexOf(menu.value) !== -1 ? '' : menu.value);
+      if (!kit) return;
+      box.appendChild(el('legend', { text: 'الخدمات اللي تقدمها' }));
+      box.appendChild(el('p', { class: 'hint', text: 'اختار كل الخدمات المتوفرة عندك، وتظهر بصفحتك.' }));
+      kit.groups.forEach(function (g, gi) {
+        var grid = el('div', { class: 'kit-grid' });
+        g[1].forEach(function (name, i) {
+          var id = 'kit-' + gi + '-' + i, cb = el('input', { type: 'checkbox', id: id, value: name });
+          cb.addEventListener('change', sync);
+          grid.appendChild(el('label', { class: 'kit-item', for: id }, [cb, el('span', { text: name })]));
+        });
+        box.appendChild(el('h4', { class: 'kit-group', text: g[0] })); box.appendChild(grid);
+      });
+      note.textContent = 'حطينالك قائمة جاهزة لـ «' + cat.value + '». عدّل الأسعار حسب محلك، واحذف اللي ما تقدمه، وتكدر تضيف صور بعدين.';
     });
   }
 
