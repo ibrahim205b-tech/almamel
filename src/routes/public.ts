@@ -66,6 +66,7 @@ export async function publicRoutes(app: FastifyInstance) {
       community: pick(['community']), help: pick(['help'], {}, 3), news: pick(['community'], { newsOnly: true }),
       // النسخة الثابتة: إضافة المحلات عن طريق خدمة العملاء على واتساب فقط
       addShop: app.cfg.staticMode ? addShopLink(s.whatsapp_phone ?? '') : '/owner',
+      delivery: !!(app.cfg.staticMode && app.cfg.supabaseUrl),
     }, s, req.user));
   });
 
@@ -229,7 +230,7 @@ export async function publicRoutes(app: FastifyInstance) {
   app.get('/sitemap.xml', (_req, reply) => {
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const base = app.cfg.baseUrl;
-    const urls = ['/', '/about', '/contact', '/restaurants', '/news', ...TYPE_KEYS.map((t) => TYPES[t].path), ...Object.keys(POLICIES).map((k) => `/policies/${k}`)]
+    const urls = ['/', '/about', '/contact', '/restaurants', '/news', ...(app.cfg.staticMode && app.cfg.supabaseUrl ? ['/delivery'] : []), ...TYPE_KEYS.map((t) => TYPES[t].path), ...Object.keys(POLICIES).map((k) => `/policies/${k}`)]
       .map((u) => `<url><loc>${esc(base + u)}</loc></url>`);
     const posts = db.prepare(`SELECT p.id, p.type, p.updated_at FROM posts p WHERE ${PUBLIC_WHERE} ORDER BY p.updated_at DESC LIMIT 45000`).all() as { id: number; type: PostType; updated_at: number }[];
     for (const p of posts) urls.push(`<url><loc>${esc(`${base}${TYPES[p.type].path}/${p.id}`)}</loc><lastmod>${new Date(p.updated_at * 1000).toISOString().slice(0, 10)}</lastmod></url>`);

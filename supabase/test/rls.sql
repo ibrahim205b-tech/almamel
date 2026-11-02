@@ -333,4 +333,41 @@ select public.moderate_post(public.t_id('مطعم أبو علي'), 'hide', 'اخ
 do $$ begin if (select status from posts where id = public.t_id('مطعم أبو علي')) <> 'hidden' then raise exception 'moderation blocked by rebuild trigger'; end if; end $$;
 reset role;
 
+-- ===== دلفري حر: الزائر يسجّل، الهوية والعنوان للإدارة فقط =====
+select pg_temp.as_user(null);
+insert into storage.objects (bucket_id, name) values ('proofs', 'rider/0123456789abcdef0123456789abcdef.webp'), ('proofs', 'rider/fedcba9876543210fedcba9876543210.webp');
+select pg_temp.expect_error($q$insert into storage.objects (bucket_id, name) values ('proofs', 'u/x/0123456789abcdef0123456789abcdef.webp')$q$, 'anon uploads outside rider/');
+do $$ begin if exists (select 1 from storage.objects where bucket_id = 'proofs') then raise exception 'anon reads ID photos'; end if; end $$;
+insert into riders (name, phone, vehicle, areas, address, id_front, id_back)
+  values ('حسين الدراج', '07712345678', 'دراجة نارية', 'المعامل والحسينية', 'المعامل، محلة ٧٠٣، قرب الجامع',
+          'rider/0123456789abcdef0123456789abcdef.webp', 'rider/fedcba9876543210fedcba9876543210.webp');
+select pg_temp.expect_error($q$insert into riders (name, phone, vehicle, areas, address, id_front, id_back, status) values ('غشاش', '07712340000', 'ستوتة', 'المعامل', 'عنوان طويل', 'rider/0123456789abcdef0123456789abcdef.webp', 'rider/0123456789abcdef0123456789abcdef.webp', 'approved')$q$, 'anon self-approves rider');
+select pg_temp.expect_error($q$insert into riders (name, phone, vehicle, areas, address, id_front, id_back) values ('مكرر', '07712345678', 'ستوتة', 'المعامل', 'عنوان طويل', 'rider/0123456789abcdef0123456789abcdef.webp', 'rider/0123456789abcdef0123456789abcdef.webp')$q$, 'same phone twice');
+select pg_temp.expect_error($q$insert into riders (name, phone, vehicle, areas, address, id_front, id_back) values ('صورة عامة', '07712349999', 'ستوتة', 'المعامل', 'عنوان طويل', 'guest/0123456789abcdef0123456789abcdef.webp', 'rider/0123456789abcdef0123456789abcdef.webp')$q$, 'ID path outside rider/');
+do $$ begin
+  if exists (select 1 from riders) then raise exception 'anon reads riders table'; end if;
+  if exists (select 1 from public_riders) then raise exception 'pending rider is public'; end if;
+end $$;
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+update riders set status = 'approved';
+do $$ begin
+  if exists (select 1 from riders) then raise exception 'user reads riders table'; end if;
+  if exists (select 1 from public_riders) then raise exception 'user approved a rider'; end if;
+  if exists (select 1 from storage.objects where bucket_id = 'proofs') then raise exception 'user reads ID photos'; end if;
+end $$;
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+do $$ begin if (select count(*) from riders) <> 1 or (select count(*) from storage.objects where name like 'rider/%') <> 2 then raise exception 'admin cannot see rider and IDs'; end if; end $$;
+update riders set status = 'approved', decided_at = now();
+select pg_temp.as_user(null);
+do $$ begin
+  if (select name from public_riders) <> 'حسين الدراج' then raise exception 'approved rider not public'; end if;
+  if exists (select 1 from information_schema.columns where table_name = 'public_riders' and column_name in ('address', 'id_front', 'id_back', 'status')) then raise exception 'private rider columns in public view'; end if;
+end $$;
+select pg_temp.expect_error($q$select address from public_riders$q$, 'anon reads rider address');
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+delete from storage.objects where name like 'rider/%';
+delete from riders;
+reset role;
+do $$ begin if exists (select 1 from riders) or exists (select 1 from storage.objects where name like 'rider/%') then raise exception 'admin cannot delete rider and IDs'; end if; end $$;
+
 select 'ALL RLS TESTS PASSED';

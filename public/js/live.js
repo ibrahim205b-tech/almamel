@@ -934,7 +934,111 @@
       });
     }
     load();
+    ridersAdmin($('[data-riders-admin]'));
     commissionBox($('[data-commission]'), true);
+  }
+
+  // ---------- دلفري حر: القائمة العامة ----------
+  function waNum(ph) { return 'https://wa.me/964' + String(ph).replace(/^0/, ''); }
+  async function initDelivery() {
+    var ul = $('[data-riders]'), q = $('[data-rider-q]');
+    var r = await sb.from('public_riders').select('*').order('decided_at', { ascending: false }).limit(500);
+    if (r.error) { ul.textContent = ''; return say(errText(r.error), 'error'); }
+    var rows = r.data || [];
+    function norm(t) { return String(t || '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').toLowerCase(); }
+    function draw() {
+      var term = norm(q.value.trim());
+      ul.textContent = '';
+      var shown = rows.filter(function (x) { return !term || norm(x.name + ' ' + x.areas + ' ' + x.vehicle).indexOf(term) !== -1; });
+      shown.forEach(function (x) {
+        ul.appendChild(el('li', { class: 'rider' }, [
+          el('div', { class: 'rider-head' }, [el('span', { class: 'rider-ico', 'aria-hidden': 'true', text: (x.name || '؟').trim().charAt(0) }),
+            el('div', {}, [el('h2', { class: 'rider-name', text: x.name }), el('span', { class: 'rider-veh', text: x.vehicle }),
+              el('span', { class: 'badge badge-ok', text: 'هويته عند الإدارة' })])]),
+          el('p', { class: 'rider-areas' }, [el('b', { text: 'يوصل إلى: ' }), x.areas]),
+          x.hours ? el('p', { class: 'muted', text: 'الأوقات: ' + x.hours }) : null,
+          x.note ? el('p', { class: 'rider-note', text: x.note }) : null,
+          el('div', { class: 'btn-row' }, [
+            el('a', { class: 'btn btn-primary', href: 'tel:' + x.phone }, ['اتصال ', el('span', { dir: 'ltr', text: x.phone })]),
+            x.whatsapp ? el('a', { class: 'btn btn-wa', href: waNum(x.phone) + '?text=' + encodeURIComponent('هلو ' + x.name + '، شفت رقمك بدليل المعامل (دلفري حر). أريد توصيل:'), target: '_blank', rel: 'noopener', text: 'واتساب' }) : null])]));
+      });
+      if (!shown.length) ul.appendChild(el('li', { class: 'empty' }, [el('p', { class: 'empty-title', text: rows.length ? 'ما لكينا أحد بهالبحث' : 'ما كو أحد مسجل بعد' }),
+        el('p', { text: rows.length ? 'جرّب اسم منطقة ثانية.' : 'عندك دراجة؟ كون أول واحد يسجّل.' })]));
+    }
+    q.addEventListener('input', draw); draw();
+  }
+
+  // ---------- دلفري حر: التسجيل ----------
+  async function initRiderJoin() {
+    var form = $('[data-rider-form]');
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault(); delete form.dataset.submitting;
+      var f = form.elements, errs = [];
+      if (f.website.value) return; // فخ للبرامج الآلية
+      var name = f.name.value.trim(), ph = phone(f.phone.value), areas = f.areas.value.trim(), address = f.address.value.trim();
+      if (name.length < 2) errs.push('اكتب اسمك.');
+      if (!ph) errs.push('رقمك: رقم عراقي يبدأ بـ 07.');
+      if (!f.vehicle.value) errs.push('اختر شنو تستخدم للتوصيل.');
+      if (areas.length < 2) errs.push('اكتب وين تكدر توصل.');
+      if (address.length < 5) errs.push('اكتب عنوانك بالضبط.');
+      if (!f.id_front.files[0] || !f.id_back.files[0]) errs.push('أضف صورة الهوية من الوجه ومن الظهر.');
+      if (!f.agree.checked) errs.push('وافق على التعهد.');
+      if (errs.length) return say(errs.join(' '), 'error');
+      busy(form, true); say('جارِ رفع الهوية والإرسال...', 'ok');
+      try {
+        var front = await upload('proofs', 'rider/' + hex() + '.webp', await toWebp(f.id_front.files[0], 1600));
+        var back = await upload('proofs', 'rider/' + hex() + '.webp', await toWebp(f.id_back.files[0], 1600));
+        var r = await sb.from('riders').insert({ name: name, phone: ph, whatsapp: f.whatsapp.checked, vehicle: f.vehicle.value, areas: areas,
+          hours: f.hours.value.trim() || null, note: f.note.value.trim() || null, address: address, id_front: front, id_back: back });
+        if (r.error) throw (r.error.code === '23505' ? new Error('هذا الرقم مسجل من قبل. إذا تريد تعدّل معلوماتك راسل الإدارة.') : r.error);
+        form.hidden = true;
+        say('وصل تسجيلك ✅ الإدارة راح تتصل بيك للتأكد، وبعدها يطلع اسمك ورقمك بصفحة «دلفري حر».', 'ok');
+      } catch (err) { say(err.message && /[؀-ۿ]/.test(err.message) ? err.message : errText(err), 'error'); }
+      finally { busy(form, false); }
+    });
+  }
+
+  // ---------- الإدارة: دلفري حر ----------
+  async function ridersAdmin(box) {
+    var r = await sb.from('riders').select('*').order('status').order('created_at', { ascending: false }).limit(300);
+    box.textContent = '';
+    if (r.error) return box.appendChild(el('p', { class: 'muted', text: 'قسم الدلفري يحتاج تشغيل تحديث supabase/updates/2026-11-riders.sql.' }));
+    var rows = r.data || [], pending = rows.filter(function (x) { return x.status === 'pending'; });
+    $('[data-count=riders]').textContent = String(pending.length); stat('riders', pending.length);
+    if (!rows.length) return box.appendChild(el('p', { class: 'empty-inline', text: 'ما كو تسجيلات بعد.' }));
+    var ul = el('ul', { class: 'cards-admin' }); box.appendChild(ul);
+    var LABEL = { pending: 'بانتظار التحقق', approved: 'منشور', suspended: 'موقوف' };
+    async function setStatus(x, st) {
+      var u = await sb.from('riders').update({ status: st, decided_at: new Date().toISOString() }).eq('id', x.id);
+      if (u.error) return say(errText(u.error), 'error');
+      say(st === 'approved' ? 'تم النشر ✅ «' + x.name + '» يطلع هسه بصفحة دلفري حر.' : 'تم إيقاف «' + x.name + '».', 'ok'); ridersAdmin(box);
+    }
+    for (var i = 0; i < rows.length; i++) {
+      var x = rows[i];
+      var urls = await sb.storage.from('proofs').createSignedUrls([x.id_front, x.id_back], 900);
+      var ids = (urls.data || []).map(function (u) { return u.signedUrl; }).filter(Boolean);
+      (function (x, ids) {
+        var facts = el('dl', { class: 'facts' });
+        [['الرقم', x.phone + (x.whatsapp ? ' (واتساب)' : '')], ['المركبة', x.vehicle], ['يوصل إلى', x.areas], ['الأوقات', x.hours], ['ملاحظة', x.note],
+          ['العنوان (خاص)', x.address], ['تاريخ التسجيل', new Date(x.created_at).toLocaleString('ar-IQ')]]
+          .forEach(function (kv) { if (kv[1]) facts.appendChild(el('div', {}, [el('dt', { text: kv[0] }), el('dd', { text: kv[1] })])); });
+        ul.appendChild(el('li', { class: 'panel' }, [
+          el('h3', {}, [x.name + ' ', badge(x.status === 'approved' ? 'published' : x.status === 'pending' ? 'pending' : 'rejected', LABEL[x.status])]),
+          facts,
+          el('ul', { class: 'thumbs id-thumbs' }, ids.map(function (u, k) { return el('li', {}, [el('a', { href: u, target: '_blank', rel: 'noopener' }, [el('img', { src: u, alt: k ? 'الهوية من الظهر' : 'الهوية من الوجه', width: 200, height: 130 })])]); })),
+          el('div', { class: 'btn-row' }, [
+            el('a', { class: 'btn', href: 'tel:' + x.phone, text: 'اتصال للتحقق' }),
+            x.status !== 'approved' ? el('button', { class: 'btn btn-primary', type: 'button', text: 'تم التحقق: نشر', onclick: function () { setStatus(x, 'approved'); } }) : null,
+            x.status === 'approved' ? el('button', { class: 'btn', type: 'button', text: 'إيقاف (شكوى)', onclick: function () { if (confirm('إيقاف «' + x.name + '» وإخفاؤه من الموقع؟')) setStatus(x, 'suspended'); } }) : null,
+            el('button', { class: 'btn btn-danger', type: 'button', text: 'حذف نهائي مع الهوية', onclick: async function () {
+              if (!confirm('حذف «' + x.name + '» وصور هويته نهائياً؟')) return;
+              var d = await sb.from('riders').delete().eq('id', x.id);
+              if (d.error) return say(errText(d.error), 'error');
+              await sb.storage.from('proofs').remove([x.id_front, x.id_back]);
+              say('تم الحذف.', 'ok'); ridersAdmin(box);
+            } })])]));
+      })(x, ids);
+    }
   }
 
   // ---------- موقع الإدارة: إضافة مطعم أو محل كاملاً ----------
@@ -1039,6 +1143,6 @@
     });
   }
 
-  var init = { kitchen: initKitchen, 'add-business': initAddBusiness, submit: initSubmit, register: initRegister, login: initLogin, dashboard: initDashboard, menu: initMenu, admin: initAdmin }[page.getAttribute('data-page')];
+  var init = { delivery: initDelivery, 'rider-join': initRiderJoin, kitchen: initKitchen, 'add-business': initAddBusiness, submit: initSubmit, register: initRegister, login: initLogin, dashboard: initDashboard, menu: initMenu, admin: initAdmin }[page.getAttribute('data-page')];
   if (init) Promise.resolve(init()).catch(function (e) { say(errText(e), 'error'); });
 })();

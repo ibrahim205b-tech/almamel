@@ -94,6 +94,7 @@ const SHORT: Record<string, string> = { business: 'المحلات', job: 'الو
 export const SECTION_LINKS: { href: string; label: string; short: string; icon: string }[] = [
   { href: '/restaurants', label: 'المطاعم والتوصيل', short: 'المطاعم', icon: 'utensils' },
   ...(['business', 'job', 'service', 'property', 'market', 'offer'] as const).map((t) => ({ href: TYPES[t].path, label: TYPES[t].label, short: SHORT[t], icon: TYPES[t].icon })),
+  { href: '/delivery', label: 'دلفري حر', short: 'دلفري', icon: 'bike' },
   { href: '/news', label: 'أخبار المعامل', short: 'الأخبار', icon: 'bell' },
   { href: TYPES.community.path, label: TYPES.community.label, short: 'مبادرات', icon: TYPES.community.icon },
   { href: TYPES.help.path, label: TYPES.help.label, short: 'المساعدات', icon: TYPES.help.icon },
@@ -101,8 +102,11 @@ export const SECTION_LINKS: { href: string; label: string; short: string; icon: 
 
 const cur = (ctx: ViewCtx, href: string) => ctx.path.startsWith(href) ? raw('aria-current="page"') : '';
 
+/** «دلفري حر» يشتغل بس وية Supabase (النسخة الثابتة المربوطة). */
+export const sectionLinks = (delivery: boolean) => SECTION_LINKS.filter((l) => delivery || l.href !== '/delivery');
+
 function nav(ctx: ViewCtx) {
-  return html`<ul class="nav-list nav-sections">${SECTION_LINKS.map((l) => html`<li><a href="${l.href}" ${cur(ctx, l.href)}>${icon(l.icon)}${l.label}</a></li>`)}</ul>`;
+  return html`<ul class="nav-list nav-sections">${sectionLinks(!!ctx.supabaseOrigin).map((l) => html`<li><a href="${l.href}" ${cur(ctx, l.href)}>${icon(l.icon)}${l.label}</a></li>`)}</ul>`;
 }
 
 /** روابط مختصرة بالترويسة على الشاشات العريضة. */

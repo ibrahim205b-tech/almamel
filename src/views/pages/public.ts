@@ -6,7 +6,7 @@ import { TYPES, TYPE_KEYS, type PostType, type User } from '../../domain/types.t
 import { parseDetails, type ImageRow, type ItemRow, type ListItem } from '../../domain/posts.ts';
 import { REPORT_REASONS } from '../../domain/engagement.ts';
 import { OWNERSHIP_STATEMENT, type Settings } from '../../domain/settings.ts';
-import { SECTION_LINKS, icon, sectionTitle } from '../layout.ts';
+import { icon, sectionLinks, sectionTitle } from '../layout.ts';
 import { EMPLOYMENT, OPEN_STATE, emptyState, mediaUrl, pagination, postUrl, rowList, select, stars, statusBadge } from '../components.ts';
 
 type Opt = [string | number, string][];
@@ -30,6 +30,8 @@ export interface HomeData {
   food: ListItem[]; shops: ListItem[]; services: ListItem[]; market: ListItem[]; community: ListItem[]; help: ListItem[]; news: ListItem[];
   /** رابط «أضف مطعمك»: نموذج التسجيل المباشر إذا كان متاحاً، وإلا واتساب الإدارة. */
   addShop: string;
+  /** «دلفري حر» متاح (النسخة الثابتة المربوطة بـ Supabase). */
+  delivery?: boolean;
 }
 
 /** المطاعم والمحلات في مربعات بصورها: المميّزة (المدفوعة) أولاً، ثم الأحدث. */
@@ -69,7 +71,7 @@ export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml 
       <dl class="hero-stats">
         <div><dt>مطعم ومحل أكل</dt><dd data-count-up>${fmtNumber(d.counts.food ?? 0)}</dd></div>
         <div><dt>إعلان منشور</dt><dd data-count-up>${fmtNumber(TYPE_KEYS.reduce((n, t) => n + (d.counts[t] ?? 0), 0))}</dd></div>
-        <div><dt>قسم في الدليل</dt><dd data-count-up>${fmtNumber(SECTION_LINKS.length)}</dd></div>
+        <div><dt>قسم في الدليل</dt><dd data-count-up>${fmtNumber(sectionLinks(!!d.delivery).length)}</dd></div>
       </dl>
     </div>
   </section>
@@ -77,7 +79,7 @@ export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml 
   <div class="wrap home">
     <nav class="cats" aria-labelledby="h-cats">
       <h2 id="h-cats" class="sr">تصفح الأقسام</h2>
-      <ul>${SECTION_LINKS.filter((l) => l.href !== '/news' && l.href !== '/community').map((l) => html`<li><a href="${l.href}"><span class="cat-ico">${icon(l.icon)}</span><span class="cat-name">${l.short}</span>${count(l.href) ? html`<span class="cat-n">${fmtNumber(count(l.href))}</span>` : ''}</a></li>`)}</ul>
+      <ul>${sectionLinks(!!d.delivery).filter((l) => l.href !== '/community').map((l) => html`<li><a href="${l.href}"><span class="cat-ico">${icon(l.icon)}</span><span class="cat-name">${l.short}</span>${count(l.href) ? html`<span class="cat-n">${fmtNumber(count(l.href))}</span>` : ''}</a></li>`)}</ul>
     </nav>
 
     ${showcase('food', d.food, d.addShop)}

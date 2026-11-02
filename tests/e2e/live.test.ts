@@ -34,6 +34,12 @@ const published = [
     details: {}, images: [], business_id: null, open_state: 'unknown', verified: false, is_official: false, published_at: new Date().toISOString(), expires_at: null, updated_at: new Date().toISOString() },
 ];
 
+const riders = [
+  { id: 1, name: 'حسين الدراج', phone: '07712345678', whatsapp: true, vehicle: 'دراجة نارية', areas: 'المعامل والحسينية', hours: 'من ٩ للـ ١٢ بالليل', note: null, decided_at: new Date().toISOString(),
+    address: 'محلة ٧٠٣ زقاق ٥ دار ١٢', id_front: 'rider/' + 'd'.repeat(32) + '.webp', id_back: 'rider/' + 'e'.repeat(32) + '.webp', status: 'approved', created_at: new Date().toISOString() },
+  { id: 2, name: 'عباس الستوتة', phone: '07798765432', whatsapp: false, vehicle: 'ستوتة', areas: 'الزوراء', hours: null, note: 'أغراض ثقيلة', decided_at: null,
+    address: 'قرب السيطرة', id_front: 'rider/' + 'f'.repeat(32) + '.webp', id_back: 'rider/' + '1'.repeat(32) + '.webp', status: 'pending', created_at: new Date().toISOString() },
+];
 const TOKEN = '11111111-2222-3333-4444-555555555555';
 const shot = async (pg: Page, name: string) => { if (process.env.SHOTS) await pg.screenshot({ path: path.join(process.env.SHOTS, name + '.png') }); };
 const order = { id: 77, business_id: 1000001, status: 'new', reason: null, eta: null, created_at: new Date().toISOString(), decided_at: null, total: 12000,
@@ -50,7 +56,10 @@ function mock(req: http.IncomingMessage, res: http.ServerResponse, body: Buffer)
   if (p === '/auth/v1/token') { const b = json(); return send(200, session(b.email === 'admin@x.iq' ? ADMIN : UID, b.email)); }
   if (p === '/auth/v1/user') return send(200, session(auth.includes(ADMIN) ? ADMIN : UID, 'x@x.iq').user);
   if (p.startsWith('/storage/v1/object/public/media/')) { res.writeHead(200, { 'Content-Type': 'image/webp' }); return res.end(png); }
+  if (p.startsWith('/storage/v1/object/sign/proofs')) return send(200, (json().paths as string[]).map((x) => ({ path: x, signedURL: '/object/public/media/' + x + '?token=t', error: null })));
   if (p.startsWith('/storage/v1/object/')) return send(200, { Key: p.replace('/storage/v1/object/', '') });
+  if (p === '/rest/v1/public_riders') return send(200, riders.filter((r) => r.status === 'approved').map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !['address', 'id_front', 'id_back', 'status', 'created_at'].includes(k)))));
+  if (p === '/rest/v1/riders' && req.method === 'GET') return send(200, auth.includes(ADMIN) ? riders : []);
   if (p === '/rest/v1/public_posts') {
     const eq = (k: string) => u.searchParams.get(k);
     const rows = published.filter((r) => (!eq('type') || (eq('type')!.startsWith('eq.') ? r.type === eq('type')!.slice(3) : r.type !== eq('type')!.slice(4)))
@@ -469,6 +478,59 @@ test('private registration link: customer adds shop info, logo, photos and menu 
   const items = JSON.parse(log.filter((r) => r.path === '/rest/v1/menu_items' && r.method === 'POST').at(-1)!.body.toString());
   assert.deepEqual(items.map((i: { section: string; name: string; price: number }) => [i.section, i.name, i.price]), [['المشويات', 'نفر كباب', 12000]]);
   assert.ok(!(await p.content()).includes('/owner/dashboard'), 'no owner dashboard link');
+  await p.context().close();
+});
+
+test('«دلفري حر»: approved riders only, search by area, call and WhatsApp; no address or ID on the page', async () => {
+  const p = await open('/delivery/');
+  await p.waitForSelector('.rider:has-text("حسين الدراج")');
+  await shot(p, 'delivery');
+  assert.equal(await p.locator('.rider').count(), 1, 'pending rider hidden');
+  const html = await p.content();
+  assert.ok(!html.includes('محلة ٧٠٣') && !html.includes('rider/'), 'no private data');
+  assert.equal(await p.getAttribute('.rider a[href^="tel:"]', 'href'), 'tel:07712345678');
+  assert.match((await p.getAttribute('.rider a.btn-wa', 'href'))!, /^https:\/\/wa\.me\/9647712345678\?text=/);
+  await p.fill('[data-rider-q]', 'الكرادة');
+  await p.waitForSelector('.rider-list .empty');
+  await p.fill('[data-rider-q]', 'الحسينيه');
+  await p.waitForSelector('.rider:has-text("حسين الدراج")');
+  await p.context().close();
+});
+
+test('rider sign-up uploads both ID photos to the private bucket and sends the exact address', async () => {
+  const p = await open('/delivery/join/');
+  await p.fill('#f-name', 'كرار'); await p.fill('#f-phone', '07701230000');
+  await p.selectOption('#f-vehicle', 'دراجة نارية');
+  await p.fill('#f-areas', 'المعامل'); await p.fill('#f-address', 'المعامل، محلة ٧٠١، زقاق ٣');
+  await p.setInputFiles('input[name=id_front]', { name: 'f.png', mimeType: 'image/png', buffer: png });
+  await p.setInputFiles('input[name=id_back]', { name: 'b.png', mimeType: 'image/png', buffer: png });
+  await shot(p, 'rider-join');
+  await p.click('[data-rider-form] button[type=submit]');
+  await p.waitForSelector('.live-msg.flash-error');
+  await p.check('#f-agree');
+  await p.click('[data-rider-form] button[type=submit]');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("وصل تسجيلك")');
+  const ups = log.filter((r) => r.method === 'POST' && /^\/storage\/v1\/object\/proofs\/rider\/[0-9a-f]{32}\.webp$/.test(r.path));
+  assert.equal(ups.length, 2, 'two ID photos to proofs/rider/');
+  const row = JSON.parse(log.filter((r) => r.path === '/rest/v1/riders' && r.method === 'POST').at(-1)!.body.toString());
+  assert.equal(row.phone, '07701230000'); assert.equal(row.address, 'المعامل، محلة ٧٠١، زقاق ٣'); assert.equal(row.vehicle, 'دراجة نارية');
+  assert.equal(row.status, undefined, 'status is set by the database');
+  assert.deepEqual([row.id_front, row.id_back], ups.map((u) => u.path.replace('/storage/v1/object/proofs/', '')));
+  await p.context().close();
+});
+
+test('admin sees rider IDs and address, and approves a pending rider', async () => {
+  const p = await adminLogin(1280);
+  await p.waitForSelector('[data-riders-admin] li:has-text("عباس الستوتة")');
+  assert.equal(await p.textContent('[data-stat="riders"]'), '١');
+  const card = p.locator('[data-riders-admin] li.panel', { hasText: 'عباس الستوتة' });
+  assert.ok((await card.textContent())!.includes('قرب السيطرة'));
+  assert.equal(await card.locator('.id-thumbs img').count(), 2);
+  await card.locator('button:has-text("تم التحقق: نشر")').click();
+  await p.waitForSelector('.live-msg.flash-ok:has-text("عباس الستوتة")');
+  const call = log.filter((r) => r.path === '/rest/v1/riders' && r.method === 'PATCH').at(-1)!;
+  assert.equal(call.query.get('id'), 'eq.2');
+  assert.equal(JSON.parse(call.body.toString()).status, 'approved');
   await p.context().close();
 });
 
