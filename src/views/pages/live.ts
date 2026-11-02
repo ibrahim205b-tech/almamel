@@ -1,5 +1,6 @@
 // صفحات النسخة الثابتة التفاعلية (تعمل عبر Supabase من المتصفح). الصفحة نفسها هيكل ثابت،
 // و/static/js/live.js يملؤها. كل ما يُعرض من البيانات يُكتب كنص (textContent) لا كـ HTML.
+import { kitsJson } from '../category-kits.ts';
 import { html, type SafeHtml } from '../../lib/html.ts';
 import { TYPES, TYPE_KEYS, type PostType } from '../../domain/types.ts';
 import { checkbox, field, select, textarea } from '../components.ts';
@@ -87,7 +88,7 @@ export function ownerRegisterPage(cats: string[], areas: string[], publicUrl = '
         <button class="btn btn-primary btn-lg" type="submit">التالي</button>
       </fieldset>
     </form>
-    <form class="form" data-step="business" hidden novalidate>
+    <form class="form" data-step="business" data-kits="${kitsJson()}" hidden novalidate>
       <fieldset class="group"><legend>٢. معلومات المحل</legend>
         ${field({ name: 'title', label: 'اسم المطعم أو المحل', required: true, max: 100 })}
         ${select({ name: 'category', label: 'نوع النشاط', required: true, placeholder: 'اختر', options: cats.map((c) => [c, c]) })}
@@ -162,7 +163,7 @@ export function dashboardPage(publicUrl = '', support = ''): SafeHtml {
 }
 
 export function menuManagerPage(back = '/owner/dashboard'): SafeHtml {
-  return html`<div class="wrap narrow" data-page="menu">
+  return html`<div class="wrap narrow" data-page="menu" data-kits="${kitsJson()}">
     <nav class="crumbs" aria-label="مسار التنقل"><a href="${back}">${back === '/admin' ? 'لوحة الإدارة' : 'لوحة التحكم'}</a><span aria-hidden="true">/</span><span aria-current="page" data-biz-name>القائمة</span></nav>
     <h1>القائمة والأسعار</h1>
     ${msg}${noJs}
@@ -216,7 +217,7 @@ export function adminBusinessPage(cats: string[], areas: string[]): SafeHtml {
     <h1>إضافة مطعم أو محل</h1>
     <p class="lede">املأ معلومات المحل وأضف صوره وقائمته، ويُنشر بالموقع مباشرة (خلال ربع ساعة تقريباً).</p>
     ${msg}${noJs}
-    <form class="form" data-add-business novalidate>
+    <form class="form" data-add-business data-kits="${kitsJson()}" novalidate>
       <fieldset class="group"><legend>معلومات المحل</legend>
         ${field({ name: 'title', label: 'اسم المطعم أو المحل', required: true, max: 100 })}
         ${select({ name: 'category', label: 'نوع النشاط', required: true, placeholder: 'اختر', options: cats.map((c) => [c, c]) })}

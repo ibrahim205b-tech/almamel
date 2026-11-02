@@ -316,7 +316,7 @@ test('«أنا صاحب محل» is the first item of the ☰ menu and leads to 
   assert.equal(await first.getAttribute('href'), '/almamel/mat3am/');
   await p.context().close();
   const d = await open('/', 1280);
-  assert.ok(await d.locator('.header-actions .btn-owner').isVisible(), 'desktop header button');
+  if (!process.env.SHOTS) assert.ok(await d.locator('.header-actions .btn-owner').isVisible(), 'desktop header button');
   await d.context().close();
 });
 
@@ -355,6 +355,22 @@ test('private link for a shop owner: admin sends it, owner signs up and is linke
   const old = await open('/login/?invite=000000000000', 390, '/almamel-mat3am');
   await old.waitForSelector('.live-msg.flash-error:has-text("انتهت صلاحيته")');
   await old.context().close();
+});
+
+test('library category: choosing it shows the services checklist and fills a ready price list', async () => {
+  const p = await adminLogin(1280);
+  await p.goto(siteUrl + '/almamel-admin/admin/business/');
+  await p.waitForSelector('[data-add-business] select[name=category]');
+  assert.ok(await p.locator('.kit-services').isHidden());
+  await p.selectOption('[data-add-business] select[name=category]', 'مكتبات وخدمات إلكترونية');
+  await p.waitForSelector('.kit-services:not([hidden])');
+  await p.click('.kit-item:has-text("استنساخ")'); await p.click('.kit-item:has-text("تقديم إلكتروني")');
+  assert.equal(await p.inputValue('[data-add-business] [name=services]'), 'الخدمات: استنساخ، تقديم إلكتروني (جامعات، تعيينات، منح)');
+  assert.ok((await p.inputValue('[data-add-business] [name=menu]')).startsWith('*طباعة واستنساخ*'));
+  if (process.env.SHOTS) { await p.setViewportSize({ width: 390, height: 1500 }); await p.locator('.kit-services').scrollIntoViewIfNeeded(); await p.waitForTimeout(300); await p.locator('.kit-services').screenshot({ path: path.join(process.env.SHOTS, 'library.png') }); await p.setViewportSize({ width: 1280, height: 900 }); }
+  await p.selectOption('[data-add-business] select[name=category]', { index: 1 });
+  assert.equal(await p.inputValue('[data-add-business] [name=menu]'), '', 'untouched ready list removed when switching away');
+  await p.context().close();
 });
 
 test('visitor posts an ad with a photo directly from the site', async () => {

@@ -55,6 +55,22 @@ test('static build renders every page with the GitHub Pages base path and no ser
   assert.ok(fs.readFileSync(path.join(out, 'sitemap.xml'), 'utf8').includes('https://user.github.io/almamel/businesses/5'));
 });
 
+test('libraries category: ready service list parses into sections and the page says «الخدمات والأسعار»', async () => {
+  const { parseMenuText } = await import('../src/static/menu-text.ts');
+  const { LIBRARY_MENU, LIBRARY_CATEGORY } = await import('../src/views/category-kits.ts');
+  const r = parseMenuText(LIBRARY_MENU.split('\n'));
+  assert.equal(r.error, undefined);
+  assert.deepEqual([...new Set(r.items.map((i) => i.section))], ['طباعة واستنساخ', 'صور', 'خدمات إلكترونية', 'قرطاسية', 'ملازم وكتب']);
+  assert.ok(r.items.length >= 18);
+  assert.equal(r.items.find((i) => i.name.startsWith('طباعة ملونة'))!.price, 1000);
+  const dir = fixture();
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'almamel-lib-'));
+  write(dir, 'lib.md', `---\nid: 77\ntype: business\ntitle: "مكتبة النور"\ncategory: "${LIBRARY_CATEGORY}"\ndate: ${today}\nphone: "07701234567"\naddress: "الشارع العام"\nmenu:\n  - "استنساخ | 250"\n---\nطباعة واستنساخ وخدمات إلكترونية\n`);
+  await buildStatic({ siteUrl: 'https://user.github.io/almamel', contentDir: dir, outDir: out, repo: 'user/almamel', quiet: true });
+  const page = fs.readFileSync(path.join(out, 'businesses', '77', 'index.html'), 'utf8');
+  assert.ok(page.includes('الخدمات والأسعار') && page.includes(LIBRARY_CATEGORY));
+});
+
 test('whatsapp-style menus become sections, prices and sizes, with a cart on the page', async () => {
   const { parseMenuText } = await import('../src/static/menu-text.ts');
   const r = parseMenuText(['🍽️ *منيو المطعم*', '📞 للطلب واتساب: 07700000000', '🍗 *الكنتاكي*', '• كنتاكي 3 قطع — 5,000', '🍕 *البيتزا*',

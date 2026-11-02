@@ -815,3 +815,12 @@ body.no-scroll{overflow:hidden}
 .invite-box{display:grid;gap:8px;margin-top:10px}
 .invite-box input{font:500 var(--t-sm) 'Inter',sans-serif;background:#fff}
 .invite-box .btn-row{margin:0}
+/* المكتبات: اختيار الخدمات */
+.kit-services[hidden],.kit-note[hidden]{display:none}
+.kit-group{margin:12px 0 6px;font-size:var(--t-sm);color:var(--ink-2)}
+.kit-grid{display:grid;grid-template-columns:1fr;gap:8px}
+@media (min-width:560px){.kit-grid{grid-template-columns:1fr 1fr}}
+.kit-item{display:flex;align-items:center;gap:10px;min-height:46px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);cursor:pointer;font-size:var(--t-sm);transition:border-color .2s,background .2s}
+.kit-item:has(input:checked){border-color:var(--gold);background:var(--gold-soft)}
+.kit-item input{margin:0}
+.kit-start .btn{margin-top:6px}

@@ -1,3 +1,4 @@
+import { itemsLabel } from '../category-kits.ts';
 import { html, paragraphs, raw, jsonScript, type SafeHtml } from '../../lib/html.ts';
 import { fmtDate, fmtNumber, fmtPrice } from '../../lib/format.ts';
 import { telLink, waLink } from '../../lib/arabic.ts';
@@ -376,7 +377,7 @@ function menuSection(x: DetailData, phone: string | null): SafeHtml {
     ? raw(` data-cart data-wa="${waLink(phone!)}" data-shop="${escAttr(x.post.title)}" data-shop-id="${x.post.id}"`) : raw('');
   const showHeads = sections.length > 1 || sections[0][0] !== (food ? 'الأصناف' : 'المنتجات');
   return html`<section class="menu-block" aria-labelledby="h-menu" data-menu${cartAttrs}>
-    <h2 id="h-menu">${food ? 'قائمة الطعام' : 'المنتجات والأسعار'} <span class="menu-total">${fmtNumber(x.items.length)} صنف</span></h2>
+    <h2 id="h-menu">${itemsLabel(x.post.category_name, food)} <span class="menu-total">${fmtNumber(x.items.length)} صنف</span></h2>
     <div class="menu-bar">
       ${x.items.length > 8 ? html`<label class="menu-search">${icon('search', 'i i-sm')}<span class="sr">ابحث في القائمة</span><input type="search" data-menu-search placeholder="ابحث في القائمة..." autocomplete="off"></label>` : ''}
       ${sections.length > 1 ? html`<nav class="menu-tabs" aria-label="أقسام القائمة" data-menu-tabs>${sections.map(([name], i) => html`<a href="#menu-${i}" data-tab="menu-${i}">${name}</a>`)}</nav>` : ''}

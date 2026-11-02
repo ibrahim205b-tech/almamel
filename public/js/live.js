@@ -197,6 +197,7 @@
   // ---------- تسجيل صاحب محل ----------
   async function initRegister() {
     var acc = $('[data-step=account]'), biz = $('[data-step=business]');
+    kitForm(biz);
     var s = await session();
     var toBusiness = function () { acc.hidden = true; biz.hidden = false; };
     if (s) toBusiness();
@@ -447,7 +448,7 @@
       var card = el('li', { class: 'panel owner-card' }, [head, el('p', { class: 'muted', text: b.category + '، ' + b.area })]);
       if (b.status_reason && b.status !== 'published') card.appendChild(el('p', { class: 'note', text: b.status_reason }));
       if (c && c.status === 'rejected' && c.note) card.appendChild(el('p', { class: 'note note-warn', text: c.note }));
-      var row = el('div', { class: 'btn-row' }, [el('a', { class: 'btn btn-primary', href: BASE + '/owner/menu/?b=' + b.id, text: /مطاعم|أفران/.test(b.category) ? 'قائمة الطعام' : 'المنتجات والأسعار' })]);
+      var row = el('div', { class: 'btn-row' }, [el('a', { class: 'btn btn-primary', href: BASE + '/owner/menu/?b=' + b.id, text: /مطاعم|أفران/.test(b.category) ? 'قائمة الطعام' : /مكتبات/.test(b.category) ? 'الخدمات والأسعار' : 'المنتجات والأسعار' })]);
       if (b.status === 'published') row.appendChild(el('a', { class: 'btn', href: BASE + PATHS.business + '/' + b.id + '/', text: 'عرض الصفحة' }));
       card.appendChild(row);
       if (owner && b.status === 'published') {
@@ -515,7 +516,7 @@
   async function initMenu() {
     var s = await requireLogin(); if (!s) return;
     var bid = Number(new URLSearchParams(location.search).get('b'));
-    var b = bid ? (await sb.from('posts').select('id, title, status, owner_id, author_id').eq('id', bid).maybeSingle()).data : null;
+    var b = bid ? (await sb.from('posts').select('id, title, status, owner_id, author_id, category').eq('id', bid).maybeSingle()).data : null;
     if (!b) { say('المحل غير موجود أو ما تملك صلاحية إدارته.', 'error'); return; }
     $('[data-biz-name]').textContent = b.title;
     var addForm = $('[data-add-item]');
@@ -531,7 +532,20 @@
         groups[sec].forEach(function (it) { ul.appendChild(itemRow(it)); });
         box.appendChild(el('section', { class: 'block' }, [el('h2', { text: sec }), ul]));
       });
-      if (!items.length) box.appendChild(el('p', { class: 'muted', text: 'القائمة فارغة. أضف أول صنف من فوق.' }));
+      var kit = $('[data-page=menu]').getAttribute('data-kits') ? JSON.parse($('[data-page=menu]').getAttribute('data-kits')).library : null;
+      var isLib = kit && b.category === kit.cat;
+      if (isLib) { $('h1').textContent = 'الخدمات والأسعار'; kit.groups.forEach(function (g) { if (!groups[g[0]]) dl.appendChild(el('option', { value: g[0] })); }); }
+      if (!items.length && isLib) {
+        var ready = parseMenu(kit.menu);
+        box.appendChild(el('div', { class: 'empty kit-start' }, [el('p', { class: 'empty-title', text: 'ابدأ بقائمة جاهزة للمكتبة' }),
+          el('p', { text: ready.length + ' خدمة جاهزة: طباعة واستنساخ، صور، خدمات إلكترونية، قرطاسية، ملازم. عدّل أسعارها بعدين.' }),
+          el('button', { class: 'btn btn-sign', type: 'button', text: 'أضف القائمة الجاهزة', onclick: async function (e) {
+            e.target.disabled = true;
+            var r = await sb.from('menu_items').insert(ready.map(function (it, k) { return { business_id: bid, section: it.section, name: it.name, price: it.price, note: it.note, sort: k }; }));
+            if (r.error) { e.target.disabled = false; return say(errText(r.error), 'error'); }
+            say('تمت إضافة ' + ready.length + ' خدمة ✅ عدّل الأسعار من كل خدمة.' + (ADMIN_SITE ? '' : ' تظهر بصفحتك بعد موافقة الإدارة.'), 'ok'); load();
+          } })]));
+      } else if (!items.length) box.appendChild(el('p', { class: 'muted', text: 'القائمة فارغة. أضف أول صنف من فوق.' }));
     }
     function itemRow(it) {
       var f = el('form', { class: 'form compact' }, [
@@ -921,6 +935,39 @@
 
   // ---------- موقع الإدارة: إضافة مطعم أو محل كاملاً ----------
   // نفس قواعد src/static/menu-text.ts: أقسام «*القسم*»، أصناف «• الاسم — السعر»، أحجام «الاسم: صغير 5,000 / وسط 7,000»، أو «الاسم | السعر».
+  // أصناف لها محتوى جاهز (المكتبات): مربعات اختيار للخدمات + قائمة أسعار يبدأ بيها
+  function kitForm(form) {
+    if (!form || !form.getAttribute('data-kits') || !form.elements.category) return;
+    var kit = JSON.parse(form.getAttribute('data-kits')).library;
+    var cat = form.elements.category, services = form.elements.services, menu = form.elements.menu;
+    var box = el('fieldset', { class: 'group kit-services' }, [el('legend', { text: 'الخدمات اللي تقدمها' }), el('p', { class: 'hint', text: 'اختار كل الخدمات المتوفرة بمكتبتك، وتظهر بصفحتك.' })]);
+    kit.groups.forEach(function (g, gi) {
+      var grid = el('div', { class: 'kit-grid' });
+      g[1].forEach(function (name, i) {
+        var id = 'kit-' + gi + '-' + i, cb = el('input', { type: 'checkbox', id: id, value: name });
+        cb.addEventListener('change', sync);
+        grid.appendChild(el('label', { class: 'kit-item', for: id }, [cb, el('span', { text: name })]));
+      });
+      box.appendChild(el('h4', { class: 'kit-group', text: g[0] })); box.appendChild(grid);
+    });
+    box.hidden = true;
+    cat.closest('.field').after(box);
+    var note = el('p', { class: 'note kit-note', text: 'حطينالك قائمة أسعار جاهزة للمكتبة. عدّل الأسعار حسب محلك، واحذف اللي ما تقدمه، وتكدر تضيف صور بعدين.' });
+    note.hidden = true; if (menu) menu.closest('.field').before(note);
+    function sync() {
+      var picked = Array.prototype.map.call(box.querySelectorAll('input:checked'), function (x) { return x.value; });
+      if (services) services.value = picked.length ? 'الخدمات: ' + picked.join('، ') : '';
+    }
+    cat.addEventListener('change', function () {
+      var on = cat.value === kit.cat;
+      box.hidden = !on; note.hidden = !on;
+      if (menu) {
+        if (on && !menu.value.trim()) menu.value = kit.menu;
+        else if (!on && menu.value === kit.menu) menu.value = '';
+      }
+    });
+  }
+
   function parseMenu(text) {
     var items = [], section = '';
     var clean = function (x) { return x.replace(/\*/g, '').replace(/^[^\p{L}\p{N}(]+/u, '').replace(/[^\p{L}\p{N})]+$/u, '').trim(); };
@@ -947,6 +994,7 @@
     var s = await requireLogin(); if (!s) return;
     var p = await profile(s.user.id);
     if (!p || p.role !== 'admin') { say('هذه الصفحة للإدارة فقط.', 'error'); $('[data-add-business]').hidden = true; return; }
+    kitForm($('[data-add-business]'));
     var form = $('[data-add-business]');
     form.addEventListener('submit', async function (e) {
       e.preventDefault(); delete form.dataset.submitting;
