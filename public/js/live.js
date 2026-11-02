@@ -284,7 +284,7 @@
       if (cur) { say('جارِ ربط حسابك بـ «' + shop.title + '»...', 'ok'); return acceptInvite(); }
       say('هذا رابط خاص بصفحة «' + shop.title + '». سوّي حسابك تحت (أو سجّل دخول إذا عندك حساب)، وينربط بمحلك تلقائياً.', 'ok');
       var det = $('[data-signup]') && $('[data-signup]').closest('details');
-      if (det) { det.open = true; det.querySelector('summary').textContent = 'سوّي حسابك لصفحة «' + shop.title + '»'; det.parentNode.insertBefore(det, form); }
+      if (det) { det.open = true; det.querySelector('summary').textContent = 'سوّي حسابك لصفحة «' + shop.title + '»'; var hint = det.querySelector('.hint'); if (hint) hint.hidden = true; det.parentNode.insertBefore(det, form); }
       var join = $('.owner-join'); if (join) join.hidden = true;
     })();
     form.addEventListener('submit', async function (e) {

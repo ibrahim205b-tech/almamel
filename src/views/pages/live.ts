@@ -122,7 +122,7 @@ export function ownerRegisterPage(cats: string[], areas: string[], publicUrl = '
 
 export function liveLoginPage(admin = false, kitchen = false, publicUrl = ''): SafeHtml {
   return html`<div class="wrap narrow" data-page="login">
-    <h1>${admin ? 'دخول الإدارة' : kitchen ? 'دخول المطعم' : 'دخول أصحاب المحلات'}</h1>
+    <h1>${admin ? 'دخول الإدارة' : kitchen ? 'دخول أصحاب المحلات' : 'دخول أصحاب المحلات'}</h1>
     ${admin ? '' : kitchen ? html`<p class="lede">لوحة صاحب المحل أو المطعم: أضف منتجاتك وأسعارك وصورك، عدّل معلومات محلك، واستلم الطلبات.</p>` : html`<p class="lede">لنشر إعلان عادي ما تحتاج حساب: <a href="/submit">أضف إعلانك</a>.</p>`}
     ${msg}${noJs}
     <form class="form" data-login novalidate>
