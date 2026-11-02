@@ -812,3 +812,6 @@ body.no-scroll{overflow:hidden}
 .pr-body{display:grid;gap:4px;min-width:0;flex:1}
 .pr-body .btn-row{margin:6px 0 0}
 @media (min-width:900px){.stats{grid-template-columns:repeat(5,1fr)}}
+.invite-box{display:grid;gap:8px;margin-top:10px}
+.invite-box input{font:500 var(--t-sm) 'Inter',sans-serif;background:#fff}
+.invite-box .btn-row{margin:0}

@@ -266,6 +266,27 @@
   // ---------- الدخول ----------
   function initLogin() {
     var form = $('[data-login]');
+    // رابط خاص لصاحب المحل (/mat3am/login/?invite=...): بعد الحساب أو الدخول ينربط بمحله تلقائياً
+    var INVITE = KITCHEN_SITE ? (new URLSearchParams(location.search).get('invite') || '').replace(/[^0-9a-f]/gi, '').slice(0, 40) : '';
+    async function acceptInvite() {
+      var r = await sb.rpc('accept_invite', { p_code: INVITE });
+      if (r.error) { say(errText(r.error), 'error'); return false; }
+      var row = (r.data || [])[0];
+      say('تم ربط حسابك بـ «' + (row ? row.title : 'محلك') + '» ✅ جارِ فتح صفحتك...', 'ok');
+      setTimeout(function () { go('/owner/dashboard/'); }, 900);
+      return true;
+    }
+    if (INVITE) (async function () {
+      var info = await sb.rpc('invite_info', { p_code: INVITE });
+      var shop = info.data && info.data[0];
+      if (!shop) return say('هذا الرابط انتهت صلاحيته أو استُخدم قبل. اطلب رابط جديد من إدارة دليل المعامل.', 'error');
+      var cur = await session();
+      if (cur) { say('جارِ ربط حسابك بـ «' + shop.title + '»...', 'ok'); return acceptInvite(); }
+      say('هذا رابط خاص بصفحة «' + shop.title + '». سوّي حسابك تحت (أو سجّل دخول إذا عندك حساب)، وينربط بمحلك تلقائياً.', 'ok');
+      var det = $('[data-signup]') && $('[data-signup]').closest('details');
+      if (det) { det.open = true; det.querySelector('summary').textContent = 'سوّي حسابك لصفحة «' + shop.title + '»'; det.parentNode.insertBefore(det, form); }
+      var join = $('.owner-join'); if (join) join.hidden = true;
+    })();
     form.addEventListener('submit', async function (e) {
       e.preventDefault(); delete form.dataset.submitting;
       busy(form, true);
@@ -275,6 +296,7 @@
       var p = await profile(r.data.user.id);
       var next = new URLSearchParams(location.search).get('next');
       if (ADMIN_SITE && !(p && p.role === 'admin')) { await sb.auth.signOut(); return say('هذا الحساب ليس حساب إدارة. شغّل make_admin لبريدك في Supabase أولاً.', 'error'); }
+      if (INVITE) return acceptInvite();
       go(next && /^\/[\w\-/?=&%.]*$/.test(next) ? next : KITCHEN_SITE ? '/owner/dashboard/' : p && p.role === 'admin' ? '/admin/' : '/owner/dashboard/');
     });
     var signup = $('[data-signup]');
@@ -289,6 +311,10 @@
       var r = await sb.auth.signUp({ email: f.su_email.value.trim(), password: f.su_password.value, options: { data: { name: f.su_name.value.trim(), phone: ph } } });
       busy(signup, false);
       if (r.error) return say(errText(r.error), 'error');
+      if (INVITE) {
+        if (r.data.session) return acceptInvite();
+        return say('تم إنشاء الحساب ✅ افتح بريدك واضغط رابط التفعيل، وبعدها ارجع لنفس هذا الرابط وسجّل دخول.', 'ok');
+      }
       await sb.auth.signOut();
       if (KITCHEN_SITE) {
         var w = waTo('سويت حساب لمطعمي بموقع الطلبات. البريد: ' + f.su_email.value.trim() + '\nاسم المطعم: ');
@@ -859,6 +885,21 @@
           x.verified ? el('span', { class: 'badge badge-ok', text: 'موثّق' }) : null,
           el('div', { class: 'btn-row' }, [
             x.type === 'business' ? el('a', { class: 'btn btn-sm btn-primary', href: BASE + '/admin/menu/?b=' + x.id, text: 'القائمة والأسعار' }) : null,
+            x.type === 'business' ? el('button', { class: 'btn btn-sm btn-sign', type: 'button', text: 'رابط خاص لصاحب المحل', onclick: async function () {
+              var r = await sb.rpc('create_invite', { p_business: x.id });
+              if (r.error) return say(errText(r.error), 'error');
+              var link = location.origin + BASE.replace(/\/idara$/, '') + '/mat3am/login/?invite=' + r.data;
+              var text = 'استاذ هذا الرابط الخاص بصفحة «' + x.title + '» بدليل المعامل، تكدر تضيف منتجاتك وأسعارك وصورك من خلاله:\n' + link + '\n\nافتح الرابط وسوّي حسابك ببريدك وكلمة مرور، وتنفتحلك صفحتك مباشرة.';
+              say('الرابط الخاص بـ «' + x.title + '» (صالح ٣٠ يوم، ولشخص واحد):', 'ok');
+              var box = $('[data-msg]');
+              box.appendChild(el('div', { class: 'invite-box' }, [el('input', { type: 'text', readonly: true, value: link, dir: 'ltr', 'aria-label': 'الرابط الخاص', onclick: function (e) { e.target.select(); } }),
+                el('div', { class: 'btn-row' }, [
+                  el('a', { class: 'btn btn-wa btn-sm', href: 'https://wa.me/?text=' + encodeURIComponent(text), target: '_blank', rel: 'noopener', text: 'أرسل بالواتساب' }),
+                  el('button', { class: 'btn btn-sm', type: 'button', text: 'نسخ الرسالة', onclick: function (e) {
+                    var b = e.target; (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () { b.textContent = 'تم النسخ ✓'; }, function () { b.textContent = 'انسخ الرابط من المربع'; });
+                  } })])]));
+              box.scrollIntoView({ block: 'nearest' });
+            } }) : null,
             x.type === 'business' ? el('button', { class: 'btn btn-sm', type: 'button', text: x.owner_id ? 'تغيير حساب المطعم' : 'ربط حساب المطعم', onclick: async function () {
               var email = prompt('بريد حساب صاحب المطعم (يسويه من موقع المطعم /mat3am):');
               if (!email || email.indexOf('@') < 1) return;

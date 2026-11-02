@@ -294,6 +294,32 @@ do $$ declare b posts; begin
   if b.status <> 'published' or b.body <> 'وصف جديد' or b.details->>'hours' <> 'من ١٠ الصبح' or b.details ? 'evil' or cardinality(b.images) <> 1 then raise exception 'owner edit wrong: %', row_to_json(b); end if;
 end $$;
 
+-- ===== رابط خاص لصاحب المحل =====
+insert into auth.users (id, email, raw_user_meta_data) values ('44444444-4444-4444-4444-444444444444', 'hamad@x.iq', '{"name":"حمد","phone":"07704444444"}');
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+select pg_temp.expect_error($q$select public.create_invite(public.t_id('مطعم أبو علي'))$q$, 'non-admin creates invite');
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+do $$ declare c text; c2 text; begin
+  c := public.create_invite(public.t_id('مطعم أبو علي'));
+  c2 := public.create_invite(public.t_id('مطعم أبو علي'));
+  if c <> c2 or length(c) < 12 then raise exception 'invite code not reused or too short'; end if;
+  perform set_config('test.invite', c, false);
+end $$;
+select pg_temp.as_user(null);
+do $$ begin if (select title from public.invite_info(current_setting('test.invite'))) <> 'مطعم أبو علي' then raise exception 'invite info wrong'; end if; end $$;
+do $$ begin if exists (select 1 from shop_invites) then raise exception 'anon reads invites'; end if; end $$;
+select pg_temp.expect_error($q$select * from public.accept_invite(current_setting('test.invite'))$q$, 'anon accepts invite');
+select pg_temp.as_user('44444444-4444-4444-4444-444444444444');
+select * from public.accept_invite(current_setting('test.invite'));
+select pg_temp.expect_error($q$select * from public.accept_invite(current_setting('test.invite'))$q$, 'invite used twice');
+reset role;
+do $$ begin
+  if (select owner_id from posts where id = public.t_id('مطعم أبو علي')) <> '44444444-4444-4444-4444-444444444444' then raise exception 'invite did not set owner'; end if;
+  if exists (select 1 from public.invite_info(current_setting('test.invite'))) then raise exception 'used invite still valid'; end if;
+end $$;
+-- نرجع المالك السابق حتى تكمل الاختبارات اللي بعدها
+update posts set owner_id = '22222222-2222-2222-2222-222222222222' where id = public.t_id('مطعم أبو علي');
+
 -- ===== النشر الفوري: المفتاح سري، وفشل طلب التحديث لا يمنع الموافقة =====
 reset role;
 insert into private.secrets (name, value) values ('github_token', 'test-token') on conflict (name) do update set value = excluded.value;

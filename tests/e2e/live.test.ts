@@ -61,6 +61,8 @@ function mock(req: http.IncomingMessage, res: http.ServerResponse, body: Buffer)
   if (p === '/rest/v1/rpc/place_order') return send(200, TOKEN);
   if (p === '/rest/v1/rpc/order_status') return send(200, [{ ...order, business_phone: '07705555555', title: 'مطعم المحاكاة' }]);
   if (p === '/rest/v1/rpc/kitchen_orders') return send(200, [{ ...order, title: 'مطعم المحاكاة', items: 2, customer_name: 'زبون', customer_phone: '07701234567', landmark: 'قرب الجامع', lat: 33.4, lng: 44.3, note: null }]);
+  if (p === '/rest/v1/rpc/create_invite') return send(200, 'abc123def4567890');
+  if (p === '/rest/v1/rpc/invite_info' || p === '/rest/v1/rpc/accept_invite') return send(200, json().p_code === 'abc123def4567890' ? [{ business_id: 1000001, title: 'مركز حمد فون' }] : []);
   if (p.startsWith('/rest/v1/rpc/')) return send(200, null);
   if (p === '/rest/v1/profiles') { const admin = u.searchParams.get('id') === 'eq.' + ADMIN; const prof = { name: admin ? 'المدير' : 'أبو علي', phone: '07701111111', role: admin ? 'admin' : 'owner' }; return send(200, one ? prof : [prof]); }
   if (p === '/rest/v1/menu_items' && req.method === 'GET' && u.searchParams.get('approved') === 'eq.false') {
@@ -328,6 +330,31 @@ test('admin approves a product an owner added with its photo', async () => {
   assert.equal(call.query.get('id'), 'eq.31');
   assert.deepEqual(JSON.parse(call.body.toString()), { approved: true });
   await p.context().close();
+});
+
+test('private link for a shop owner: admin sends it, owner signs up and is linked to the shop', async () => {
+  const a = await adminLogin(1280);
+  await a.waitForSelector('[data-published] button:has-text("رابط خاص لصاحب المحل")');
+  await a.locator('[data-published] button:has-text("رابط خاص لصاحب المحل")').first().click();
+  await a.waitForSelector('.invite-box input');
+  const link = await a.inputValue('.invite-box input');
+  assert.ok(link.endsWith('/mat3am/login/?invite=abc123def4567890'), link);
+  const wa = decodeURIComponent((await a.getAttribute('.invite-box a.btn-wa', 'href'))!);
+  assert.ok(wa.includes('استاذ هذا الرابط الخاص بصفحة') && wa.includes('?invite=abc123def4567890'));
+  await a.context().close();
+
+  const p = await open('/login/?invite=abc123def4567890', 390, '/almamel-mat3am');
+  await p.waitForSelector('.live-msg:has-text("مركز حمد فون")');
+  assert.ok(await p.locator('#f-su_name').isVisible(), 'sign-up form opened');
+  await p.fill('#f-su_name', 'حمد'); await p.fill('#f-su_phone', '07704444444'); await p.fill('#f-su_email', 'hamad@x.iq'); await p.fill('#f-su_password', 'hamad-pass-123');
+  await p.click('[data-signup] button[type=submit]');
+  await p.waitForURL(/\/almamel-mat3am\/owner\/dashboard\//);
+  assert.equal(JSON.parse(log.filter((r) => r.path === '/rest/v1/rpc/accept_invite').at(-1)!.body.toString()).p_code, 'abc123def4567890');
+  await p.context().close();
+
+  const old = await open('/login/?invite=000000000000', 390, '/almamel-mat3am');
+  await old.waitForSelector('.live-msg.flash-error:has-text("انتهت صلاحيته")');
+  await old.context().close();
 });
 
 test('visitor posts an ad with a photo directly from the site', async () => {
