@@ -304,12 +304,44 @@
       var r = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + BASE + '/login/' });
       say(r.error ? errText(r.error) : 'إذا البريد مسجل، راح توصلك رسالة لإعادة تعيين كلمة المرور.', r.error ? 'error' : 'ok');
     });
-    sb.auth.onAuthStateChange(function (ev) {
-      if (ev === 'PASSWORD_RECOVERY') {
-        var pw = prompt('اكتب كلمة المرور الجديدة (١٠ أحرف على الأقل):');
-        if (pw && pw.length >= 10) sb.auth.updateUser({ password: pw }).then(function (r) { say(r.error ? errText(r.error) : 'تم تغيير كلمة المرور.', r.error ? 'error' : 'ok'); });
-      }
-    });
+    // رابط «نسيت كلمة المرور» من الإيميل: نموذج واضح لكلمة المرور الجديدة
+    var hash = new URLSearchParams(location.hash.slice(1)), query = new URLSearchParams(location.search);
+    var linkError = hash.get('error_code') || hash.get('error') || query.get('error_code') || query.get('error');
+    if (linkError) {
+      say(/expired|invalid|otp/i.test(linkError + ' ' + (hash.get('error_description') || query.get('error_description') || ''))
+        ? 'رابط إعادة التعيين انتهت صلاحيته أو استُخدم قبل. اكتب بريدك واضغط «نسيت كلمة المرور؟» مرة ثانية، وافتح أحدث رسالة بس.'
+        : 'تعذّر فتح رابط إعادة التعيين. اطلب رابط جديد من «نسيت كلمة المرور؟».', 'error');
+      window.history.replaceState(null, '', location.pathname);
+    }
+    var shown = false;
+    function recoveryForm() {
+      if (shown) return; shown = true;
+      form.hidden = true; $$('[data-reset], [data-signup]').forEach(function (x) { (x.closest('p, details') || x).hidden = true; });
+      var rf = el('form', { class: 'form', novalidate: true }, [
+        el('h2', { text: 'كلمة مرور جديدة' }),
+        el('div', { class: 'field' }, [el('label', { for: 'f-new-pw', text: 'كلمة المرور الجديدة' }), el('input', { id: 'f-new-pw', type: 'password', minlength: 10, autocomplete: 'new-password', required: true }), el('span', { class: 'hint', text: '١٠ أحرف على الأقل' })]),
+        el('div', { class: 'field' }, [el('label', { for: 'f-new-pw2', text: 'أعد كتابتها' }), el('input', { id: 'f-new-pw2', type: 'password', autocomplete: 'new-password', required: true })]),
+        el('button', { class: 'btn btn-primary btn-block', type: 'submit', text: 'حفظ كلمة المرور' })]);
+      form.parentNode.insertBefore(rf, form);
+      rf.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var a = rf.querySelector('#f-new-pw').value, b2 = rf.querySelector('#f-new-pw2').value;
+        if (a.length < 10) return say('كلمة المرور ١٠ أحرف على الأقل.', 'error');
+        if (a !== b2) return say('كلمتا المرور غير متطابقتين.', 'error');
+        busy(rf, true);
+        var r = await sb.auth.updateUser({ password: a });
+        busy(rf, false);
+        if (r.error) return say(errText(r.error), 'error');
+        window.history.replaceState(null, '', location.pathname);
+        say('تم تغيير كلمة المرور ✅ جارِ الدخول...', 'ok');
+        var p2 = await profile(r.data.user.id);
+        setTimeout(function () { go(KITCHEN_SITE ? '/kitchen/' : p2 && p2.role === 'admin' ? '/admin/' : '/owner/dashboard/'); }, 900);
+      });
+      rf.querySelector('#f-new-pw').focus();
+    }
+    sb.auth.onAuthStateChange(function (ev) { if (ev === 'PASSWORD_RECOVERY') recoveryForm(); });
+    // إذا وصل الحدث قبل ما نسجّل المستمع: نتعرف على الرابط من العنوان نفسه
+    if (hash.get('type') === 'recovery' || query.get('type') === 'recovery') sb.auth.getSession().then(function (r) { if (r.data.session) recoveryForm(); });
   }
 
   // ---------- لوحة التحكم ----------

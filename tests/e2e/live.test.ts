@@ -239,6 +239,21 @@ test('no page is wider than the screen (RTL pages must not scroll sideways)', as
   }
 });
 
+test('password reset link: expired link explains itself, valid link shows a new-password form', async () => {
+  const bad = await open('/login/#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired', 390, '/almamel-admin');
+  await bad.waitForSelector('.live-msg.flash-error:has-text("انتهت صلاحيته")');
+  await bad.context().close();
+  const p = await open(`/login/#access_token=tok-${ADMIN}&expires_in=3600&expires_at=${Math.floor(Date.now() / 1000) + 3600}&refresh_token=r-x&token_type=bearer&type=recovery`, 390, '/almamel-admin');
+  await p.waitForSelector('#f-new-pw');
+  assert.ok(await p.locator('[data-login]').isHidden(), 'login form hidden while resetting');
+  await p.fill('#f-new-pw', 'new-pass-12345'); await p.fill('#f-new-pw2', 'new-pass-12345');
+  await p.click('button:has-text("حفظ كلمة المرور")');
+  await p.waitForURL(/\/almamel-admin\/admin\//);
+  const put = log.filter((r) => r.path === '/auth/v1/user' && r.method === 'PUT').at(-1);
+  assert.ok(put && JSON.parse(put.body.toString()).password === 'new-pass-12345');
+  await p.context().close();
+});
+
 test('visitor posts an ad with a photo directly from the site', async () => {
   const p = await open('/submit/job/');
   await p.waitForFunction(() => (document.querySelector('select[name=category]') as HTMLSelectElement).options.length > 1);

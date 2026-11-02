@@ -64,6 +64,7 @@ ul,ol{padding-inline-start:1.25em}
 b,strong{font-weight:600}
 ::selection{background:var(--gold-soft);color:var(--navy)}
 :focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:6px}
+[hidden]{display:none!important} /* العنصر المخفي يبقى مخفي حتى لو صنفه يحدد display */
 [dir=ltr]{unicode-bidi:isolate}
 .sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .skip{position:absolute;inset-inline-start:8px;top:-60px;z-index:100;background:var(--navy);color:#fff;padding:10px 16px;border-radius:var(--r-sm)}
