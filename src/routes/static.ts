@@ -5,7 +5,7 @@ import { fmtPrice } from '../lib/format.ts';
 import { TYPES, TYPE_KEYS, isPostType, type PostType } from '../domain/types.ts';
 import { listPublic } from '../domain/posts.ts';
 import { sectionEnabled } from '../domain/settings.ts';
-import { staticSearchPage } from '../views/pages/public.ts';
+import { livePostPage, staticSearchPage } from '../views/pages/public.ts';
 import { checkbox, field, select, textarea, postUrl } from '../views/components.ts';
 import { icon } from '../views/layout.ts';
 import { adminBusinessPage, adminLivePage, dashboardPage, liveHead, pricingNote, liveLoginPage, liveSubmitPage, menuManagerPage, kitchenPage, orderStatusPage, notConfiguredPage, ownerLandingPage, ownerRegisterPage } from '../views/pages/live.ts';
@@ -82,6 +82,7 @@ export async function staticRoutes(app: FastifyInstance) {
     app.get('/kitchen', (req, reply) => reply.page(req, { title: 'طلبات المطعم', noindex: true, canonical: null, head: html`${head(req)}<link rel="manifest" href="/manifest.webmanifest">` }, kitchenPage()));
     // صفحة متابعة الطلب للزبون (الموقع العام)
     app.get('/order', (req, reply) => reply.page(req, { title: 'حالة طلبك', noindex: true, canonical: null }, orderStatusPage()));
+    app.get('/p', (req, reply) => reply.page(req, { title: 'إعلان جديد', noindex: true, canonical: null }, livePostPage(typeLabelsJson())));
     app.get('/owner/dashboard', (req, reply) => reply.page(req, { title: 'لوحة التحكم', noindex: true, canonical: null, head: head(req) }, dashboardPage()));
     app.get('/owner/menu', (req, reply) => reply.page(req, { title: 'القائمة والأسعار', noindex: true, canonical: null, head: head() }, menuManagerPage(app.cfg.kitchenSite ? '/kitchen' : '/owner/dashboard')));
     app.get('/admin', (req, reply) => reply.page(req, { title: 'لوحة الإدارة', noindex: true, canonical: null, head: head() }, adminLivePage()));

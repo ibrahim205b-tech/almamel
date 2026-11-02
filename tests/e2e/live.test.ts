@@ -51,7 +51,12 @@ function mock(req: http.IncomingMessage, res: http.ServerResponse, body: Buffer)
   if (p === '/auth/v1/user') return send(200, session(auth.includes(ADMIN) ? ADMIN : UID, 'x@x.iq').user);
   if (p.startsWith('/storage/v1/object/public/media/')) { res.writeHead(200, { 'Content-Type': 'image/webp' }); return res.end(png); }
   if (p.startsWith('/storage/v1/object/')) return send(200, { Key: p.replace('/storage/v1/object/', '') });
-  if (p === '/rest/v1/public_posts') return send(200, published);
+  if (p === '/rest/v1/public_posts') {
+    const eq = (k: string) => u.searchParams.get(k);
+    const rows = published.filter((r) => (!eq('type') || (eq('type')!.startsWith('eq.') ? r.type === eq('type')!.slice(3) : r.type !== eq('type')!.slice(4)))
+      && (!eq('id') || String(r.id) === eq('id')!.slice(3)));
+    return send(200, rows);
+  }
   if (p === '/rest/v1/rpc/site_stamp') return send(200, 'stamp-1');
   if (p === '/rest/v1/rpc/place_order') return send(200, TOKEN);
   if (p === '/rest/v1/rpc/order_status') return send(200, [{ ...order, business_phone: '07705555555', title: 'مطعم المحاكاة' }]);
@@ -252,6 +257,20 @@ test('password reset link: expired link explains itself, valid link shows a new-
   const put = log.filter((r) => r.path === '/auth/v1/user' && r.method === 'PUT').at(-1);
   assert.ok(put && JSON.parse(put.body.toString()).password === 'new-pass-12345');
   await p.context().close();
+});
+
+test('a listing approved after the last build shows up at once on its section and its own page', async () => {
+  // 1000002 منشور بقاعدة البيانات لكن ما دخل نسخة الموقع (تصنيفه غير معروف وقت البناء)
+  const page = await open('/jobs/');
+  await page.waitForSelector('[data-live-list] .row-link:has-text("وظيفة بتصنيف خاطئ")');
+  assert.equal(await page.getAttribute('[data-live-list] .row-link', 'href'), '/almamel/p/?id=1000002');
+  assert.equal(await page.locator('[data-live-list] .row-link:has-text("مطعم المحاكاة")').count(), 0, 'only this section');
+  await page.click('[data-live-list] .row-link');
+  await page.waitForSelector('[data-post-box] h1:has-text("وظيفة بتصنيف خاطئ")');
+  assert.ok((await page.textContent('[data-post-box] .facts'))!.includes('الوظائف'));
+  const home = await open('/');
+  await home.waitForSelector('[data-live-latest] .row-link:has-text("وظيفة بتصنيف خاطئ")');
+  await page.context().close(); await home.context().close();
 });
 
 test('visitor posts an ad with a photo directly from the site', async () => {

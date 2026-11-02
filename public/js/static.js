@@ -692,4 +692,95 @@
     if (!token || !/^[0-9a-f-]{36}$/i.test(token)) { box.textContent = ''; box.appendChild(el('p', 'muted', 'ما عندك طلب حالي.')); }
     else { poll(); timer = window.setInterval(poll, 5000); }
   }
+
+  // ---------- الإعلانات الجديدة مباشرة من قاعدة البيانات ----------
+  // نسخة الموقع تتحدث كل فترة؛ الإعلان اللي توافق عليه الإدارة يطلع هنا فوراً لحد ما تتحدث.
+  var SB = document.querySelector('meta[name="order-log"]');
+  var sbGet = function (q) {
+    var k = SB.getAttribute('data-key');
+    return window.fetch(SB.content + '/rest/v1/' + q, { headers: { apikey: k, Authorization: 'Bearer ' + k } }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+  };
+  var IMG = /^(u|guest)\/[0-9a-f-]*\/?[0-9a-f]{32}\.webp$/;
+  var imgUrl = function (p) { return IMG.test(p || '') ? SB.content + '/storage/v1/object/public/media/' + p : ''; };
+  var price = function (n) { return n == null ? '' : Number(n).toLocaleString('en-US') + ' د.ع'; };
+  var ago = function (iso) { var m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); return m < 60 ? 'قبل ' + Math.max(1, m) + ' دقيقة' : m < 1440 ? 'قبل ' + Math.round(m / 60) + ' ساعة' : 'قبل ' + Math.round(m / 1440) + ' يوم'; };
+  var shownIds = function () { var ids = {}; Array.prototype.forEach.call(document.querySelectorAll('a[href]'), function (a) { var m = a.getAttribute('href').match(/\/(\d{5,})\/?(?:[?#]|$)/); if (m) ids[m[1]] = true; }); return ids; };
+  var FIELDS = 'id,type,title,category,area,price,images,logo,published_at,verified';
+  var liveRow = function (p, types) {
+    var t = types[p.type] || { s: '', i: 'tag' };
+    var li = el('li', 'row'), a = el('a', 'row-link'); a.href = BASE + '/p/?id=' + p.id;
+    var th = el('span', 'row-thumb'), src = imgUrl(p.logo || (p.images || [])[0]);
+    if (src) { var im = el('img'); im.src = src; im.alt = ''; im.width = 96; im.height = 72; im.loading = 'lazy'; th.appendChild(im); } else th.appendChild(iconEl(t.i, 'i i-thumb'));
+    var b = el('span', 'row-body'); b.appendChild(el('span', 'row-title', p.title));
+    b.appendChild(el('span', 'row-meta', t.s + (p.category ? ' / ' + p.category : '')));
+    var meta = el('span', 'row-meta'); meta.appendChild(iconEl('pin', 'i i-xs')); meta.appendChild(document.createTextNode((p.area || '') + ' / ' + ago(p.published_at))); b.appendChild(meta);
+    if (p.price != null) b.appendChild(el('span', 'row-price', price(p.price)));
+    a.appendChild(th); a.appendChild(b); a.appendChild(el('span', 'ribbon ribbon-new', 'جديد')); li.appendChild(a); return li;
+  };
+  var since = new Date(Date.now() - 14 * 864e5).toISOString();
+  if (SB) {
+    // صفحة قسم
+    var liveList = document.querySelector('[data-live-list]');
+    if (liveList) {
+      var types1 = JSON.parse(liveList.getAttribute('data-types'));
+      sbGet('public_posts?select=' + FIELDS + '&type=eq.' + liveList.getAttribute('data-live-list') + '&published_at=gte.' + since + '&order=published_at.desc&limit=30').then(function (rows) {
+        var have = shownIds(), fresh = rows.filter(function (p) { return !have[p.id]; });
+        if (!fresh.length) return;
+        var ul = liveList.querySelector('ul'); fresh.forEach(function (p) { ul.appendChild(liveRow(p, types1)); });
+        liveList.hidden = false;
+        var empty = liveList.parentNode.querySelector(':scope > .empty'); if (empty) empty.hidden = true;
+      }).catch(function () { /* تبقى الصفحة كما هي */ });
+    }
+    // الصفحة الرئيسية: أحدث الإعلانات
+    var latest = document.querySelector('[data-live-latest]');
+    if (latest) {
+      var types2 = JSON.parse(latest.getAttribute('data-types'));
+      sbGet('public_posts?select=' + FIELDS + '&type=neq.business&published_at=gte.' + since + '&order=published_at.desc&limit=12').then(function (rows) {
+        var have = shownIds(), fresh = rows.filter(function (p) { return !have[p.id]; }).slice(0, 6);
+        if (!fresh.length) return;
+        var ul = latest.querySelector('ul.rows');
+        if (!ul) { ul = el('ul', 'rows'); var emp = latest.querySelector('.empty'); if (emp) emp.replaceWith(ul); else latest.querySelector('section').appendChild(ul); }
+        fresh.reverse().forEach(function (p) { ul.insertBefore(liveRow(p, types2), ul.firstChild); });
+      }).catch(function () { /* لا شيء */ });
+    }
+    // صفحة إعلان جديد (/p/?id=)
+    var lp = document.querySelector('[data-live-post]');
+    if (lp) {
+      var box2 = lp.querySelector('[data-post-box]'), types3 = JSON.parse(lp.getAttribute('data-types')), fieldLabels = JSON.parse(lp.getAttribute('data-labels'));
+      var pid = (new URLSearchParams(location.search).get('id') || '').replace(/\D/g, '');
+      var gone = function () { box2.textContent = ''; var e = el('div', 'empty'); e.appendChild(el('p', 'empty-title', 'الإعلان غير موجود')); e.appendChild(el('p', '', 'ممكن انتهت مدته أو انحذف.')); box2.appendChild(e); };
+      if (!pid) gone();
+      else sbGet('public_posts?select=*&id=eq.' + pid).then(function (rows) {
+        var p = rows[0]; if (!p) return gone();
+        var t = types3[p.type] || { p: '', l: '', s: '' };
+        // إذا صفحته الدائمة صارت جاهزة، نروح لها
+        window.fetch(BASE + t.p + '/' + p.id + '/', { method: 'HEAD' }).then(function (r) { if (r.ok) location.replace(BASE + t.p + '/' + p.id + '/'); }).catch(function () {});
+        document.title = p.title + ' | ' + document.title.split(' | ').pop();
+        var crumb = lp.querySelector('[data-crumb]'); crumb.textContent = p.title;
+        var sec = el('a'); sec.href = BASE + t.p + '/'; sec.textContent = t.l; crumb.parentNode.insertBefore(sec, crumb); crumb.parentNode.insertBefore(el('span', '', '/'), crumb);
+        box2.textContent = '';
+        var art = el('article'), head = el('header', 'detail-head'); head.appendChild(el('h1', '', p.title));
+        var badges = el('div', 'badges'); badges.appendChild(el('span', 'badge', t.s)); if (p.verified) badges.appendChild(el('span', 'badge badge-ok', 'موثّق')); head.appendChild(badges); art.appendChild(head);
+        var grid = el('div', 'detail-grid'), main2 = el('div', 'detail-main'), side = el('aside', 'detail-side'); side.setAttribute('aria-label', 'معلومات وتواصل');
+        var imgs = (p.images || []).map(imgUrl).filter(Boolean);
+        if (imgs.length) {
+          var g = el('div', 'gallery gallery-n' + Math.min(imgs.length, 3));
+          imgs.forEach(function (u, k) { var a = el('a', k ? '' : 'g-main'); a.href = u; var im = el('img'); im.src = u; im.alt = 'صورة ' + (k + 1) + ' لـ ' + p.title; im.loading = k ? 'lazy' : 'eager'; a.appendChild(im); g.appendChild(a); });
+          main2.appendChild(g);
+        }
+        if (p.body) { var sct = el('section'); sct.appendChild(el('h2', '', 'التفاصيل')); var pr = el('div', 'prose'); String(p.body).split(/\n\s*\n/).forEach(function (para) { pr.appendChild(el('p', '', para)); }); sct.appendChild(pr); main2.appendChild(sct); }
+        if (p.contact_phone) {
+          var cr = el('div', 'contact-row'), call = el('a', 'btn btn-primary btn-lg'); call.href = 'tel:' + p.contact_phone; call.appendChild(iconEl('phone', 'i')); call.appendChild(document.createTextNode(' اتصال ' + p.contact_phone)); cr.appendChild(call);
+          if (p.whatsapp) { var wa = el('a', 'btn btn-wa btn-lg'); wa.href = 'https://wa.me/964' + p.contact_phone.replace(/^0/, ''); wa.target = '_blank'; wa.rel = 'noopener'; wa.appendChild(iconEl('whatsapp', 'i')); wa.appendChild(document.createTextNode(' واتساب')); cr.appendChild(wa); }
+          side.appendChild(cr);
+        }
+        var dl = el('dl', 'facts'), fact = function (k, v) { if (v === '' || v == null) return; var d = el('div'); d.appendChild(el('dt', '', k)); d.appendChild(el('dd', '', String(v))); dl.appendChild(d); };
+        fact('القسم', t.l); fact('التصنيف', p.category); fact('المنطقة', p.area); if (p.price != null) fact('السعر', price(p.price));
+        var lab = fieldLabels[p.type] || {}; Object.keys(p.details || {}).forEach(function (k) { var L = lab[k]; if (!L) return; var v = p.details[k]; if (L.c) v = v ? 'نعم' : ''; else if (L.o && L.o[v]) v = L.o[v]; fact(L.l, v); });
+        fact('تاريخ النشر', new Date(p.published_at).toLocaleDateString('ar-IQ'));
+        side.appendChild(dl);
+        grid.appendChild(main2); grid.appendChild(side); art.appendChild(grid); box2.appendChild(art);
+      }).catch(function () { box2.textContent = ''; box2.appendChild(el('p', 'muted', 'تعذّر تحميل الإعلان. حدّث الصفحة.')); });
+    }
+  }
 })();

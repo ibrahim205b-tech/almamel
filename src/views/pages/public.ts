@@ -100,7 +100,7 @@ export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml 
 
     <div class="columns">
       ${d.news.length ? block('آخر أخبار المعامل', '/news', d.news, '') : ''}
-      ${block('أحدث الإعلانات', '/search', d.latest, 'أول ما توافق الإدارة على إعلانات جديدة راح تظهر هنا.')}
+      <div data-live-latest data-types="${typesJson()}">${block('أحدث الإعلانات', '/search', d.latest, 'أول ما توافق الإدارة على إعلانات جديدة راح تظهر هنا.')}</div>
       ${block('عروض المحلات', '/offers', d.offers, 'ما كو عروض حالياً. أصحاب المحلات يگدرون ينشرون عروضهم من صفحة محلهم.')}
       ${block('فرص العمل', '/jobs', d.jobs, 'ما كو وظائف منشورة حالياً.', 'job')}
       ${block('الخدمات والمهن', '/services', d.services, 'ما كو أصحاب مهن مسجلين بعد.', 'service')}
@@ -172,10 +172,23 @@ export function listPage(d: ListPageData): SafeHtml {
     </details>`}
     ${d.featured.length && d.result.page === 1 && !hasFilters ? html`<section class="block" aria-label="إعلانات مميزة">${rowList(d.featured, html``)}</section>` : ''}
     <p class="result-count" role="status">${d.result.total ? `${fmtNumber(d.result.total)} نتيجة` : ''}</p>
+    ${d.staticMode && d.type && d.type !== 'business' ? html`<div data-live-list="${d.type}" data-types="${typesJson()}" hidden><ul class="rows"></ul></div>` : ''}
     ${rowList(d.result.items, hasFilters
       ? emptyState('ما لگينا نتائج', 'جرّب تغيير التصفية أو كلمة البحث.', { href: d.path, label: 'مسح التصفية' })
       : emptyState('القسم فارغ حالياً', 'ما كو منشورات معتمدة بهذا القسم بعد.', d.canSubmit && d.submitType ? { href: d.submitHref ?? `/submit/${d.submitType}`, label: 'أضف أول منشور' } : undefined))}
     ${d.staticMode ? '' : pagination(d.result.page, d.result.pages, q, d.path)}
+  </div>`;
+}
+
+/** بيانات الأقسام للمتصفح: المسار والاسم والأيقونة (للإعلانات الجديدة اللي تنجلب مباشرة). */
+export const typesJson = (): string => JSON.stringify(Object.fromEntries(TYPE_KEYS.map((t) => [t, { p: TYPES[t].path, l: TYPES[t].label, s: TYPES[t].single, i: TYPES[t].icon }])));
+
+/** صفحة إعلان جديد اعتمدته الإدارة قبل ما تتحدث نسخة الموقع: تنجلب تفاصيله مباشرة. */
+export function livePostPage(labels: string): SafeHtml {
+  return html`<div class="wrap detail" data-live-post data-types="${typesJson()}" data-labels="${labels}">
+    <nav class="crumbs" aria-label="مسار التنقل"><a href="/">الرئيسية</a><span aria-hidden="true">/</span><span aria-current="page" data-crumb>إعلان جديد</span></nav>
+    <div data-post-box><div class="skeleton" aria-label="جارِ التحميل"><span class="sk sk-sm"></span><span class="sk"></span><span class="sk"></span></div></div>
+    <noscript><p class="note">هذه الصفحة تحتاج JavaScript.</p></noscript>
   </div>`;
 }
 

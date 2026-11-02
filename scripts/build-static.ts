@@ -56,7 +56,7 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
       ...TYPE_KEYS.map((t) => TYPES[t].path),
       ...TYPE_KEYS.filter((t) => t !== 'business' && sectionEnabled(settings, t)).map((t) => `/submit/${t}`),
       ...Object.keys(POLICIES).map((k) => `/policies/${k}`),
-      ...(opts.supabase ? ['/order'] : []),
+      ...(opts.supabase ? ['/order', '/p'] : []),
       ...listPublic(db, { types: [...TYPE_KEYS], perPage: 1000 }).items.map(postUrl)];
 
     // الصفحات تُنشر كمجلدات (about/index.html)، فالرابط الأساسي ينتهي بـ / حتى لا يمر كوكل بتحويل
@@ -109,7 +109,7 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
     write('search.json', (await app.inject({ method: 'GET', url: '/search.json' })).body.replace(/"u":"\/([^"]*?)\/?"/g, '"u":"/$1/"').replace(/"\/(?!\/)/g, `"${base}/`));
     write('sitemap.xml', (await app.inject({ method: 'GET', url: '/sitemap.xml' })).body.replace(/<loc>([^<]+)<\/loc>/g, (_m, u: string) => `<loc>${slash(u)}</loc>`));
     write('manifest.webmanifest', (await app.inject({ method: 'GET', url: '/manifest.webmanifest' })).body.replace(/"\/(?!\/)/g, `"${base}/`));
-    write('robots.txt', `User-agent: *\nDisallow: ${base}/publish/\nDisallow: ${base}/idara/\nDisallow: ${base}/tasjeel/\nDisallow: ${base}/mat3am/\nDisallow: ${base}/order/\n${opts.noindex ? '' : `Sitemap: ${siteUrl}/sitemap.xml\n`}`);
+    write('robots.txt', `User-agent: *\nDisallow: ${base}/publish/\nDisallow: ${base}/idara/\nDisallow: ${base}/tasjeel/\nDisallow: ${base}/mat3am/\nDisallow: ${base}/order/\nDisallow: ${base}/p/\n${opts.noindex ? '' : `Sitemap: ${siteUrl}/sitemap.xml\n`}`);
     write('.nojekyll', '');
     write('build-stamp.txt', stamp);
     // ربط تطبيقي أندرويد بالموقع (Trusted Web Activity): التطبيق يفتح الموقع بلا شريط متصفح

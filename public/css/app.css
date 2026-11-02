@@ -781,3 +781,4 @@ body.no-scroll{overflow:hidden}
   .sk{animation:none}
 }
 .data-table td .bar{margin-top:7px}
+.ribbon-new{background:var(--blue);color:#fff;box-shadow:0 4px 12px -6px rgb(49 91 219 / .9)}
