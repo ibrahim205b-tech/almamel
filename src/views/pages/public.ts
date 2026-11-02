@@ -5,8 +5,8 @@ import { telLink, waLink } from '../../lib/arabic.ts';
 import { TYPES, TYPE_KEYS, type PostType, type User } from '../../domain/types.ts';
 import { parseDetails, type ImageRow, type ItemRow, type ListItem } from '../../domain/posts.ts';
 import { REPORT_REASONS } from '../../domain/engagement.ts';
-import { OWNERSHIP_STATEMENT, sectionEnabled, type Settings } from '../../domain/settings.ts';
-import { icon, sectionTitle } from '../layout.ts';
+import { OWNERSHIP_STATEMENT, type Settings } from '../../domain/settings.ts';
+import { SECTION_LINKS, icon, sectionTitle } from '../layout.ts';
 import { EMPLOYMENT, OPEN_STATE, emptyState, mediaUrl, pagination, postUrl, rowList, select, stars, statusBadge } from '../components.ts';
 
 type Opt = [string | number, string][];
@@ -15,11 +15,11 @@ export function searchBox(q = '', type = '', big = false): SafeHtml {
   return html`<form class="search${big ? ' search-big' : ''}" role="search" method="get" action="/search">
     <label class="sr" for="q${big ? '-hero' : ''}">ابحث في الدليل</label>
     <input id="q${big ? '-hero' : ''}" name="q" type="search" value="${q}" placeholder="اسم محل، خدمة، وظيفة، أو منطقة" maxlength="80" autocomplete="off" enterkeyhint="search">
-    <label class="sr" for="type${big ? '-hero' : ''}">القسم</label>
-    <select id="type${big ? '-hero' : ''}" name="type">
+    ${big ? '' : html`<label class="sr" for="type">القسم</label>
+    <select id="type" name="type">
       <option value="">كل الأقسام</option>
       ${TYPE_KEYS.map((t) => html`<option value="${t}" ${t === type ? raw('selected') : ''}>${TYPES[t].label}</option>`)}
-    </select>
+    </select>`}
     <button class="btn btn-primary" type="submit">${icon('search')}<span>ابحث</span></button>
   </form>`;
 }
@@ -31,11 +31,6 @@ export interface HomeData {
   /** رابط «أضف مطعمك»: نموذج التسجيل المباشر إذا كان متاحاً، وإلا واتساب الإدارة. */
   addShop: string;
 }
-
-const quickLinks: [string, string, string][] = [
-  ['/businesses', 'المحلات', 'store'], ['/restaurants', 'المطاعم', 'utensils'], ['/jobs', 'وظائف', 'briefcase'],
-  ['/services', 'خدمات', 'wrench'], ['/properties', 'عقارات', 'building'], ['/market', 'بيع وشراء', 'tag'],
-];
 
 /** المطاعم في مربعات كبيرة أعلى الصفحة الرئيسية: المميّزة (المدفوعة) أولاً، ثم الأحدث. */
 function foodShowcase(items: ListItem[], addShop: string): SafeHtml {
@@ -60,10 +55,7 @@ function foodShowcase(items: ListItem[], addShop: string): SafeHtml {
 }
 
 export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml {
-  const block = (title: string, href: string, items: ListItem[], emptyText: string, type?: PostType) => html`<section class="block" aria-labelledby="h-${href.slice(1)}">
-    ${sectionTitle(title, href, 'عرض الكل', `h-${href.slice(1)}`)}
-    ${rowList(items, emptyState('ما كو إعلانات هنا بعد', emptyText, type && sectionEnabled(s, type) ? { href: `/submit/${type}`, label: 'أضف أول إعلان' } : undefined))}
-  </section>`;
+  const count = (href: string) => href === '/restaurants' ? d.counts.food : href === '/news' ? d.news.length : d.counts[TYPE_KEYS.find((t) => TYPES[t].path === href) ?? ''];
   return html`
   <section class="hero">
     <div class="hero-bg" aria-hidden="true"><span class="hero-grid"></span><span class="orb orb-1"></span><span class="orb orb-2"></span></div>
@@ -72,69 +64,41 @@ export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml 
       <h1 class="hero-title">شنو تحتاج <span class="accent">بالمعامل؟</span></h1>
       <p class="hero-sub">${s.tagline}</p>
       ${searchBox('', '', true)}
-      <ul class="quick" aria-label="وصول سريع">${quickLinks.map(([h, l, i]) => html`<li><a href="${h}">${icon(i)}${l}</a></li>`)}</ul>
       <dl class="hero-stats">
         <div><dt>مطعم ومحل أكل</dt><dd data-count-up>${fmtNumber(d.counts.food ?? 0)}</dd></div>
         <div><dt>إعلان منشور</dt><dd data-count-up>${fmtNumber(TYPE_KEYS.reduce((n, t) => n + (d.counts[t] ?? 0), 0))}</dd></div>
-        <div><dt>قسم في الدليل</dt><dd data-count-up>${fmtNumber(TYPE_KEYS.length + 1)}</dd></div>
+        <div><dt>قسم في الدليل</dt><dd data-count-up>${fmtNumber(SECTION_LINKS.length)}</dd></div>
       </dl>
     </div>
   </section>
 
   <div class="wrap home">
+    <nav class="cats" aria-labelledby="h-cats">
+      <h2 id="h-cats" class="sr">تصفح الأقسام</h2>
+      <ul>${SECTION_LINKS.filter((l) => l.href !== '/news' && l.href !== '/community').map((l) => html`<li><a href="${l.href}"><span class="cat-ico">${icon(l.icon)}</span><span class="cat-name">${l.short}</span>${count(l.href) ? html`<span class="cat-n">${fmtNumber(count(l.href))}</span>` : ''}</a></li>`)}</ul>
+    </nav>
+
     ${foodShowcase(d.food, d.addShop)}
 
-    <section class="block band" aria-labelledby="h-sections">
-      <div class="section-head"><h2 id="h-sections">الأقسام</h2></div>
-      <ul class="tiles">
-        ${TYPE_KEYS.map((t) => html`<li><a class="tile" href="${TYPES[t].path}">
-          <span class="tile-icon">${icon(TYPES[t].icon)}</span>
-          <span class="tile-text"><span class="tile-label">${TYPES[t].label}</span><span class="tile-blurb">${TYPES[t].blurb}</span></span>
-          <span class="tile-count" aria-label="${d.counts[t] ?? 0} منشور">${fmtNumber(d.counts[t] ?? 0)}</span></a></li>`)}
-        <li><a class="tile" href="/restaurants"><span class="tile-icon">${icon('utensils')}</span>
-          <span class="tile-text"><span class="tile-label">المطاعم والتوصيل</span><span class="tile-blurb">قوائم الطعام والأسعار وأرقام الطلب</span></span>
-          <span class="tile-count">${fmtNumber(d.counts.food ?? 0)}</span></a></li>
-      </ul>
+    ${d.featured.length ? html`<section class="block" aria-labelledby="h-featured">${sectionTitle('مميز اليوم', undefined, undefined, 'h-featured')}${rowList(d.featured, html``)}</section>` : ''}
+
+    <section class="block" aria-labelledby="h-latest" data-live-latest data-types="${typesJson()}">
+      ${sectionTitle('أحدث الإعلانات', '/search', 'عرض الكل', 'h-latest')}
+      ${rowList(d.latest.filter((p) => !d.featured.some((f) => f.id === p.id)).slice(0, 6), emptyState('ما كو إعلانات هنا بعد', 'أول ما توافق الإدارة على إعلانات جديدة راح تظهر هنا.'))}
     </section>
 
-    ${d.featured.length ? html`<section class="block" aria-labelledby="h-featured"><div class="section-head"><h2 id="h-featured">مميز اليوم</h2></div>${rowList(d.featured, html``)}</section>` : ''}
-
-    <div class="columns">
-      ${d.news.length ? block('آخر أخبار المعامل', '/news', d.news, '') : ''}
-      <div data-live-latest data-types="${typesJson()}">${block('أحدث الإعلانات', '/search', d.latest, 'أول ما توافق الإدارة على إعلانات جديدة راح تظهر هنا.')}</div>
-      ${block('عروض المحلات', '/offers', d.offers, 'ما كو عروض حالياً. أصحاب المحلات يگدرون ينشرون عروضهم من صفحة محلهم.')}
-      ${block('فرص العمل', '/jobs', d.jobs, 'ما كو وظائف منشورة حالياً.', 'job')}
-      ${block('الخدمات والمهن', '/services', d.services, 'ما كو أصحاب مهن مسجلين بعد.', 'service')}
-      ${block('العقارات', '/properties', d.properties, 'ما كو عقارات معروضة حالياً.', 'property')}
-      ${block('بيع وشراء', '/market', d.market, 'ما كو إعلانات بيع حالياً.', 'market')}
-      ${block('أخبار ومبادرات المنطقة', '/community', d.community, 'ما كو أخبار أو فعاليات حالياً.', 'community')}
-    </div>
-
-    <section class="block band help-block" aria-labelledby="h-help">
-      <div class="section-head"><h2 id="h-help">المساعدات المجتمعية</h2><a class="more" href="/help">عرض الكل${icon('chevron', 'i i-sm')}</a></div>
-      <p class="note">${icon('shield', 'i i-sm')}كل طلب يُراجع قبل النشر، ولا تُنشر وثائق طبية أو أرقام خاصة بدون موافقة. تأكد بنفسك قبل التبرع بأي مبلغ.</p>
-      ${rowList(d.help, emptyState('ما كو طلبات حالياً', 'طلبات التبرع بالدم والمبادرات الخيرية تظهر هنا بعد مراجعتها.'))}
-    </section>
+    ${d.news.length ? html`<section class="block" aria-labelledby="h-news">${sectionTitle('آخر أخبار المعامل', '/news', 'كل الأخبار', 'h-news')}${rowList(d.news, html``)}</section>` : ''}
 
     <section class="cta" aria-labelledby="h-cta">
       <div>
         <h2 id="h-cta">عندك محل أو خدمة أو شي تبيعه؟</h2>
         <ol class="steps">
-          <li>${user ? 'اختار القسم واكتب إعلانك' : 'سوّي حساب بدقيقة'}</li>
+          <li>${user ? 'اختار القسم واكتب إعلانك' : 'اكتب إعلانك بدقيقة'}</li>
           <li>الإدارة تراجعه حتى يبقى الدليل نظيف وموثوق</li>
           <li>ينشر ويوصل لأهل المنطقة</li>
         </ol>
       </div>
       <a class="btn btn-sign btn-lg" href="/submit">${icon('plus')}أضف إعلانك</a>
-    </section>
-
-    <section class="block about-block" aria-labelledby="h-about">
-      <div class="section-head"><h2 id="h-about">عن دليل المعامل</h2><a class="more" href="/about">اقرأ أكثر${icon('chevron', 'i i-sm')}</a></div>
-      ${paragraphs(s.about_text.split(/\n\s*\n/)[0] ?? '')}
-      <p class="contact-row">
-        <a class="btn" href="${telLink(s.support_phone)}">${icon('phone')}اتصل بالدعم <span dir="ltr">${s.support_phone}</span></a>
-        <a class="btn btn-wa" href="${waLink(s.whatsapp_phone)}" target="_blank" rel="noopener">${icon('whatsapp')}واتساب</a>
-      </p>
     </section>
   </div>`;
 }

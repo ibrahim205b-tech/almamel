@@ -739,8 +739,9 @@
         var have = shownIds(), fresh = rows.filter(function (p) { return !have[p.id]; }).slice(0, 6);
         if (!fresh.length) return;
         var ul = latest.querySelector('ul.rows');
-        if (!ul) { ul = el('ul', 'rows'); var emp = latest.querySelector('.empty'); if (emp) emp.replaceWith(ul); else latest.querySelector('section').appendChild(ul); }
+        if (!ul) { ul = el('ul', 'rows'); var emp = latest.querySelector('.empty'); if (emp) emp.replaceWith(ul); else latest.appendChild(ul); }
         fresh.reverse().forEach(function (p) { ul.insertBefore(liveRow(p, types2), ul.firstChild); });
+        while (ul.children.length > 8) ul.removeChild(ul.lastElementChild);
       }).catch(function () { /* لا شيء */ });
     }
     // صفحة إعلان جديد (/p/?id=)

@@ -89,11 +89,25 @@ function adminHeader(ctx: ViewCtx): SafeHtml {
 </header>`;
 }
 
+const SHORT: Record<string, string> = { business: 'المحلات', job: 'الوظائف', service: 'الخدمات', property: 'العقارات', market: 'بيع وشراء', offer: 'العروض' };
+/** ترتيب الأقسام بالقائمة: الأهم أولاً. */
+export const SECTION_LINKS: { href: string; label: string; short: string; icon: string }[] = [
+  { href: '/restaurants', label: 'المطاعم والتوصيل', short: 'المطاعم', icon: 'utensils' },
+  ...(['business', 'job', 'service', 'property', 'market', 'offer'] as const).map((t) => ({ href: TYPES[t].path, label: TYPES[t].label, short: SHORT[t], icon: TYPES[t].icon })),
+  { href: '/news', label: 'أخبار المعامل', short: 'الأخبار', icon: 'bell' },
+  { href: TYPES.community.path, label: TYPES.community.label, short: 'مبادرات', icon: TYPES.community.icon },
+  { href: TYPES.help.path, label: TYPES.help.label, short: 'المساعدات', icon: TYPES.help.icon },
+];
+
+const cur = (ctx: ViewCtx, href: string) => ctx.path.startsWith(href) ? raw('aria-current="page"') : '';
+
 function nav(ctx: ViewCtx) {
-  const links = TYPE_KEYS.filter((t) => t !== 'offer').map((t) => ({ href: TYPES[t].path, label: TYPES[t].label }));
-  links.splice(1, 0, { href: '/restaurants', label: 'المطاعم والتوصيل' });
-  links.unshift({ href: '/news', label: 'أخبار المعامل' });
-  return html`<ul class="nav-list">${links.map((l) => html`<li><a href="${l.href}" ${ctx.path.startsWith(l.href) ? raw('aria-current="page"') : ''}>${l.label}</a></li>`)}</ul>`;
+  return html`<ul class="nav-list nav-sections">${SECTION_LINKS.map((l) => html`<li><a href="${l.href}" ${cur(ctx, l.href)}>${icon(l.icon)}${l.label}</a></li>`)}</ul>`;
+}
+
+/** روابط مختصرة بالترويسة على الشاشات العريضة. */
+function primaryNav(ctx: ViewCtx) {
+  return html`<nav class="primary-nav" aria-label="الأقسام الرئيسية"><ul>${SECTION_LINKS.slice(0, 5).map((l) => html`<li><a href="${l.href}" ${cur(ctx, l.href)}>${l.short}</a></li>`)}</ul></nav>`;
 }
 
 export function layout(ctx: ViewCtx, meta: PageMeta, body: SafeHtml): string {
@@ -147,16 +161,20 @@ ${ctx.adminSite ? adminHeader(ctx) : ctx.kitchenSite ? kitchenHeader(ctx) : ctx.
       <img src="/static/img/logo.svg" width="40" height="40" alt="">
       ${brandName(s.site_name)}
     </a>
+    ${primaryNav(ctx)}
     <div class="header-actions">
+      <a class="btn-icon hdr-search" href="/search" aria-label="البحث">${icon('search')}</a>
       ${ctx.staticMode ? html`<a class="btn btn-owner" href="/mat3am/">${icon('store')}<span>أنا صاحب محل</span></a>` : ''}
       ${canPost ? html`<a class="btn btn-sign" href="/submit" aria-label="أضف إعلانك">${icon('plus')}<span>أضف إعلانك</span></a>` : ''}
       <a class="btn-icon menu-toggle" href="#site-menu" role="button" aria-expanded="false" aria-controls="site-menu">${icon('menu')}<span class="sr">القائمة</span></a>
     </div>
   </div>
-  <nav id="site-menu" class="site-menu" aria-label="الأقسام">
+  <nav id="site-menu" class="site-menu site-drawer" aria-label="الأقسام">
     <div class="wrap menu-inner">
       ${ctx.staticMode ? html`<a class="owner-cta" href="/mat3am/">${icon('store')}<span><b>أنا صاحب محل</b><small>أضف منتجاتك بصورها وأسعارها، وأدر صفحة محلك</small></span>${icon('chevron')}</a>` : ''}
+      <p class="drawer-title">الأقسام</p>
       ${nav(ctx)}
+      <p class="drawer-title">المزيد</p>
       ${ctx.staticMode ? html`<ul class="nav-list nav-account"><li><a href="/search">${icon('search')}البحث</a></li>
         <li><a href="${addShopLink(s0(ctx))}" target="_blank" rel="noopener">${icon('utensils')}أضف مطعمك أو محلك</a></li>
         <li><a href="/contact">${icon('phone')}تواصل معنا</a></li>
