@@ -1,0 +1,51 @@
+# مراقب المحتوى: يفحص قاعدة البيانات كل دقيقتين، ويحدّث الموقع فوراً لما يتغير شي
+# (إعلان انوافق عليه، سعر، صورة محل، تعديل...). الجدولة المجانية في GitHub تتأخر ساعات،
+# فهذا يغني عنها. يشتغل ~٥ ساعات ونص ثم يعيد تشغيل نفسه، والتشغيل كل ساعة احتياط لو انقطع.
+# لا يحتاج أي مفتاح: GITHUB_TOKEN مسموح له يشغّل workflow_dispatch.
+name: Watch for new content
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/watch.yml']
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: content-watch
+  cancel-in-progress: true
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: site.config.json
+          sparse-checkout-cone-mode: false
+      - name: Watch Supabase and rebuild on change
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          LIVE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/build-stamp.txt
+        run: |
+          URL=$(jq -r '.supabaseUrl // empty' site.config.json); KEY=$(jq -r '.supabaseAnonKey // empty' site.config.json)
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then echo "Supabase not configured"; exit 0; fi
+          END=$(( $(date +%s) + 330*60 )); LAST=""
+          while [ "$(date +%s)" -lt "$END" ]; do
+            STAMP=$(curl -fsS -m 20 -X POST "$URL/rest/v1/rpc/site_stamp" -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' -d '{}' | jq -r . 2>/dev/null || true)
+            SITE=$(curl -fsS -m 20 "$LIVE?t=$(date +%s)" 2>/dev/null | tr -d '\r\n' || true)
+            if [ -n "$STAMP" ] && [ "$STAMP" != "null" ] && [ "$STAMP" != "$SITE" ] && [ "$STAMP" != "$LAST" ]; then
+              echo "$(date -u +%H:%M) change detected → rebuilding"
+              gh workflow run pages.yml --repo "$REPO" --ref main && LAST="$STAMP"
+            fi
+            sleep 120
+          done
+          # يعيد تشغيل نفسه حتى تبقى المراقبة مستمرة
+          gh workflow run watch.yml --repo "$REPO" --ref main
