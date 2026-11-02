@@ -260,4 +260,17 @@ select pg_temp.expect_error($q$select public.assign_owner(public.t_id('مطعم 
 reset role;
 do $$ begin if (select owner_id from posts where id = public.t_id('مطعم أبو علي')) <> '22222222-2222-2222-2222-222222222222' then raise exception 'assign_owner failed'; end if; end $$;
 
+-- ===== النشر الفوري: المفتاح سري، وفشل طلب التحديث لا يمنع الموافقة =====
+reset role;
+insert into private.secrets (name, value) values ('github_token', 'test-token') on conflict (name) do update set value = excluded.value;
+select pg_temp.as_user(null);
+select pg_temp.expect_error($q$select value from private.secrets$q$, 'anon reads github token');
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+select pg_temp.expect_error($q$select value from private.secrets$q$, 'user reads github token');
+select pg_temp.expect_error($q$select private.request_rebuild()$q$, 'user calls rebuild directly');
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+select public.moderate_post(public.t_id('مطعم أبو علي'), 'hide', 'اختبار');
+do $$ begin if (select status from posts where id = public.t_id('مطعم أبو علي')) <> 'hidden' then raise exception 'moderation blocked by rebuild trigger'; end if; end $$;
+reset role;
+
 select 'ALL RLS TESTS PASSED';
