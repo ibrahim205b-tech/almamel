@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
 
-const GREEN = '#17594A', GOLD = '#F2C230';
+const GREEN = '#101B2D', GOLD = '#D6B66C'; // كحلي منتصف الليل وذهبي شمبانيا
 const glyph = (fg: string) => `<rect x="6" y="6" width="52" height="52" rx="8" fill="none" stroke="${fg}" stroke-width="3"/><path d="M20 22h20a6 6 0 0 1 6 6v14H18v-7h21v-7H20z" fill="${fg}"/>`;
 // جرس صغير يميّز تطبيق المطاعم
 const bell = (bg: string, fg: string) => `<circle cx="50" cy="50" r="11" fill="${fg}" stroke="${bg}" stroke-width="2.5"/><path d="M45.5 53.5h9l-1.3-1.6v-3.6a3.2 3.2 0 0 0-6.4 0v3.6zM48.6 54.6a1.4 1.4 0 0 0 2.8 0" fill="${bg}"/>`;

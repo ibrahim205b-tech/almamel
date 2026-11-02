@@ -148,7 +148,7 @@ export function dashboardPage(): SafeHtml {
     <div class="page-head"><div><h1>لوحة التحكم</h1><p class="lede" data-who></p></div>
       <div class="btn-row"><a class="btn btn-sign" href="/owner/register">${icon('plus')}إضافة مطعم أو محل</a><button class="btn" type="button" data-logout>${icon('logout')}خروج</button></div></div>
     ${msg}${noJs}
-    <section aria-labelledby="h-biz"><h2 id="h-biz">محلاتي</h2><div data-businesses><p class="muted">جارِ التحميل...</p></div></section>
+    <section aria-labelledby="h-biz"><h2 id="h-biz">محلاتي</h2><div data-businesses><div class="skeleton" aria-label="جارِ التحميل"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div></div></section>
     <section class="block" aria-labelledby="h-ads"><h2 id="h-ads">إعلاناتي</h2>
       <p class="btn-row"><a class="btn btn-sm" href="/submit/offer">${icon('percent', 'i i-sm')}أضف عرضاً</a><a class="btn btn-sm" href="/submit/job">${icon('briefcase', 'i i-sm')}أضف وظيفة</a></p>
       <div data-ads></div></section>
@@ -183,13 +183,19 @@ export function adminLivePage(): SafeHtml {
     <div class="page-head"><div><h1>لوحة الإدارة</h1><p class="lede">المعتمد يظهر بالموقع خلال ربع ساعة تقريباً.</p></div>
       <div class="btn-row"><a class="btn btn-sign" href="/admin/business">${icon('plus')}إضافة مطعم أو محل</a><button class="btn" type="button" data-logout>${icon('logout')}خروج</button></div></div>
     ${msg}${noJs}
+    <ul class="stats" aria-label="ملخص">
+      <li class="stat"><a href="#pending"><span class="stat-ico">${icon('clock')}</span><b class="stat-n" data-stat="pending">—</b>بانتظار المراجعة</a></li>
+      <li class="stat"><a href="#claims"><span class="stat-ico">${icon('store')}</span><b class="stat-n" data-stat="claims">—</b>طلبات أصحاب المحلات</a></li>
+      <li class="stat"><a href="#published"><span class="stat-ico">${icon('check')}</span><b class="stat-n" data-stat="published">—</b>منشور حالياً</a></li>
+      <li class="stat stat-gold"><a href="#commission"><span class="stat-ico">${icon('percent')}</span><b class="stat-n" data-stat="due">—</b>نسبة مستحقة هذا الشهر (د.ع)</a></li>
+    </ul>
     <nav class="menu-tabs" aria-label="أقسام الإدارة">
       <a href="#pending">بانتظار المراجعة <span class="count" data-count="pending"></span></a>
       <a href="#claims">طلبات أصحاب المحلات <span class="count" data-count="claims"></span></a>
       <a href="#published">المنشور حالياً</a>
       <a href="#commission">نسبة الطلبات</a>
     </nav>
-    <section id="pending" class="block"><h2>بانتظار المراجعة</h2><div data-pending><p class="muted">جارِ التحميل...</p></div></section>
+    <section id="pending" class="block"><h2>بانتظار المراجعة</h2><div data-pending><div class="skeleton" aria-label="جارِ التحميل"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div></div></section>
     <section id="claims" class="block"><h2>طلبات أصحاب المحلات</h2><div data-claims></div></section>
     <section id="published" class="block"><h2>المنشور حالياً</h2><div data-published></div></section>
     <section id="commission" class="block"><h2>نسبة الطلبات (٥٪)</h2>
@@ -262,7 +268,7 @@ export function kitchenPage(): SafeHtml {
 export function orderStatusPage(): SafeHtml {
   return html`<div class="wrap narrow" data-order-status>
     <h1>حالة طلبك</h1>
-    <div class="order-card panel" data-order-box aria-live="polite"><p class="muted">جارِ التحميل...</p></div>
+    <div class="order-card panel" data-order-box aria-live="polite"><div class="skeleton" aria-label="جارِ التحميل"><span class="sk sk-sm"></span><span class="sk"></span><span class="sk sk-sm"></span></div></div>
     <noscript><p class="note">هذه الصفحة تحتاج JavaScript.</p></noscript>
   </div>`;
 }

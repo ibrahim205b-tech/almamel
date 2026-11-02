@@ -45,7 +45,7 @@ function foodShowcase(items: ListItem[], addShop: string): SafeHtml {
         <span class="food-img">${p.logo || p.thumb
           ? html`<img src="${mediaUrl((p.logo || p.thumb)!)}" alt="" width="240" height="240" loading="lazy" decoding="async">`
           : icon('utensils', 'i i-food')}</span>
-        <span class="food-name">${p.title}</span>
+        <span class="food-name">${p.title}${p.verified ? html` <span class="verified" title="بيانات موثقة">${icon('badge', 'i i-xs')}<span class="sr">موثّق</span></span>` : ''}</span>
         <span class="food-meta">${p.category_name}${p.open_state === 'open' ? html` · <span class="food-open">مفتوح الآن</span>` : ''}</span>
         ${p.featured ? html`<span class="ribbon">مميز</span>` : ''}
       </a></li>`)}
@@ -65,18 +65,25 @@ export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml 
   </section>`;
   return html`
   <section class="hero">
-    <div class="wrap">
-      <h1 class="hero-title">شنو تحتاج بالمعامل؟</h1>
+    <div class="hero-bg" aria-hidden="true"><span class="hero-grid"></span><span class="orb orb-1"></span><span class="orb orb-2"></span></div>
+    <div class="wrap hero-inner">
+      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>دليل منطقة المعامل · قضاء الزوراء</p>
+      <h1 class="hero-title">شنو تحتاج <span class="accent">بالمعامل؟</span></h1>
       <p class="hero-sub">${s.tagline}</p>
       ${searchBox('', '', true)}
       <ul class="quick" aria-label="وصول سريع">${quickLinks.map(([h, l, i]) => html`<li><a href="${h}">${icon(i)}${l}</a></li>`)}</ul>
+      <dl class="hero-stats">
+        <div><dt>مطعم ومحل أكل</dt><dd data-count-up>${fmtNumber(d.counts.food ?? 0)}</dd></div>
+        <div><dt>إعلان منشور</dt><dd data-count-up>${fmtNumber(TYPE_KEYS.reduce((n, t) => n + (d.counts[t] ?? 0), 0))}</dd></div>
+        <div><dt>قسم في الدليل</dt><dd data-count-up>${fmtNumber(TYPE_KEYS.length + 1)}</dd></div>
+      </dl>
     </div>
   </section>
 
   <div class="wrap home">
     ${foodShowcase(d.food, d.addShop)}
 
-    <section class="block" aria-labelledby="h-sections">
+    <section class="block band" aria-labelledby="h-sections">
       <div class="section-head"><h2 id="h-sections">الأقسام</h2></div>
       <ul class="tiles">
         ${TYPE_KEYS.map((t) => html`<li><a class="tile" href="${TYPES[t].path}">
@@ -102,7 +109,7 @@ export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml 
       ${block('أخبار ومبادرات المنطقة', '/community', d.community, 'ما كو أخبار أو فعاليات حالياً.', 'community')}
     </div>
 
-    <section class="block help-block" aria-labelledby="h-help">
+    <section class="block band help-block" aria-labelledby="h-help">
       <div class="section-head"><h2 id="h-help">المساعدات المجتمعية</h2><a class="more" href="/help">عرض الكل${icon('chevron', 'i i-sm')}</a></div>
       <p class="note">${icon('shield', 'i i-sm')}كل طلب يُراجع قبل النشر، ولا تُنشر وثائق طبية أو أرقام خاصة بدون موافقة. تأكد بنفسك قبل التبرع بأي مبلغ.</p>
       ${rowList(d.help, emptyState('ما كو طلبات حالياً', 'طلبات التبرع بالدم والمبادرات الخيرية تظهر هنا بعد مراجعتها.'))}
@@ -276,17 +283,21 @@ export function detailPage(x: DetailData): SafeHtml {
     ${x.preview ? html`<p class="flash flash-error" role="status">${icon('eye-off', 'i i-sm')}معاينة: هذا المنشور غير منشور للعامة. الحالة: ${statusBadge(p.status)}</p>` : ''}
     <nav class="crumbs" aria-label="مسار التنقل"><a href="/">الرئيسية</a><span aria-hidden="true">/</span><a href="${t.path}">${t.label}</a><span aria-hidden="true">/</span><span aria-current="page">${p.title}</span></nav>
     <article>
-      <header class="detail-head">
-        <div class="detail-title">${p.logo ? html`<img class="biz-logo" src="${mediaUrl(p.logo)}" alt="شعار ${p.title}" width="72" height="72">` : ''}<h1>${p.title}</h1></div>
+      <header class="detail-head${p.type === 'business' ? ' profile-head' : ''}">
+        ${p.type === 'business' ? html`<div class="profile-cover">${x.images.length ? html`<img src="${mediaUrl(x.images[0].file)}" alt="" width="${x.images[0].width}" height="${x.images[0].height}" fetchpriority="high" decoding="async">` : ''}</div>` : ''}
+        <div class="${p.type === 'business' ? 'profile-id' : 'detail-title'}">${p.logo ? html`<img class="biz-logo" src="${mediaUrl(p.logo)}" alt="شعار ${p.title}" width="96" height="96">` : p.type === 'business' ? html`<span class="profile-mark" aria-hidden="true">${icon(/مطاعم|أفران|حلويات/.test(p.category_name ?? '') ? 'utensils' : 'store')}</span>` : ''}
+        <div class="profile-text"><h1>${p.title}</h1>
+        ${p.type === 'business' ? html`<p class="profile-meta"><span>${icon('tag')}${p.category_name}</span>${p.area_name ? html`<span>${icon('pin')}${p.area_name}</span>` : ''}${d.hours ? html`<span>${icon('clock')}${String(d.hours)}</span>` : ''}</p>` : ''}
         <div class="badges">
           ${p.verified ? html`<span class="badge badge-ok">${icon('badge', 'i i-sm')}${p.type === 'help' ? 'تم التحقق من الطلب' : 'بيانات النشاط موثقة'}</span>` : ''}
           ${p.type === 'community' ? (p.is_official ? html`<span class="badge badge-ok">${icon('check', 'i i-sm')}خبر مؤكد من الإدارة</span>` : d.source_url ? html`<span class="badge">منقول عن ${String(d.source_name || 'مصدر إخباري')}، والتفاصيل في الخبر الأصلي</span>` : html`<span class="badge">منشور من أحد المستخدمين، غير مؤكد رسمياً</span>`) : ''}
           ${p.type === 'help' && !p.verified ? html`<span class="badge badge-warn">${icon('alert', 'i i-sm')}لم يتم التحقق من تفاصيل الحالة</span>` : ''}
           ${x.summary.n ? html`<span class="badge">${stars(x.summary.avg ?? 0)} ${fmtNumber(x.summary.avg ?? 0)} من ${fmtNumber(x.summary.n)} تقييم</span>` : ''}
-        </div>
+        </div></div></div>
       </header>
       <div class="detail-grid">
         <div class="detail-main">
+          ${x.images.length && p.type === 'business' ? html`<h2 class="sr">معرض الصور</h2>` : ''}
           ${x.images.length ? html`<div class="gallery gallery-n${Math.min(x.images.length, 3)}">${x.images.map((im, i) => html`<a href="${mediaUrl(im.file)}" class="${i === 0 ? 'g-main' : ''}"><img src="${mediaUrl(i === 0 ? im.file : im.thumb)}" alt="صورة ${i + 1} من ${x.images.length} لـ ${p.title}" width="${i === 0 ? im.width : 480}" height="${i === 0 ? im.height : 360}" ${i ? raw('loading="lazy"') : raw('fetchpriority="high"')} decoding="async"></a>`)}</div>` : ''}
           ${menuSection(x, phone)}
           ${p.body ? html`<section aria-labelledby="h-desc"><h2 id="h-desc">التفاصيل</h2><div class="prose">${paragraphs(p.body)}</div></section>` : ''}

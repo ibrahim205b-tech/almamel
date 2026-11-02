@@ -31,6 +31,15 @@
     (kids || []).forEach(function (c) { if (c) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
     return e;
   }
+  // رقم بطاقة الملخص، يعدّ من الصفر بنعومة
+  var CALM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function stat(name, n) {
+    var node = document.querySelector('[data-stat="' + name + '"]'); if (!node) return;
+    n = Number(n) || 0;
+    if (CALM || n < 2) { node.textContent = nf.format(n); return; }
+    var t0 = null, step = function (t) { if (t0 === null) t0 = t; var k = Math.min(1, (t - t0) / 700); node.textContent = nf.format(Math.round(n * (1 - Math.pow(1 - k, 3)))); if (k < 1) window.requestAnimationFrame(step); };
+    window.requestAnimationFrame(step);
+  }
   function say(text, kind) {
     var box = $('[data-msg]');
     if (!box) return alert(text);
@@ -485,13 +494,15 @@
       var r = await sb.rpc('commission_report', { p_month: (monthIn.value || cur) + '-01' });
       if (r.error) { out.appendChild(el('p', { class: 'muted', text: errText(r.error) })); return; }
       var rows = r.data || [];
-      if (!rows.length) { out.appendChild(el('p', { class: 'muted', text: 'ما وصلت طلبات من سلة الموقع بهذا الشهر.' })); return; }
-      var due = 0, got = 0;
+      if (!rows.length) { if (admin) stat('due', 0); out.appendChild(el('div', { class: 'empty' }, [el('p', { class: 'empty-title', text: 'ما كو طلبات بهذا الشهر' }), el('p', { text: 'الطلبات اللي تجي من سلة الموقع تظهر هنا مع نسبتها.' })])); return; }
+      var due = 0, got = 0, top = Math.max.apply(null, rows.map(function (x) { return Number(x.total) || 0; }).concat([1]));
       var tb = el('tbody');
       rows.forEach(function (x) {
         if (x.paid) got += Number(x.paid_amount || 0); else due += Number(x.commission);
         var status = x.paid ? el('span', { class: 'badge badge-ok', text: 'مدفوع' }) : el('span', { class: 'badge badge-warn', text: 'غير مدفوع' });
-        var cells = [el('td', { text: x.title }), el('td', { class: 'num', text: nf.format(x.orders) }), el('td', { class: 'num', text: nf.format(x.total) + ' د.ع' }),
+        var bar = el('span', { class: 'bar', 'aria-hidden': 'true' }, [el('span')]);
+        bar.firstChild.style.setProperty('--w', Math.round((Number(x.total) || 0) / top * 100) + '%');
+        var cells = [el('td', { text: x.title }), el('td', { class: 'num', text: nf.format(x.orders) }), el('td', { class: 'num' }, [nf.format(x.total) + ' د.ع', bar]),
           el('td', { class: 'num', text: nf.format(x.paid ? x.paid_amount : x.commission) + ' د.ع' }), el('td', {}, [status])];
         if (admin) cells.push(el('td', {}, [el('button', { class: 'btn btn-sm' + (x.paid ? '' : ' btn-primary'), type: 'button', text: x.paid ? 'إلغاء' : 'تم الدفع', onclick: async function () {
           if (!x.paid && !confirm('تأكيد استلام ' + nf.format(x.commission) + ' د.ع من «' + x.title + '»؟')) return;
@@ -501,6 +512,7 @@
         } })]));
         tb.appendChild(el('tr', {}, cells));
       });
+      if (admin) stat('due', due);
       var heads = ['المحل', 'الطلبات', 'مجموع الطلبات', 'النسبة (٥٪)', 'الحالة'].concat(admin ? [''] : []);
       out.appendChild(el('p', { class: 'commission-sum' }, [admin ? 'المستحق غير المدفوع: ' : 'المستحق عليك هذا الشهر: ', el('b', { text: nf.format(due) + ' د.ع' }),
         got ? '  ·  المستلم: ' + nf.format(got) + ' د.ع' : '']));
@@ -687,6 +699,7 @@
         ul.appendChild(postCard(x, actions));
       });
       $('[data-count=pending]').textContent = String((pend.data || []).length);
+      stat('pending', (pend.data || []).length);
       if (!(pend.data || []).length) box.appendChild(el('p', { class: 'empty-inline', text: 'ما كو إعلانات بانتظار المراجعة.' }));
 
       var cl = await sb.from('claims').select('*').eq('status', 'pending').order('created_at');
@@ -722,10 +735,12 @@
         })(c, bz, ow, proof);
       }
       $('[data-count=claims]').textContent = String((cl.data || []).length);
+      stat('claims', (cl.data || []).length);
       if (!(cl.data || []).length) cbox.appendChild(el('p', { class: 'empty-inline', text: 'ما كو طلبات.' }));
 
       var pub = await sb.from('posts').select('*').eq('status', 'published').order('published_at', { ascending: false }).limit(100);
       var pbox = $('[data-published]'); pbox.textContent = '';
+      stat('published', (pub.data || []).length);
       var pul = el('ul', { class: 'manage-list' }); pbox.appendChild(pul);
       (pub.data || []).forEach(function (x) {
         pul.appendChild(el('li', {}, [el('a', { href: BASE + PATHS[x.type] + '/' + x.id + '/', text: x.title }), ' ', el('span', { class: 'muted', text: TYPE_LABEL[x.type] }),

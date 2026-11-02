@@ -85,7 +85,7 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
         for (const f of ['index.html', '404.html']) write(f, `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0;url=${base}/kitchen/"><title>طلبات المطعم</title><a href="${base}/kitchen/">الطلبات</a>`);
         // عامل خدمة بسيط: يسمح بإشعارات النظام على أندرويد ويفتح الصفحة عند الضغط على الإشعار
         write('sw.js', fs.readFileSync(path.join(import.meta.dirname, '..', 'public', 'js', 'kitchen-sw.js')));
-        write('manifest.webmanifest', JSON.stringify({ name: 'طلبات المطعم - دليل المعامل', short_name: 'طلبات المطعم', start_url: `${base}/kitchen/`, scope: `${base}/`, display: 'standalone', dir: 'rtl', lang: 'ar', background_color: '#0F4337', theme_color: '#0F4337', icons: [{ src: `${base}/static/img/logo.svg`, sizes: 'any', type: 'image/svg+xml' }] }));
+        write('manifest.webmanifest', JSON.stringify({ name: 'طلبات المطعم - دليل المعامل', short_name: 'طلبات المطعم', start_url: `${base}/kitchen/`, scope: `${base}/`, display: 'standalone', dir: 'rtl', lang: 'ar', background_color: '#101B2D', theme_color: '#101B2D', icons: [{ src: `${base}/static/img/logo.svg`, sizes: 'any', type: 'image/svg+xml' }] }));
       }
       write('robots.txt', 'User-agent: *\nDisallow: /\n');
       write('.nojekyll', '');

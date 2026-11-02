@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="appName">طلبات المطاعم</string>
-    <color name="brand">#17594A</color>
-    <color name="iconBackground">#F2C230</color>
+    <color name="brand">#101B2D</color>
+    <color name="iconBackground">#D6B66C</color>
 </resources>

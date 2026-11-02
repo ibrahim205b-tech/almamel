@@ -367,6 +367,7 @@ test('admin reviews and approves a pending ad', async () => {
   const p = await adminLogin();
   await p.waitForSelector('[data-pending] .panel');
   assert.ok((await p.textContent('[data-pending]'))!.includes('سلعة بانتظار المراجعة'));
+  if (process.env.SHOTS) { await p.setViewportSize({ width: 1366, height: 900 }); await p.waitForTimeout(900); await shot(p, 'admin-desktop'); await p.setViewportSize({ width: 360, height: 640 }); }
   await p.click('[data-pending] button:has-text("موافقة ونشر")');
   await p.waitForSelector('.live-msg.flash-ok');
   const rpc = log.filter((r) => r.path === '/rest/v1/rpc/moderate_post').at(-1)!;

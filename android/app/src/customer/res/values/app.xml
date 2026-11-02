@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="appName">دليل المعامل</string>
-    <color name="brand">#17594A</color>
-    <color name="iconBackground">#17594A</color>
+    <color name="brand">#101B2D</color>
+    <color name="iconBackground">#101B2D</color>
 </resources>

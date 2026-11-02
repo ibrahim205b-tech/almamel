@@ -18,7 +18,7 @@ test('public pages render with ownership notice and support number', async () =>
     assert.ok(r.body.includes('https://wa.me/9647763438000'), `support WhatsApp link on ${url}`);
   }
   const home = await a.get('/');
-  assert.ok(home.body.includes('شنو تحتاج بالمعامل؟'));
+  assert.ok(home.body.replace(/<[^>]+>/g, '').includes('شنو تحتاج بالمعامل؟'));
   assert.ok(home.body.includes('أضف إعلانك'));
   const about = await a.get('/about');
   assert.ok(about.body.includes('منصة دليل المعامل مشروع أُنشئ وطُوّر بواسطة إبراهيم علي الشويلي. جميع الحقوق محفوظة وفقاً للقوانين المعمول بها.'));

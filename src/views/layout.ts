@@ -114,13 +114,13 @@ ${canonical ? html`<link rel="canonical" href="${canonical}">` : ''}
 <meta property="og:locale" content="ar_IQ">
 ${canonical ? html`<meta property="og:url" content="${canonical}">` : ''}
 <meta property="og:image" content="${ogImage}">
-<meta name="theme-color" content="#17594A">
+<meta name="theme-color" content="#101B2D">
 <meta name="author" content="إبراهيم علي الشويلي">
 <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/img/icon-180.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="preload" href="/static/fonts/IBMPlexSansArabic-400-arabic.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/static/fonts/NotoKufiArabic-arabic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/Alexandria-arabic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/css/app.css?v=${ctx.v}">
 <script src="/static/js/app.js?v=${ctx.v}" defer></script>
 ${ctx.staticMode ? html`<script src="/static/js/static.js?v=${ctx.v}" defer></script>` : ''}
