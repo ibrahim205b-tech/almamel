@@ -27,28 +27,30 @@ export function searchBox(q = '', type = '', big = false): SafeHtml {
 export interface HomeData {
   counts: Record<string, number>;
   featured: ListItem[]; latest: ListItem[]; offers: ListItem[]; jobs: ListItem[]; properties: ListItem[];
-  food: ListItem[]; services: ListItem[]; market: ListItem[]; community: ListItem[]; help: ListItem[]; news: ListItem[];
+  food: ListItem[]; shops: ListItem[]; services: ListItem[]; market: ListItem[]; community: ListItem[]; help: ListItem[]; news: ListItem[];
   /** رابط «أضف مطعمك»: نموذج التسجيل المباشر إذا كان متاحاً، وإلا واتساب الإدارة. */
   addShop: string;
 }
 
-/** المطاعم في مربعات كبيرة أعلى الصفحة الرئيسية: المميّزة (المدفوعة) أولاً، ثم الأحدث. */
-function foodShowcase(items: ListItem[], addShop: string): SafeHtml {
-  return html`<section class="block food-showcase" aria-labelledby="h-food">
-    ${sectionTitle('المطاعم', '/restaurants', 'كل المطاعم', 'h-food')}
+/** المطاعم والمحلات في مربعات بصورها: المميّزة (المدفوعة) أولاً، ثم الأحدث. */
+function showcase(kind: 'food' | 'shops', items: ListItem[], addShop: string): SafeHtml {
+  const food = kind === 'food';
+  const wa = addShop.startsWith('https://');
+  return html`<section class="block food-showcase" aria-labelledby="h-${kind}">
+    ${food ? sectionTitle('المطاعم', '/restaurants', 'كل المطاعم', 'h-food') : sectionTitle('المحلات', '/businesses', 'كل المحلات', 'h-shops')}
     <ul class="food-grid">
       ${items.map((p) => html`<li><a class="food-card${p.featured ? ' is-featured' : ''}" href="${postUrl(p)}">
         <span class="food-img">${p.logo || p.thumb
           ? html`<img src="${mediaUrl((p.logo || p.thumb)!)}" alt="" width="240" height="240" loading="lazy" decoding="async">`
-          : icon('utensils', 'i i-food')}</span>
+          : icon(food ? 'utensils' : 'store', 'i i-food')}</span>
         <span class="food-name">${p.title}${p.verified ? html` <span class="verified" title="بيانات موثقة">${icon('badge', 'i i-xs')}<span class="sr">موثّق</span></span>` : ''}</span>
         <span class="food-meta">${p.category_name}${p.open_state === 'open' ? html` · <span class="food-open">مفتوح الآن</span>` : ''}</span>
         ${p.featured ? html`<span class="ribbon">مميز</span>` : ''}
       </a></li>`)}
-      <li><a class="food-card food-add" href="${addShop}"${addShop.startsWith('https://') ? raw(' target="_blank" rel="noopener"') : ''}>
-        <span class="food-img">${icon(addShop.startsWith('https://') ? 'whatsapp' : 'plus', 'i i-food')}</span>
-        <span class="food-name">أضف مطعمك</span>
-        <span class="food-meta">${addShop.startsWith('https://') ? 'راسلنا على واتساب ونضيفه لك' : 'سجّل وأضف معلوماتك وصورك وقائمتك بنفسك'}</span>
+      <li><a class="food-card food-add" href="${addShop}"${wa ? raw(' target="_blank" rel="noopener"') : ''}>
+        <span class="food-img">${icon(wa ? 'whatsapp' : 'plus', 'i i-food')}</span>
+        <span class="food-name">${food ? 'أضف مطعمك' : 'أضف محلك'}</span>
+        <span class="food-meta">${wa ? 'راسلنا على واتساب ونضيفه لك' : 'سجّل وأضف معلوماتك وصورك بنفسك'}</span>
       </a></li>
     </ul>
   </section>`;
@@ -78,7 +80,9 @@ export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml 
       <ul>${SECTION_LINKS.filter((l) => l.href !== '/news' && l.href !== '/community').map((l) => html`<li><a href="${l.href}"><span class="cat-ico">${icon(l.icon)}</span><span class="cat-name">${l.short}</span>${count(l.href) ? html`<span class="cat-n">${fmtNumber(count(l.href))}</span>` : ''}</a></li>`)}</ul>
     </nav>
 
-    ${foodShowcase(d.food, d.addShop)}
+    ${showcase('food', d.food, d.addShop)}
+
+    ${d.shops.length ? showcase('shops', d.shops, d.addShop) : ''}
 
     ${d.featured.length ? html`<section class="block" aria-labelledby="h-featured">${sectionTitle('مميز اليوم', undefined, undefined, 'h-featured')}${rowList(d.featured, html``)}</section>` : ''}
 

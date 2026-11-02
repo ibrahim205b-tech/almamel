@@ -61,8 +61,8 @@ export async function publicRoutes(app: FastifyInstance) {
     return reply.page(req, { title: `${s.site_name} | مطاعم ومحلات ووظائف وخدمات المعامل - بغداد`, canonical: '/',
       description: `${s.site_name}: دليل منطقة المعامل وقضاء الزوراء في بغداد. مطاعم وقوائم طعام واطلب لباب البيت، محلات وأسواق، وظائف، خدمات ومهن، عقارات، بيع وشراء، وأخبار المنطقة.`,
       head: raw(`<script type="application/ld+json">${site}</script>`) }, homePage({
-      counts, featured: listFeatured(db, 'home'), latest: pick([...TYPE_KEYS], {}, 6), offers: pick(['offer']), jobs: pick(['job']),
-      properties: pick(['property']), food: pick(['business'], { foodOnly: true }, 11), services: pick(['service']), market: pick(['market']),
+      counts, featured: listFeatured(db, 'home'), latest: pick(TYPE_KEYS.filter((t) => t !== 'business'), {}, 8), offers: pick(['offer']), jobs: pick(['job']),
+      properties: pick(['property']), food: pick(['business'], { foodOnly: true }, 11), shops: pick(['business'], { shopsOnly: true }, 11), services: pick(['service']), market: pick(['market']),
       community: pick(['community']), help: pick(['help'], {}, 3), news: pick(['community'], { newsOnly: true }),
       // النسخة الثابتة: إضافة المحلات عن طريق خدمة العملاء على واتساب فقط
       addShop: app.cfg.staticMode ? addShopLink(s.whatsapp_phone ?? '') : '/owner',

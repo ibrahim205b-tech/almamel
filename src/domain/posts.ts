@@ -207,7 +207,7 @@ export const NEWS_CATEGORIES = ['أخبار المنطقة', 'تنبيهات ا�
 export interface ListQuery {
   types?: PostType[]; q?: string | null; category?: number | null; area?: number | null;
   minPrice?: number | null; maxPrice?: number | null; sinceDays?: number | null; openOnly?: boolean;
-  offer?: 'sale' | 'rent' | null; employment?: string | null; foodOnly?: boolean; newsOnly?: boolean; businessId?: number | null;
+  offer?: 'sale' | 'rent' | null; employment?: string | null; foodOnly?: boolean; shopsOnly?: boolean; newsOnly?: boolean; businessId?: number | null;
   sort?: 'new' | 'price_asc' | 'price_desc'; page?: number; perPage?: number;
 }
 
@@ -225,6 +225,7 @@ export function listPublic(db: DB, q: ListQuery, ftsQuery: string | null = null)
   if (q.offer) { where.push("json_extract(p.details, '$.offer') = ?"); args.push(q.offer); }
   if (q.employment) { where.push("json_extract(p.details, '$.employment') = ?"); args.push(q.employment); }
   if (q.foodOnly) where.push('c.is_food = 1');
+  if (q.shopsOnly) where.push('c.is_food = 0');
   if (q.newsOnly) { where.push(`c.name IN (${NEWS_CATEGORIES.map(() => '?').join(',')})`); args.push(...NEWS_CATEGORIES); }
   if (q.businessId) { where.push('p.business_id = ?'); args.push(q.businessId); }
   if (ftsQuery) { where.push('p.id IN (SELECT post_id FROM search_index WHERE search_index MATCH ?)'); args.push(ftsQuery); }

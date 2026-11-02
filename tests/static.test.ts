@@ -55,7 +55,7 @@ test('static build renders every page with the GitHub Pages base path and no ser
   assert.ok(fs.readFileSync(path.join(out, 'sitemap.xml'), 'utf8').includes('https://user.github.io/almamel/businesses/5'));
 });
 
-test('every ready kit (libraries, pharmacies, barbers, phones) parses and belongs to a real category', async () => {
+test('every ready kit (libraries, pharmacies, barbers, phones, butchers) parses and belongs to a real category', async () => {
   const { parseMenuText } = await import('../src/static/menu-text.ts');
   const { KITS } = await import('../src/views/category-kits.ts');
   const { openDatabase } = await import('../src/db/index.ts');
