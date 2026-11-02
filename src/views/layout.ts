@@ -125,6 +125,9 @@ ${canonical ? html`<meta property="og:url" content="${canonical}">` : ''}
 ${ctx.adminSite || ctx.registerSite || ctx.kitchenSite ? '' : raw('<meta name="google-site-verification" content="ibDE5Err5g1BfD-CObu3zPfeN2zR8DFHOfvxgZB8NjI">')}
 <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/img/icon-180.png">
+<meta name="apple-mobile-web-app-title" content="${s.site_name.split(/\s+[-–]\s+/)[0]}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="preload" href="/static/fonts/IBMPlexSansArabic-400-arabic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/static/fonts/Alexandria-arabic.woff2" as="font" type="font/woff2" crossorigin>
@@ -154,7 +157,8 @@ ${ctx.adminSite ? adminHeader(ctx) : ctx.kitchenSite ? kitchenHeader(ctx) : ctx.
       ${nav(ctx)}
       ${ctx.staticMode ? html`<ul class="nav-list nav-account"><li><a href="/search">${icon('search')}البحث</a></li>
         <li><a href="${addShopLink(s0(ctx))}" target="_blank" rel="noopener">${icon('utensils')}أضف مطعمك أو محلك</a></li>
-        <li><a href="/contact">${icon('phone')}تواصل معنا</a></li></ul>` : html`<ul class="nav-list nav-account">
+        <li><a href="/contact">${icon('phone')}تواصل معنا</a></li>
+        <li data-install hidden><button class="linklike" type="button">${icon('plus')}ثبّت الموقع على موبايلك</button></li></ul>` : html`<ul class="nav-list nav-account">
         ${u ? html`
           ${isStaff(u.role) ? html`<li><a href="/admin">${icon('shield')}لوحة الإدارة</a></li>` : ''}
           <li><a href="/owner/dashboard">${icon('store')}لوحة التحكم</a></li>

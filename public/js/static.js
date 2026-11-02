@@ -83,6 +83,19 @@
     up.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: calm ? 'auto' : 'smooth' }); });
   })();
 
+  // ---------- تثبيت الموقع كتطبيق (أندرويد وكروم): زر بالقائمة يظهر فقط إذا الجهاز يدعمه ----------
+  (function () {
+    var li = document.querySelector('[data-install]'); if (!li) return;
+    var prompt = null;
+    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); prompt = e; li.hidden = false; });
+    window.addEventListener('appinstalled', function () { li.hidden = true; prompt = null; });
+    li.querySelector('button').addEventListener('click', function () {
+      if (!prompt) return;
+      prompt.prompt();
+      prompt.userChoice.then(function () { prompt = null; li.hidden = true; });
+    });
+  })();
+
   // ---------- مشاركة الإعلان ----------
   (function () {
     var side = document.querySelector('.detail-side'); if (!side) return;
