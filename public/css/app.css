@@ -96,6 +96,8 @@ main{display:block;min-height:60vh;padding-block:28px 64px;outline:none}
 .header-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:64px}
 .brand{display:flex;align-items:center;gap:10px;color:#fff;text-decoration:none;min-width:0}
 .brand:hover{color:#fff}
+.brand-text{display:grid;gap:3px;min-width:0}
+.brand-sub{font:600 .7rem/1 var(--font-body);color:var(--gold);letter-spacing:.01em;white-space:nowrap}
 .brand-name{font-family:var(--font-display);font-weight:700;font-size:var(--t-base);line-height:1;white-space:nowrap;letter-spacing:-.01em}
 @media (min-width:420px){.brand-name{font-size:var(--t-md)}}
 .brand img{width:36px;height:36px;border-radius:10px;box-shadow:0 0 0 1px rgb(214 182 108 / .35)}

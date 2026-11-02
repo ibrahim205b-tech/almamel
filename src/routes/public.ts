@@ -54,11 +54,11 @@ export async function publicRoutes(app: FastifyInstance) {
     // ما يظهر بنتائج البحث: الاسم، والكلمات اللي يبحث بيها الناس، وبيانات الموقع (اسم الموقع ومربع البحث)
     const base = app.cfg.baseUrl;
     const site = JSON.stringify([
-      { '@context': 'https://schema.org', '@type': 'WebSite', name: s.site_name, alternateName: ['دليل المعامل', 'دليل منطقة المعامل', 'Almamel', 'Dalil Al-Maamel'], url: base + '/', inLanguage: 'ar',
+      { '@context': 'https://schema.org', '@type': 'WebSite', name: s.site_name, alternateName: ['دليل المعامل', 'دليل المعامل قضاء الزوراء', 'دليل منطقة المعامل', 'Almamel', 'Dalil Al-Maamel'], url: base + '/', inLanguage: 'ar',
         potentialAction: { '@type': 'SearchAction', target: { '@type': 'EntryPoint', urlTemplate: `${base}/search/?q={search_term_string}` }, 'query-input': 'required name=search_term_string' } },
       { '@context': 'https://schema.org', '@type': 'Organization', name: s.site_name, url: base + '/', logo: `${base}/static/img/icon-512.png`, areaServed: 'المعامل، قضاء الزوراء، بغداد' },
     ]).replace(/</g, '\\u003c');
-    return reply.page(req, { title: `${s.site_name} | مطاعم ومحلات ووظائف وخدمات منطقة المعامل في بغداد`, canonical: '/',
+    return reply.page(req, { title: `${s.site_name} | مطاعم ومحلات ووظائف وخدمات المعامل - بغداد`, canonical: '/',
       description: `${s.site_name}: دليل منطقة المعامل وقضاء الزوراء في بغداد. مطاعم وقوائم طعام واطلب لباب البيت، محلات وأسواق، وظائف، خدمات ومهن، عقارات، بيع وشراء، وأخبار المنطقة.`,
       head: raw(`<script type="application/ld+json">${site}</script>`) }, homePage({
       counts, featured: listFeatured(db, 'home'), latest: pick([...TYPE_KEYS], {}, 6), offers: pick(['offer']), jobs: pick(['job']),
@@ -238,7 +238,7 @@ export async function publicRoutes(app: FastifyInstance) {
   });
 
   app.get('/manifest.webmanifest', (req, reply) => reply.type('application/manifest+json').send(JSON.stringify({
-    name: req.settings.site_name, short_name: req.settings.site_name, lang: 'ar', dir: 'rtl', start_url: '/', display: 'standalone',
+    name: req.settings.site_name, short_name: req.settings.site_name.split(/\s+[-–]\s+/)[0], lang: 'ar', dir: 'rtl', start_url: '/', display: 'standalone',
     background_color: '#F7F6F2', theme_color: '#101B2D',
     icons: [{ src: '/static/img/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/static/img/icon-512.png', sizes: '512x512', type: 'image/png' }],
   })));

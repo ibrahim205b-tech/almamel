@@ -40,11 +40,17 @@ export const icon = (name: string, cls = 'i') =>
 export const csrfField = (ctx: ViewCtx) => html`<input type="hidden" name="_csrf" value="${ctx.csrf}">`;
 
 /** رأس صفحة تسجيل المحلات الخاصة: الشعار يفتح الموقع العام فقط. */
+/** اسم الموقع بسطرين: «دليل المعامل» وتحته «قضاء الزوراء» (حتى يبقى مقروء على الموبايل). */
+function brandName(name: string): SafeHtml {
+  const [main, sub] = name.split(/\s+[-–]\s+/);
+  return html`<span class="brand-text"><span class="brand-name">${main}</span>${sub ? html`<span class="brand-sub">${sub}</span>` : ''}</span>`;
+}
+
 function registerHeader(ctx: ViewCtx): SafeHtml {
   return html`<header class="site-header"><div class="wrap header-row">
     <a class="brand" href="${ctx.publicUrl || '/'}" aria-label="${ctx.settings.site_name}">
       <img src="/static/img/logo.svg" width="40" height="40" alt="">
-      <span class="brand-name">${ctx.settings.site_name}</span>
+      ${brandName(ctx.settings.site_name)}
     </a></div></header>`;
 }
 
@@ -72,7 +78,7 @@ function adminHeader(ctx: ViewCtx): SafeHtml {
   <div class="wrap header-row">
     <a class="brand" href="/admin" aria-label="إدارة ${ctx.settings.site_name}">
       <img src="/static/img/logo.svg" width="40" height="40" alt="">
-      <span class="brand-name">إدارة ${ctx.settings.site_name}</span>
+      <span class="brand-name">إدارة ${ctx.settings.site_name.split(/\s+[-–]\s+/)[0]}</span>
     </a>
   </div>
   <nav class="site-menu admin-menu" aria-label="الإدارة"><div class="wrap menu-inner"><ul class="nav-list">
@@ -136,7 +142,7 @@ ${ctx.adminSite ? adminHeader(ctx) : ctx.kitchenSite ? kitchenHeader(ctx) : ctx.
   <div class="wrap header-row">
     <a class="brand" href="/" aria-label="${s.site_name}، الصفحة الرئيسية">
       <img src="/static/img/logo.svg" width="40" height="40" alt="">
-      <span class="brand-name">${s.site_name}</span>
+      ${brandName(s.site_name)}
     </a>
     <div class="header-actions">
       ${canPost ? html`<a class="btn btn-sign" href="/submit" aria-label="أضف إعلانك">${icon('plus')}<span>أضف إعلانك</span></a>` : ''}

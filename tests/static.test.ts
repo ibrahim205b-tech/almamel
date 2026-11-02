@@ -32,7 +32,7 @@ test('static build renders every page with the GitHub Pages base path and no ser
   assert.ok(home.includes('<link rel="canonical" href="https://user.github.io/almamel/">'));
   assert.match(fs.readFileSync(path.join(out, 'about', 'index.html'), 'utf8'), /<link rel="canonical" href="https:\/\/user\.github\.io\/almamel\/about\/">/);
   assert.ok(!/<loc>[^<]*[^/]<\/loc>/.test(fs.readFileSync(path.join(out, 'sitemap.xml'), 'utf8')), 'sitemap URLs end with /');
-  assert.ok(home.includes('"@type":"WebSite"') && /<title>دليل المعامل \| مطاعم/.test(home));
+  assert.ok(home.includes('"@type":"WebSite"') && /<title>دليل المعامل - قضاء الزوراء \| مطاعم/.test(home));
   assert.ok(!home.includes('name="robots"'), 'main copy is indexable');
   // ربط تطبيقي أندرويد: assetlinks.json للحزمتين بنفس بصمة مفتاح التوقيع
   const links = JSON.parse(fs.readFileSync(path.join(out, '.well-known', 'assetlinks.json'), 'utf8'));

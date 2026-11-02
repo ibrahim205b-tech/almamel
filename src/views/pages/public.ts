@@ -67,7 +67,7 @@ export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml 
   <section class="hero">
     <div class="hero-bg" aria-hidden="true"><span class="hero-grid"></span><span class="orb orb-1"></span><span class="orb orb-2"></span></div>
     <div class="wrap hero-inner">
-      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>دليل منطقة المعامل · قضاء الزوراء</p>
+      <p class="eyebrow"><span class="dot" aria-hidden="true"></span>كل خدمات المنطقة بمكان واحد · بغداد</p>
       <h1 class="hero-title">شنو تحتاج <span class="accent">بالمعامل؟</span></h1>
       <p class="hero-sub">${s.tagline}</p>
       ${searchBox('', '', true)}

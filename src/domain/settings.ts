@@ -71,7 +71,7 @@ const REPORTS = `- يستطيع أي زائر الإبلاغ عن منشور أ�
 - البلاغات الكيدية المتكررة قد تؤدي إلى تقييد الحساب.`;
 
 export const SETTINGS: Record<string, Def> = {
-  site_name: { label: 'اسم الموقع', kind: 'text', def: 'دليل المعامل', max: 40 },
+  site_name: { label: 'اسم الموقع', kind: 'text', def: 'دليل المعامل - قضاء الزوراء', max: 40 },
   tagline: { label: 'الوصف المختصر', kind: 'text', def: 'دليل محلات وخدمات وإعلانات منطقة المعامل في بغداد', max: 160 },
   support_phone: { label: 'رقم الدعم', kind: 'phone', def: DEFAULT_SUPPORT_PHONE },
   whatsapp_phone: { label: 'رقم واتساب الدعم', kind: 'phone', def: DEFAULT_SUPPORT_PHONE },
