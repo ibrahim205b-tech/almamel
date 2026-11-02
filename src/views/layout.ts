@@ -116,6 +116,7 @@ ${canonical ? html`<meta property="og:url" content="${canonical}">` : ''}
 <meta property="og:image" content="${ogImage}">
 <meta name="theme-color" content="#101B2D">
 <meta name="author" content="إبراهيم علي الشويلي">
+${ctx.adminSite || ctx.registerSite || ctx.kitchenSite ? '' : raw('<meta name="google-site-verification" content="ibDE5Err5g1BfD-CObu3zPfeN2zR8DFHOfvxgZB8NjI">')}
 <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/img/icon-180.png">
 <link rel="manifest" href="/manifest.webmanifest">
