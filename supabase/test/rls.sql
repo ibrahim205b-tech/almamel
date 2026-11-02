@@ -260,6 +260,18 @@ select pg_temp.expect_error($q$select public.assign_owner(public.t_id('مطعم 
 reset role;
 do $$ begin if (select owner_id from posts where id = public.t_id('مطعم أبو علي')) <> '22222222-2222-2222-2222-222222222222' then raise exception 'assign_owner failed'; end if; end $$;
 
+-- ===== صاحب المحل يعدّل معلوماته وصوره بدون مراجعة، وغيره ما يكدر =====
+select pg_temp.as_user('22222222-2222-2222-2222-222222222222'); -- المالك الحالي بعد assign_owner
+select public.update_business_info(public.t_id('مطعم أبو علي'), 'وصف جديد', '{"hours":"من ١٠ الصبح","evil":"x","address":"شارع ٢٠"}', array['u/22222222-2222-2222-2222-222222222222/0123456789abcdef0123456789abcdef.webp'], true);
+select pg_temp.expect_error($q$select public.update_business_info(public.t_id('مطعم أبو علي'), 'x', '{}', array['u/11111111-1111-1111-1111-111111111111/0123456789abcdef0123456789abcdef.webp'], true)$q$, 'owner uses another user image');
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+select pg_temp.expect_error($q$select public.update_business_info(public.t_id('مطعم أبو علي'), 'سرقة', '{}', '{}', true)$q$, 'non-owner edits business');
+reset role;
+do $$ declare b posts; begin
+  select * into b from posts where id = public.t_id('مطعم أبو علي');
+  if b.status <> 'published' or b.body <> 'وصف جديد' or b.details->>'hours' <> 'من ١٠ الصبح' or b.details ? 'evil' or cardinality(b.images) <> 1 then raise exception 'owner edit wrong: %', row_to_json(b); end if;
+end $$;
+
 -- ===== النشر الفوري: المفتاح سري، وفشل طلب التحديث لا يمنع الموافقة =====
 reset role;
 insert into private.secrets (name, value) values ('github_token', 'test-token') on conflict (name) do update set value = excluded.value;

@@ -65,6 +65,10 @@ function mock(req: http.IncomingMessage, res: http.ServerResponse, body: Buffer)
   if (p === '/rest/v1/profiles') { const admin = u.searchParams.get('id') === 'eq.' + ADMIN; const prof = { name: admin ? 'المدير' : 'أبو علي', phone: '07701111111', role: admin ? 'admin' : 'owner' }; return send(200, one ? prof : [prof]); }
   if (p === '/rest/v1/menu_items' && req.method === 'GET') { const rows = menu.filter((m) => (u.searchParams.get('business_id') ?? '').includes('1000001') ? m.business_id === 1000001 : true); return send(200, rows); }
   if (p === '/rest/v1/posts' && req.method === 'POST') { const row = { id: 1000005 }; return one ? send(201, row) : String(req.headers.prefer ?? '').includes('representation') ? send(201, [row]) : send(201, null); }
+  if (p === '/rest/v1/posts' && req.method === 'GET' && u.searchParams.get('or')?.includes('owner_id') && !u.searchParams.get('type')) {
+    return send(200, [{ id: 1000001, type: 'business', title: 'مطعم المحاكاة', category: 'مطاعم', area: 'المعامل', status: 'published', owner_id: UID, author_id: UID, open_state: 'open',
+      body: 'مشويات', details: { address: 'الشارع العام', hours: 'من ١٠' }, images: ['u/' + UID + '/' + 'a'.repeat(32) + '.webp'], whatsapp: true, logo: null, updated_at: new Date().toISOString() }]);
+  }
   if (p === '/rest/v1/posts' && req.method === 'GET' && u.searchParams.get('type') === 'eq.business') return send(200, [{ id: 1000001, title: 'مطعم المحاكاة', status: 'published' }]);
   if (p === '/rest/v1/posts' && req.method === 'GET') {
     if (u.searchParams.get('status') === 'eq.pending') return send(200, [{ id: 1000009, type: 'market', title: 'سلعة بانتظار المراجعة', body: 'تفاصيل', category: 'هواتف', area: 'المعامل', price: 1000, contact_phone: '07701234567', show_phone: true, guest_name: 'زائر', details: {}, images: [], created_at: new Date().toISOString(), owner_id: null }]);
@@ -213,6 +217,8 @@ test('restaurant site: login, start receiving, see the new order with phone and 
   const p = await open('/login/', 390, '/almamel-mat3am');
   await p.fill('#f-email', 'owner@x.iq'); await p.fill('#f-password', 'owner-pass-1234');
   await p.click('[data-login] button[type=submit]');
+  await p.waitForURL(/\/almamel-mat3am\/owner\/dashboard\//);
+  await p.click('.site-header a:has-text("طلبات المطعم")');
   await p.waitForURL(/\/almamel-mat3am\/kitchen\//);
   await p.waitForSelector('[data-list="new"] .order-new');
   const card = (await p.textContent('[data-list="new"]'))!;
@@ -271,6 +277,29 @@ test('a listing approved after the last build shows up at once on its section an
   const home = await open('/');
   await home.waitForSelector('[data-live-latest] .row-link:has-text("وظيفة بتصنيف خاطئ")');
   await page.context().close(); await home.context().close();
+});
+
+test('owner portal: shop owner edits details and photos of their page and opens products and prices', async () => {
+  const p = await open('/login/', 390, '/almamel-mat3am');
+  await p.fill('#f-email', 'owner@x.iq'); await p.fill('#f-password', 'owner-pass-1234');
+  await p.click('[data-login] button[type=submit]');
+  await p.waitForURL(/\/almamel-mat3am\/owner\/dashboard\//);
+  await p.waitForSelector('.owner-card:has-text("مطعم المحاكاة")');
+  assert.equal(await p.getAttribute('.owner-card a.btn-primary', 'href'), '/almamel-mat3am/owner/menu/?b=1000001');
+  await p.click('.owner-edit summary');
+  await p.fill('[name=hours]', 'يومياً من ١٢ الظهر لـ ١٢ بالليل');
+  const img = path.join(os.tmpdir(), 'owner-photo.jpg');
+  fs.writeFileSync(img, await sharp({ create: { width: 800, height: 600, channels: 3, background: '#357' } }).jpeg().toBuffer());
+  await p.setInputFiles('.owner-edit input[type=file]', img);
+  assert.equal(await p.locator('.owner-edit .picked li').count(), 2, 'old photo + new photo');
+  await p.click('.owner-edit button:has-text("حفظ التعديلات")');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("تم حفظ معلومات المحل")');
+  const call = JSON.parse(log.filter((r) => r.path === '/rest/v1/rpc/update_business_info').at(-1)!.body.toString());
+  assert.equal(call.p_id, 1000001);
+  assert.equal(call.p_details.hours, 'يومياً من ١٢ الظهر لـ ١٢ بالليل');
+  assert.equal(call.p_images.length, 2);
+  assert.match(call.p_images[1], new RegExp(`^u/${UID}/[0-9a-f]{32}\\.webp$`));
+  await p.context().close();
 });
 
 test('visitor posts an ad with a photo directly from the site', async () => {

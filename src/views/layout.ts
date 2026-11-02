@@ -59,14 +59,14 @@ function kitchenHeader(ctx: ViewCtx): SafeHtml {
   const cur = (p: string) => ctx.path === p ? raw('aria-current="page"') : '';
   return html`<header class="site-header">
   <div class="wrap header-row">
-    <a class="brand" href="/kitchen" aria-label="طلبات المطعم">
+    <a class="brand" href="/owner/dashboard" aria-label="لوحة صاحب المحل">
       <img src="/static/img/logo.svg" width="40" height="40" alt="">
-      <span class="brand-name">طلبات المطعم</span>
+      <span class="brand-text"><span class="brand-name">لوحة صاحب المحل</span><span class="brand-sub">دليل المعامل</span></span>
     </a>
   </div>
   <nav class="site-menu admin-menu" aria-label="المطعم"><div class="wrap menu-inner"><ul class="nav-list">
-    <li><a href="/kitchen" ${cur('/kitchen')}>${icon('bell')}الطلبات</a></li>
-    <li><a href="/owner/menu" ${cur('/owner/menu')}>${icon('list')}القائمة والأسعار</a></li>
+    <li><a href="/owner/dashboard" ${cur('/owner/dashboard')}>${icon('store')}صفحتي</a></li>
+    <li><a href="/kitchen" ${cur('/kitchen')}>${icon('bell')}طلبات المطعم</a></li>
     ${ctx.publicUrl ? html`<li><a href="${ctx.publicUrl}" target="_blank" rel="noopener">${icon('home')}الموقع العام</a></li>` : ''}
   </ul></div></nav>
 </header>`;
@@ -189,7 +189,7 @@ ${ctx.adminSite || ctx.registerSite || ctx.kitchenSite ? html`<footer class="sit
     <section aria-labelledby="f-links">
       <h2 id="f-links" class="footer-title">روابط</h2>
       <ul class="footer-links">
-        <li><a href="/about">عن المنصة</a></li><li><a href="/contact">تواصل معنا</a></li>
+        <li><a href="/about">عن المنصة</a></li><li><a href="/contact">تواصل معنا</a></li>${ctx.staticMode ? html`<li><a href="/mat3am/">دخول أصحاب المحلات</a></li>` : ''}
         <li><a href="${ctx.staticMode ? addShopLink(s0(ctx)) : '/owner'}"${ctx.staticMode ? raw(' target="_blank" rel="noopener"') : ''}>أضف مطعمك أو محلك</a></li>
         <li><a href="/policies/privacy">سياسة الخصوصية</a></li><li><a href="/policies/terms">شروط الاستخدام</a></li>
         <li><a href="/policies/posting">سياسة النشر</a></li><li><a href="/policies/ads">سياسة الإعلانات</a></li>

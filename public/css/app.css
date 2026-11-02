@@ -782,3 +782,9 @@ body.no-scroll{overflow:hidden}
 }
 .data-table td .bar{margin-top:7px}
 .ribbon-new{background:var(--blue);color:#fff;box-shadow:0 4px 12px -6px rgb(49 91 219 / .9)}
+.owner-edit>summary{cursor:pointer;list-style:none;display:flex;align-items:center;min-height:44px}
+.owner-edit>summary h4{margin:0}
+.owner-edit>summary::after{content:"";margin-inline-start:auto;width:9px;height:9px;border-inline-end:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg) translateY(-3px);transition:transform .3s var(--ease)}
+.owner-edit[open]>summary::after{transform:rotate(-135deg) translateY(-1px)}
+.owner-edit .form{margin-top:10px}
+.field .label{font-weight:600;font-size:var(--t-sm);color:var(--navy)}

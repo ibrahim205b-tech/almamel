@@ -52,7 +52,7 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
 
     const settings = loadSettings(db);
     // الموقع العام لا يحتوي تسجيل المحلات ولا لوحات التحكم؛ هذه في موقع الإدارة المنفصل فقط.
-    const urls = opts.register ? ['/owner/register'] : opts.kitchen ? ['/login', '/kitchen', '/owner/menu'] : opts.admin ? ['/login', '/admin', '/admin/business', '/admin/menu'] : ['/', '/restaurants', '/news', '/about', '/contact', '/search', '/submit', '/publish',
+    const urls = opts.register ? ['/owner/register'] : opts.kitchen ? ['/login', '/owner/dashboard', '/owner/menu', '/kitchen'] : opts.admin ? ['/login', '/admin', '/admin/business', '/admin/menu'] : ['/', '/restaurants', '/news', '/about', '/contact', '/search', '/submit', '/publish',
       ...TYPE_KEYS.map((t) => TYPES[t].path),
       ...TYPE_KEYS.filter((t) => t !== 'business' && sectionEnabled(settings, t)).map((t) => `/submit/${t}`),
       ...Object.keys(POLICIES).map((k) => `/policies/${k}`),
@@ -90,10 +90,10 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
       if (opts.admin) write('index.html', `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0;url=${base}/admin/"><title>الإدارة</title><a href="${base}/admin/">لوحة الإدارة</a>`);
       if (opts.admin) write('404.html', `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0;url=${base}/admin/"><title>الإدارة</title>`);
       if (opts.kitchen) {
-        for (const f of ['index.html', '404.html']) write(f, `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0;url=${base}/kitchen/"><title>طلبات المطعم</title><a href="${base}/kitchen/">الطلبات</a>`);
+        for (const f of ['index.html', '404.html']) write(f, `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0;url=${base}/owner/dashboard/"><title>لوحة صاحب المحل</title><a href="${base}/owner/dashboard/">لوحة صاحب المحل</a>`);
         // عامل خدمة بسيط: يسمح بإشعارات النظام على أندرويد ويفتح الصفحة عند الضغط على الإشعار
         write('sw.js', fs.readFileSync(path.join(import.meta.dirname, '..', 'public', 'js', 'kitchen-sw.js')));
-        write('manifest.webmanifest', JSON.stringify({ name: 'طلبات المطعم - دليل المعامل', short_name: 'طلبات المطعم', start_url: `${base}/kitchen/`, scope: `${base}/`, display: 'standalone', dir: 'rtl', lang: 'ar', background_color: '#101B2D', theme_color: '#101B2D', icons: [{ src: `${base}/static/img/logo.svg`, sizes: 'any', type: 'image/svg+xml' }] }));
+        write('manifest.webmanifest', JSON.stringify({ name: 'لوحة صاحب المحل - دليل المعامل', short_name: 'محلي', start_url: `${base}/owner/dashboard/`, scope: `${base}/`, display: 'standalone', dir: 'rtl', lang: 'ar', background_color: '#101B2D', theme_color: '#101B2D', icons: [{ src: `${base}/static/img/logo.svg`, sizes: 'any', type: 'image/svg+xml' }] }));
       }
       write('robots.txt', 'User-agent: *\nDisallow: /\n');
       write('.nojekyll', '');

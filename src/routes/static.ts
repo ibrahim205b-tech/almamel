@@ -78,13 +78,13 @@ export async function staticRoutes(app: FastifyInstance) {
     });
     app.get('/owner', (req, reply) => reply.page(req, { title: 'أضف مطعمك أو محلك', description: 'سجّل مطعمك أو محلك في دليل المعامل وأدر قائمة الطعام والأسعار بنفسك.' }, ownerLandingPage()));
     app.get('/owner/register', (req, reply) => reply.page(req, { title: 'سجّل مطعمك أو محلك', noindex: true, head: head() }, ownerRegisterPage(catsBySection().business ?? [], areaNames(), app.cfg.publicUrl)));
-    app.get('/login', (req, reply) => reply.page(req, { title: app.cfg.adminSite ? 'دخول الإدارة' : app.cfg.kitchenSite ? 'دخول المطعم' : 'دخول أصحاب المحلات', noindex: true, head: head(req) }, liveLoginPage(app.cfg.adminSite, app.cfg.kitchenSite)));
+    app.get('/login', (req, reply) => reply.page(req, { title: app.cfg.adminSite ? 'دخول الإدارة' : app.cfg.kitchenSite ? 'دخول أصحاب المحلات والمطاعم' : 'دخول أصحاب المحلات', noindex: true, head: head(req) }, liveLoginPage(app.cfg.adminSite, app.cfg.kitchenSite)));
     app.get('/kitchen', (req, reply) => reply.page(req, { title: 'طلبات المطعم', noindex: true, canonical: null, head: html`${head(req)}<link rel="manifest" href="/manifest.webmanifest">` }, kitchenPage()));
     // صفحة متابعة الطلب للزبون (الموقع العام)
     app.get('/order', (req, reply) => reply.page(req, { title: 'حالة طلبك', noindex: true, canonical: null }, orderStatusPage()));
     app.get('/p', (req, reply) => reply.page(req, { title: 'إعلان جديد', noindex: true, canonical: null }, livePostPage(typeLabelsJson())));
-    app.get('/owner/dashboard', (req, reply) => reply.page(req, { title: 'لوحة التحكم', noindex: true, canonical: null, head: head(req) }, dashboardPage()));
-    app.get('/owner/menu', (req, reply) => reply.page(req, { title: 'القائمة والأسعار', noindex: true, canonical: null, head: head() }, menuManagerPage(app.cfg.kitchenSite ? '/kitchen' : '/owner/dashboard')));
+    app.get('/owner/dashboard', (req, reply) => reply.page(req, { title: 'لوحة التحكم', noindex: true, canonical: null, head: head(req) }, dashboardPage(app.cfg.kitchenSite ? app.cfg.publicUrl : '', waLink(req.settings.whatsapp_phone ?? ''))));
+    app.get('/owner/menu', (req, reply) => reply.page(req, { title: 'القائمة والأسعار', noindex: true, canonical: null, head: head() }, menuManagerPage('/owner/dashboard')));
     app.get('/admin', (req, reply) => reply.page(req, { title: 'لوحة الإدارة', noindex: true, canonical: null, head: head() }, adminLivePage()));
     // موقع الإدارة: إضافة المطاعم والمحلات بصورها وقائمتها، وإدارة قائمة أي محل
     app.get('/admin/business', (req, reply) => reply.page(req, { title: 'إضافة مطعم أو محل', noindex: true, canonical: null, head: head() }, adminBusinessPage(catsBySection().business ?? [], areaNames())));

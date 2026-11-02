@@ -255,7 +255,7 @@
         }
         if (REGISTER_SITE) {
           biz.hidden = true; await sb.auth.signOut();
-          say('وصل طلبك ✅ راح نتصل بيك للتحقق، وبعد الموافقة تنشر صفحة محلك بالموقع.', 'ok');
+          say('وصل طلبك ✅ راح نتصل بيك للتحقق. بعد الموافقة تدير صفحة محلك (المنتجات والأسعار والصور) من: ' + location.origin + BASE.replace(/\/tasjeel$/, '') + '/mat3am/ بنفس البريد وكلمة المرور.', 'ok');
           return;
         }
         go('/owner/dashboard/?sent=1');
@@ -275,7 +275,7 @@
       var p = await profile(r.data.user.id);
       var next = new URLSearchParams(location.search).get('next');
       if (ADMIN_SITE && !(p && p.role === 'admin')) { await sb.auth.signOut(); return say('هذا الحساب ليس حساب إدارة. شغّل make_admin لبريدك في Supabase أولاً.', 'error'); }
-      go(next && /^\/[\w\-/?=&%.]*$/.test(next) ? next : KITCHEN_SITE ? '/kitchen/' : p && p.role === 'admin' ? '/admin/' : '/owner/dashboard/');
+      go(next && /^\/[\w\-/?=&%.]*$/.test(next) ? next : KITCHEN_SITE ? '/owner/dashboard/' : p && p.role === 'admin' ? '/admin/' : '/owner/dashboard/');
     });
     var signup = $('[data-signup]');
     if (signup) signup.addEventListener('submit', async function (e) {
@@ -335,7 +335,7 @@
         window.history.replaceState(null, '', location.pathname);
         say('تم تغيير كلمة المرور ✅ جارِ الدخول...', 'ok');
         var p2 = await profile(r.data.user.id);
-        setTimeout(function () { go(KITCHEN_SITE ? '/kitchen/' : p2 && p2.role === 'admin' ? '/admin/' : '/owner/dashboard/'); }, 900);
+        setTimeout(function () { go(KITCHEN_SITE ? '/owner/dashboard/' : p2 && p2.role === 'admin' ? '/admin/' : '/owner/dashboard/'); }, 900);
       });
       rf.querySelector('#f-new-pw').focus();
     }
@@ -347,6 +347,56 @@
   // ---------- لوحة التحكم ----------
   var STATUS = { pending: 'بانتظار المراجعة', published: 'منشور', rejected: 'مرفوض', hidden: 'مخفي', removed: 'محذوف' };
   function badge(st, text) { return el('span', { class: 'status status-' + st, text: text || STATUS[st] || st }); }
+
+  function editInfo(b) {
+    var d = b.details || {}, keep = (b.images || []).slice(), fresh = [];
+    var f = el('form', { class: 'form', novalidate: true });
+    function field(name, label, value, area, hint) {
+      var id = 'e' + b.id + '-' + name, inp = el(area ? 'textarea' : 'input', { id: id, name: name, rows: area ? 3 : null, maxlength: name === 'body' ? 2000 : name === 'services' ? 1000 : 300 });
+      inp.value = value || '';
+      return el('div', { class: 'field' }, [el('label', { for: id, text: label }), inp, hint ? el('span', { class: 'hint', text: hint }) : null]);
+    }
+    f.appendChild(field('body', 'وصف المحل', b.body, true, 'شنو تبيع أو تقدم، وأي شي يميز محلك'));
+    f.appendChild(field('address', 'العنوان', d.address, false, 'الشارع أو أقرب نقطة دالة'));
+    f.appendChild(field('hours', 'أوقات الدوام', d.hours, false, 'مثال: يومياً من ٩ الصبح لـ ١١ بالليل'));
+    f.appendChild(field('services', 'الخدمات أو المنتجات الرئيسية', d.services, true));
+    f.appendChild(field('delivery', 'مناطق التوصيل', d.delivery, false, 'إذا عندك توصيل'));
+    var waId = 'e' + b.id + '-wa', wa = el('input', { type: 'checkbox', id: waId, checked: b.whatsapp });
+    f.appendChild(el('div', { class: 'check' }, [wa, el('label', { for: waId, text: 'رقم المحل عليه واتساب' })]));
+    var pics = el('ul', { class: 'thumbs picked' });
+    function drawPics() {
+      pics.textContent = '';
+      keep.concat(fresh).forEach(function (item) {
+        var src = typeof item === 'string' ? mediaUrl(item) : URL.createObjectURL(item);
+        pics.appendChild(el('li', {}, [el('img', { src: src, alt: '', width: 96, height: 96 }), el('button', { class: 'thumb-x', type: 'button', 'aria-label': 'حذف الصورة', text: '×', onclick: function () {
+          var i = keep.indexOf(item); if (i >= 0) keep.splice(i, 1); else fresh.splice(fresh.indexOf(item), 1); drawPics();
+        } })]));
+      });
+      add.hidden = keep.length + fresh.length >= 6;
+    }
+    var picker = el('input', { type: 'file', accept: 'image/*', multiple: true, 'aria-label': 'إضافة صور' });
+    var add = el('label', { class: 'btn btn-sm btn-pick' }, ['+ إضافة صور من المعرض', picker]);
+    picker.addEventListener('change', function () { Array.prototype.slice.call(picker.files || []).forEach(function (x) { if (keep.length + fresh.length < 6) fresh.push(x); }); picker.value = ''; drawPics(); });
+    f.appendChild(el('div', { class: 'field' }, [el('span', { class: 'label', text: 'صور المحل (حتى ٦)' }), pics, add]));
+    drawPics();
+    var save = el('button', { class: 'btn btn-primary', type: 'submit', text: 'حفظ التعديلات' });
+    f.appendChild(save);
+    f.appendChild(el('p', { class: 'hint', text: 'تريد تغيير اسم المحل أو رقمه أو منطقته؟ راسل خدمة العملاء.' }));
+    f.addEventListener('submit', async function (e) {
+      e.preventDefault(); busy(f, true);
+      try {
+        var paths = keep.slice();
+        for (var i = 0; i < fresh.length; i++) { say('جارِ رفع الصور (' + (i + 1) + ' من ' + fresh.length + ')...', 'ok'); paths.push(await upload('media', 'u/' + b.owner_id + '/' + hex() + '.webp', await toWebp(fresh[i]))); }
+        var r = await sb.rpc('update_business_info', { p_id: b.id, p_body: f.elements.body.value.trim(), p_images: paths, p_whatsapp: wa.checked,
+          p_details: { address: f.elements.address.value, hours: f.elements.hours.value, services: f.elements.services.value, delivery: f.elements.delivery.value } });
+        if (r.error) throw r.error;
+        say('تم حفظ معلومات المحل ✅ تظهر بصفحتك بعد التحديث التلقائي للموقع.', 'ok');
+        initDashboard();
+      } catch (err) { say(errText(err), 'error'); }
+      finally { busy(f, false); }
+    });
+    return el('details', { class: 'owner-block owner-edit' }, [el('summary', {}, [el('h4', { text: 'تعديل معلومات المحل وصوره' })]), f]);
+  }
 
   async function initDashboard() {
     var s = await requireLogin(); if (!s) return;
@@ -384,6 +434,9 @@
           } }));
         });
         card.appendChild(st);
+
+        // تعديل معلومات المحل وصوره (بدون مراجعة جديدة)
+        card.appendChild(editInfo(b));
 
         // الشعار: يظهر بجانب اسم المحل في الموقع
         var logoInput = el('input', { type: 'file', accept: 'image/*', 'aria-label': 'صورة الشعار' });
@@ -757,7 +810,7 @@
             el('div', { class: 'btn-row' }, [
               el('button', { class: 'btn btn-primary', type: 'button', text: 'تم التحقق: اعتماد ونشر', onclick: async function () {
                 var r = await sb.rpc('decide_claim', { p_id: c.id, p_approve: true, p_note: null });
-                if (r.error) return say(errText(r.error), 'error'); say('تم الاعتماد. يظهر المحل خلال ربع ساعة.', 'ok'); load();
+                if (r.error) return say(errText(r.error), 'error'); say('تم الاعتماد ✅ أرسل لصاحب المحل رابط لوحته حتى يضيف منتجاته وأسعاره: ' + location.origin + BASE.replace(/\/idara$/, '') + '/mat3am/', 'ok'); load();
               } }),
               el('button', { class: 'btn', type: 'button', text: 'رفض', onclick: async function () {
                 var note = prompt('سبب الرفض (يصل لصاحب الطلب):'); if (note === null) return;

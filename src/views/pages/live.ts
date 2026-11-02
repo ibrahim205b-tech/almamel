@@ -123,7 +123,7 @@ export function ownerRegisterPage(cats: string[], areas: string[], publicUrl = '
 export function liveLoginPage(admin = false, kitchen = false): SafeHtml {
   return html`<div class="wrap narrow" data-page="login">
     <h1>${admin ? 'دخول الإدارة' : kitchen ? 'دخول المطعم' : 'دخول أصحاب المحلات'}</h1>
-    ${admin ? '' : kitchen ? html`<p class="lede">من هنا يستلم المطعم طلبات الزبائن من دليل المعامل، بإشعار وصوت، ويقبلها أو يرفضها.</p>` : html`<p class="lede">لنشر إعلان عادي ما تحتاج حساب: <a href="/submit">أضف إعلانك</a>.</p>`}
+    ${admin ? '' : kitchen ? html`<p class="lede">لوحة صاحب المحل أو المطعم: أضف منتجاتك وأسعارك وصورك، عدّل معلومات محلك، واستلم الطلبات.</p>` : html`<p class="lede">لنشر إعلان عادي ما تحتاج حساب: <a href="/submit">أضف إعلانك</a>.</p>`}
     ${msg}${noJs}
     <form class="form" data-login novalidate>
       ${field({ name: 'email', label: 'البريد الإلكتروني', required: true, type: 'email', dir: 'ltr', attrs: 'autocomplete="email"' })}
@@ -143,19 +143,20 @@ export function liveLoginPage(admin = false, kitchen = false): SafeHtml {
   </div>`;
 }
 
-export function dashboardPage(): SafeHtml {
+export function dashboardPage(publicUrl = '', support = ''): SafeHtml {
+  const pub = (p: string) => (publicUrl ? publicUrl.replace(/\/+$/, '') + p : p);
   return html`<div class="wrap" data-page="dashboard">
-    <div class="page-head"><div><h1>لوحة التحكم</h1><p class="lede" data-who></p></div>
-      <div class="btn-row"><a class="btn btn-sign" href="/owner/register">${icon('plus')}إضافة مطعم أو محل</a><button class="btn" type="button" data-logout>${icon('logout')}خروج</button></div></div>
+    <div class="page-head"><div><h1>صفحتي</h1><p class="lede" data-who></p></div>
+      <div class="btn-row">${publicUrl ? html`<a class="btn btn-sign" href="${support}" target="_blank" rel="noopener">${icon('whatsapp')}خدمة العملاء</a>` : html`<a class="btn btn-sign" href="/owner/register">${icon('plus')}إضافة مطعم أو محل</a>`}<button class="btn" type="button" data-logout>${icon('logout')}خروج</button></div></div>
     ${msg}${noJs}
     <section aria-labelledby="h-biz"><h2 id="h-biz">محلاتي</h2><div data-businesses><div class="skeleton" aria-label="جارِ التحميل"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div></div></section>
     <section class="block" aria-labelledby="h-ads"><h2 id="h-ads">إعلاناتي</h2>
-      <p class="btn-row"><a class="btn btn-sm" href="/submit/offer">${icon('percent', 'i i-sm')}أضف عرضاً</a><a class="btn btn-sm" href="/submit/job">${icon('briefcase', 'i i-sm')}أضف وظيفة</a></p>
+      <p class="btn-row"><a class="btn btn-sm" href="${pub('/submit/offer/')}">${icon('percent', 'i i-sm')}أضف عرضاً</a><a class="btn btn-sm" href="${pub('/submit/job/')}">${icon('briefcase', 'i i-sm')}أضف وظيفة</a></p>
       <div data-ads></div></section>
     <section class="block" aria-labelledby="h-orders"><h2 id="h-orders">الطلبات من الموقع</h2>
       <p class="muted">الطلبات اللي أرسلها الزبائن من سلة الموقع إلى واتسابك. نسبة الموقع ٥٪ من مجموعها، تُدفع آخر كل شهر.</p>
       <div data-commission></div></section>
-    <p class="hint">التغييرات المعتمدة تظهر بالموقع خلال ربع ساعة تقريباً.</p>
+    <p class="hint">التعديلات تظهر بصفحتك بالموقع بعد التحديث التلقائي.</p>
   </div>`;
 }
 
