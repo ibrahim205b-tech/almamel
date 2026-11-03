@@ -113,15 +113,16 @@ export async function publicRoutes(app: FastifyInstance) {
   });
 
   // دليل المهندسين (من content/engineers.json)
+  const engLive = !!(app.cfg.staticMode && app.cfg.supabaseUrl); // المهندس يسجّل بنفسه
   const engineerJoin = (phone: string) => `${waLink(phone)}?text=${encodeURIComponent('مرحباً، أنا مهندس وأريد أضيف اسمي واختصاصي وخدماتي بدليل المهندسين على دليل المعامل.')}`;
   app.get('/engineers', (req, reply) => reply.page(req, {
     title: 'دليل المهندسين', description: 'مهندسين مدنيين ومعماريين وكهربائيين وميكانيكيين في بغداد والمعامل: اختصاصاتهم وخدماتهم وطريقة التواصل وياهم.',
-  }, engineersPage(loadEngineers(), engineerJoin(req.settings.whatsapp_phone ?? ''))));
+  }, engineersPage(loadEngineers(), engLive ? '/engineers/join' : engineerJoin(req.settings.whatsapp_phone ?? ''), engLive)));
   app.get('/engineers/:slug', (req, reply) => {
     const e = loadEngineers().find((x) => x.slug === (req.params as { slug: string }).slug);
     if (!e) return reply.code(404).page(req, { title: 'المهندس غير موجود', noindex: true }, html`<div class="wrap narrow"><div class="empty"><p class="empty-title">المهندس غير موجود</p><p><a href="/engineers">كل المهندسين</a></p></div></div>`);
     return reply.page(req, { title: `${e.name}: ${e.specialty}`, description: `${e.name}، ${e.specialty}${e.location ? ` في ${e.location}` : ''}. ${e.services.join('، ')}.`.slice(0, 300) },
-      engineerPage(e, engineerJoin(req.settings.whatsapp_phone ?? '')));
+      engineerPage(e, engLive ? '/engineers/join' : engineerJoin(req.settings.whatsapp_phone ?? '')));
   });
 
   app.get('/news', (req, reply) => {

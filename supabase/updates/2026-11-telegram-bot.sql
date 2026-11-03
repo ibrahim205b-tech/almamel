@@ -1,4 +1,4 @@
--- تحديث: أزرار الموافقة والرفض بتيليغرام. انسخ الملف كاملاً وشغّله في Supabase ← SQL Editor ← Run (آمن لو انعاد).
+-- تحديث: أزرار الموافقة والرفض بتيليغرام (ويشمل دليل المهندسين). انسخ الملف كاملاً وشغّله في Supabase ← SQL Editor ← Run (آمن لو انعاد).
 -- قبله لازم تكون شغّلت 2026-11-trust.sql. والدالة supabase/functions/telegram-bot لازم تنرفع (الشرح: docs/TELEGRAM.md).
 do $$ begin
   if to_regclass('public.complaints') is null then raise exception 'شغّل ملف 2026-11-trust.sql أول، وبعدين هذا الملف'; end if;
@@ -8,6 +8,52 @@ create schema if not exists private;
 create table if not exists private.secrets (name text primary key, value text not null);
 revoke all on schema private from public, anon, authenticated;
 revoke all on all tables in schema private from public, anon, authenticated;
+
+-- ---------- دليل المهندسين: المهندس يسجّل نفسه، والإدارة توافق ----------
+create table if not exists public.engineers (
+  id          bigint generated always as identity primary key,
+  name        text not null check (char_length(name) between 2 and 80),
+  specialty   text not null check (char_length(specialty) between 2 and 60),
+  services    text[] not null default '{}' check (cardinality(services) between 1 and 12),
+  location    text not null check (char_length(location) between 2 and 80),
+  phone       text not null check (phone ~ '^07[0-9]{9}$'),
+  whatsapp    boolean not null default true,
+  about       text check (char_length(about) <= 1500),
+  status      text not null default 'pending' check (status in ('pending', 'approved', 'hidden')),
+  client_ip   text,
+  created_at  timestamptz not null default now(),
+  decided_at  timestamptz
+);
+create unique index if not exists engineers_phone on public.engineers (phone);
+alter table public.engineers enable row level security;
+
+-- كل خدمة بين حرفين و١٢٠ حرف؛ ونفس الشبكة ما تسجّل أكثر من ٣ بالساعة
+create or replace function public.engineers_before_insert() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare s text;
+begin
+  new.status := 'pending'; new.decided_at := null; new.created_at := now();
+  new.client_ip := public.request_ip();
+  new.services := array(select left(trim(x), 120) from unnest(new.services) x where char_length(trim(x)) >= 2);
+  if cardinality(new.services) = 0 then raise exception 'اكتب خدمة وحدة على الأقل'; end if;
+  foreach s in array new.services loop if char_length(s) > 120 then raise exception 'الخدمة طويلة'; end if; end loop;
+  if new.client_ip is not null and (select count(*) from engineers where client_ip = new.client_ip and created_at > now() - interval '1 hour') >= 3 then
+    raise exception 'وصلتنا تسجيلات كثيرة من شبكتك. حاول بعد ساعة.'; end if;
+  return new;
+end $$;
+drop trigger if exists engineers_before_insert on public.engineers;
+create trigger engineers_before_insert before insert on public.engineers for each row execute function public.engineers_before_insert();
+
+drop policy if exists engineers_insert on public.engineers;
+create policy engineers_insert on public.engineers for insert to anon, authenticated with check (true);
+drop policy if exists engineers_staff on public.engineers;
+create policy engineers_staff on public.engineers for all to authenticated using (public.is_staff()) with check (public.is_staff());
+
+create or replace view public.public_engineers with (security_barrier = true) as
+  select id, name, specialty, services, location, phone, whatsapp, about, decided_at
+  from public.engineers where status = 'approved';
+grant select on public.public_engineers to anon, authenticated;
+
 
 -- ---------- تنبيهات تيليغرام للإدارة، مع أزرار موافقة ورفض ----------
 -- كل إعلان جديد، طلب محل، دلفري، منتجات، شكوى، تعليق، أو واحد وصل حد الدين: رسالة فورية بأزرار.
@@ -38,7 +84,7 @@ create or replace function private.btn(p_label text, p_data text) returns jsonb 
 -- بطاقة لكل شي ينتظر قرار: نص + أزرار. النوع: p إعلان، c طلب محل، r دلفري، M منتجات محل، m منتج، k شكوى، v تعليق، d دين
 create or replace function private.card(p_kind text, p_id bigint) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
-declare p posts; c claims; r riders; k complaints; v ratings; m record; t text; who text; debt int; n int;
+declare p posts; c claims; r riders; k complaints; v ratings; m record; en record; t text; who text; debt int; n int;
   lab text; nl text := chr(10);
 begin
   if p_kind = 'p' then
@@ -73,6 +119,14 @@ begin
     return jsonb_build_object('text', t, 'kb', jsonb_build_array(
       jsonb_build_array(private.btn('🪪 عرض الهوية', 'r:' || p_id || ':id')),
       jsonb_build_array(private.btn('✅ تم التحقق: نشر', 'r:' || p_id || ':approve'), private.btn('🗑 حذف مع الهوية', 'r:' || p_id || ':delete'))));
+  elsif p_kind = 'e' then
+    select * into en from engineers where id = p_id; if not found then return null; end if;
+    t := '📐 مهندس جديد سجّل بدليل المهندسين' || nl || en.name || ' — ' || en.specialty || nl || '📍 ' || en.location
+      || nl || '📞 ' || en.phone || case when en.whatsapp then ' (واتساب)' else '' end
+      || nl || nl || 'الخدمات:' || nl || (select string_agg('• ' || x, nl) from unnest(en.services) x)
+      || case when coalesce(en.about, '') <> '' then nl || nl || left(en.about, 500) else '' end;
+    return jsonb_build_object('text', t, 'kb', jsonb_build_array(
+      jsonb_build_array(private.btn('✅ نشر بالدليل', 'e:' || p_id || ':approve'), private.btn('🗑 حذف', 'e:' || p_id || ':delete'))));
   elsif p_kind = 'M' then
     select count(*) into n from menu_items where business_id = p_id and not approved;
     if n = 0 then return null; end if;
@@ -212,6 +266,14 @@ begin
       delete from riders where id = p_id; get diagnostics n = row_count;
       if n = 0 then raise exception 'الدلفري غير موجود'; end if; return 'انحذف ويا هويته 🗑';
     end if;
+  elsif p_kind = 'e' then
+    if p_action = 'approve' then
+      update engineers set status = 'approved', decided_at = now() where id = p_id; get diagnostics n = row_count;
+      if n = 0 then raise exception 'المهندس غير موجود'; end if; return 'انتشر بدليل المهندسين ✅';
+    elsif p_action = 'delete' then
+      delete from engineers where id = p_id; get diagnostics n = row_count;
+      if n = 0 then raise exception 'المهندس غير موجود'; end if; return 'انحذف 🗑';
+    end if;
   elsif p_kind = 'M' and p_action = 'approve' then
     update menu_items set approved = true where business_id = p_id and not approved; get diagnostics n = row_count;
     return 'انوافق على ' || n || ' منتج ✅';
@@ -238,6 +300,7 @@ begin
   for x in (select 'c' k, id from claims where status = 'pending' order by created_at limit 10)
     union all (select 'p', id from posts where status = 'pending' and type <> 'business' order by created_at limit 15)
     union all (select 'r', id from riders where status = 'pending' order by created_at limit 10)
+    union all (select 'e', id from engineers where status = 'pending' order by created_at limit 10)
     union all (select 'M', business_id from menu_items where not approved and public.is_public_business(business_id) group by business_id limit 10)
     union all (select 'k', id from complaints where status = 'open' order by created_at limit 10)
     union all (select 'v', id from ratings where not approved and comment is not null order by created_at limit 10)
@@ -300,6 +363,12 @@ revoke all on function public.telegram_test() from public, anon;
 grant execute on function public.telegram_test() to authenticated;
 
 
+-- تنبيه تيليغرام بزر نشر أو حذف لكل مهندس جديد
+create or replace function private.notify_engineer() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin perform private.send_card('e', new.id); return null; end $$;
+drop trigger if exists engineers_notify on public.engineers;
+create trigger engineers_notify after insert on public.engineers for each row execute function private.notify_engineer();
 
 -- اربط البوت بالدالة (يسوي الرمز السري ويبلّغ تيليغرام بالعنوان)
 select private.telegram_set_webhook('https://nffknzxxqfldqiumfywe.supabase.co/functions/v1/telegram-bot');

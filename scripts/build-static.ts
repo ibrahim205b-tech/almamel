@@ -57,7 +57,7 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
       ...TYPE_KEYS.map((t) => TYPES[t].path),
       ...TYPE_KEYS.filter((t) => t !== 'business' && sectionEnabled(settings, t)).map((t) => `/submit/${t}`),
       ...Object.keys(POLICIES).map((k) => `/policies/${k}`),
-      ...(opts.supabase ? ['/order', '/p', '/delivery', '/delivery/join', '/my-ads'] : []),
+      ...(opts.supabase ? ['/order', '/p', '/delivery', '/delivery/join', '/my-ads', '/engineers/join', '/engineers/e'] : []),
       ...listPublic(db, { types: [...TYPE_KEYS], perPage: 1000 }).items.map(postUrl)];
 
     // الصفحات تُنشر كمجلدات (about/index.html)، فالرابط الأساسي ينتهي بـ / حتى لا يمر كوكل بتحويل

@@ -1,5 +1,5 @@
 // دليل المهندسين: قائمة البطاقات وصفحة كل مهندس.
-import { html, paragraphs, type SafeHtml } from '../../lib/html.ts';
+import { html, paragraphs, raw, type SafeHtml } from '../../lib/html.ts';
 import { telLink } from '../../lib/arabic.ts';
 import { engineerWhatsApp, type Engineer } from '../../domain/engineers.ts';
 import { icon } from '../layout.ts';
@@ -32,19 +32,22 @@ function card(e: Engineer): SafeHtml {
   </li>`;
 }
 
-export function engineersPage(list: Engineer[], joinLink: string): SafeHtml {
+/** القائمة: المهندسين المضافين بالملف + المسجلين بأنفسهم (يحمّلهم static.js من public_engineers). */
+export function engineersPage(list: Engineer[], joinLink: string, live = false): SafeHtml {
   const specs = [...new Set(list.map((e) => e.specialty))];
   return html`<div class="wrap">
     <nav class="crumbs" aria-label="مسار التنقل"><a href="/">الرئيسية</a><span aria-hidden="true">/</span><span aria-current="page">دليل المهندسين</span></nav>
     <div class="page-head"><div><h1>دليل المهندسين</h1>
       <p class="lede">تبني بيت أو ترممه؟ هنا تلكه مهندسين بمختلف الاختصاصات، تشوف خدماتهم وتتواصل وياهم مباشرة.</p></div>
-      <a class="btn btn-sign" href="${joinLink}" target="_blank" rel="noopener">${icon('plus')}أضف اسمك كمهندس</a></div>
+      <a class="btn btn-sign" href="${joinLink}"${live ? '' : raw(' target="_blank" rel="noopener"')}>${icon('plus')}أضف نفسك كمهندس</a></div>
     ${specs.length > 1 ? html`<div class="chips eng-filter" role="group" aria-label="تصفية حسب الاختصاص" data-eng-filter>
       <button type="button" class="chip" aria-pressed="true" data-value="">الكل</button>
       ${specs.map((s) => html`<button type="button" class="chip" aria-pressed="false" data-value="${s}">${s}</button>`)}
     </div>` : ''}
-    ${list.length ? html`<ul class="eng-list">${list.map(card)}</ul>`
-      : html`<div class="empty"><p class="empty-title">ما كو مهندسين بالدليل بعد</p><p>إذا انت مهندس وتريد تنضاف، راسلنا.</p></div>`}
+    ${live ? html`<div class="chips eng-filter" role="group" aria-label="تصفية حسب الاختصاص" data-eng-filter-live hidden></div>` : ''}
+    <ul class="eng-list" ${live ? raw('data-live-engineers') : ''}>${list.map(card)}</ul>
+    <div class="empty" data-eng-empty ${list.length || live ? raw('hidden') : ''}><p class="empty-title">ما كو مهندسين بالدليل بعد</p>
+      <p>انت مهندس؟ سجّل اختصاصك وخدماتك وخلي أهل المنطقة يوصلولك.</p><a class="btn btn-primary" href="${joinLink}">${icon('plus')}أضف نفسك كمهندس</a></div>
   </div>`;
 }
 
@@ -66,6 +69,17 @@ export function engineerPage(e: Engineer, joinLink: string): SafeHtml {
       <div class="btn-row eng-contact">${contactButtons(e, true)}</div>
       <p class="muted eng-note">دليل المعامل يعرض معلومات المهندس كما وصلتنا. اتفق على تفاصيل العمل والسعر مع المهندس مباشرة.</p>
     </article>
-    <p><a class="more" href="/engineers">${icon('chevron', 'i i-sm')}كل المهندسين</a> · <a class="more" href="${joinLink}" target="_blank" rel="noopener">أضف اسمك كمهندس</a></p>
+    <p><a class="more" href="/engineers">${icon('chevron', 'i i-sm')}كل المهندسين</a> · <a class="more" href="${joinLink}">أضف نفسك كمهندس</a></p>
+  </div>`;
+}
+
+export const SPECIALTIES = ['مهندس مدني', 'مهندس معماري', 'مهندس كهربائي', 'مهندس ميكانيكي'];
+
+/** صفحة مهندس سجّل بنفسه: هيكل ثابت يملؤه static.js من public_engineers (?id=). */
+export function liveEngineerPage(): SafeHtml {
+  return html`<div class="wrap narrow" data-live-engineer>
+    <nav class="crumbs" aria-label="مسار التنقل"><a href="/">الرئيسية</a><span aria-hidden="true">/</span><a href="/engineers">دليل المهندسين</a><span aria-hidden="true">/</span><span aria-current="page" data-crumb>المهندس</span></nav>
+    <div data-eng-box><div class="skeleton" aria-label="جارِ التحميل"><span class="sk"></span><span class="sk"></span></div></div>
+    <p><a class="more" href="/engineers">${icon('chevron', 'i i-sm')}كل المهندسين</a></p>
   </div>`;
 }

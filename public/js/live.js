@@ -1018,6 +1018,7 @@
     }
     load();
     trustAdmin();
+    engineersAdmin($('[data-engineers-admin]'));
     if (!IS_ADMIN) return;
     debtsAdmin($('[data-debts]'), load);
     ridersAdmin($('[data-riders-admin]'));
@@ -1207,6 +1208,69 @@
             if (d.error) return say(errText(d.error), 'error');
             say('انحذف الإعلان. يختفي من الموقع خلال دقائق.', 'ok'); initMyAds();
           } }) : null])]));
+    });
+  }
+
+  // ---------- دليل المهندسين: التسجيل ----------
+  async function initEngineerJoin() {
+    var form = $('[data-engineer-form]'), f = form.elements, other = $('[data-other-specialty]');
+    f.specialty.addEventListener('change', function () { other.hidden = f.specialty.value !== 'other'; });
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault(); delete form.dataset.submitting;
+      if (f.website.value) return; // فخ للبرامج الآلية
+      var errs = [], name = f.name.value.trim(), ph = phone(f.phone.value), loc = f.location.value.trim();
+      var spec = f.specialty.value === 'other' ? f.specialty_other.value.trim() : f.specialty.value;
+      var services = f.services.value.split(/\n|،|,/).map(function (x) { return x.trim(); }).filter(function (x) { return x.length >= 2; }).slice(0, 12);
+      if (name.length < 2) errs.push('اكتب اسمك.');
+      if (!spec || spec.length < 2) errs.push('اختر اختصاصك أو اكتبه.');
+      if (!services.length) errs.push('اكتب خدمة وحدة على الأقل.');
+      if (loc.length < 2) errs.push('اكتب وين تشتغل.');
+      if (!ph) errs.push('رقمك: رقم عراقي يبدأ بـ 07.');
+      if (!f.agree.checked) errs.push('وافق على التعهد.');
+      if (errs.length) return say(errs.join(' '), 'error');
+      busy(form, true); say('جارِ الإرسال...', 'ok');
+      try {
+        var r = await sb.from('engineers').insert({ name: name, specialty: spec.slice(0, 60), services: services.map(function (x) { return x.slice(0, 120); }), location: loc,
+          phone: ph, whatsapp: f.whatsapp.checked, about: f.about.value.trim() || null });
+        if (r.error) throw (r.error.code === '23505' ? new Error('هذا الرقم مسجل بالدليل من قبل. إذا تريد تعدّل معلوماتك راسل الإدارة.') : r.error);
+        form.hidden = true;
+        say('وصل طلبك ✅ بعد ما تراجعه الإدارة تطلع بطاقتك بدليل المهندسين.', 'ok');
+      } catch (err) { say(err.message && /[؀-ۿ]/.test(err.message) ? err.message : errText(err), 'error'); }
+      finally { busy(form, false); }
+    });
+  }
+
+  // ---------- الإدارة: المهندسين ----------
+  async function engineersAdmin(box) {
+    var r = await sb.from('engineers').select('*').order('status').order('created_at', { ascending: false }).limit(300);
+    box.textContent = '';
+    if (r.error) return box.appendChild(el('p', { class: 'muted', text: 'المهندسين يحتاجون تشغيل تحديث supabase/updates/2026-11-engineers.sql.' }));
+    var rows = r.data || [], pending = rows.filter(function (x) { return x.status === 'pending'; }).length;
+    $('[data-count=engineers]').textContent = String(pending || ''); stat('engineers', pending);
+    if (!rows.length) return box.appendChild(el('p', { class: 'empty-inline', text: 'ما كو مهندسين مسجلين بعد.' }));
+    var LABEL = { pending: 'بانتظار المراجعة', approved: 'منشور', hidden: 'مخفي' };
+    var ul = el('ul', { class: 'cards-admin' }); box.appendChild(ul);
+    async function setStatus(x, st) {
+      var u = await sb.from('engineers').update({ status: st, decided_at: new Date().toISOString() }).eq('id', x.id);
+      if (u.error) return say(errText(u.error), 'error');
+      say(st === 'approved' ? 'انتشر «' + x.name + '» بدليل المهندسين ✅' : 'انخفى «' + x.name + '».', 'ok'); engineersAdmin(box);
+    }
+    rows.forEach(function (x) {
+      var facts = el('dl', { class: 'facts' });
+      [['الاختصاص', x.specialty], ['الموقع', x.location], ['الرقم', x.phone + (x.whatsapp ? ' (واتساب)' : '')], ['الخدمات', (x.services || []).join('، ')], ['نبذة', x.about],
+        ['IP', x.client_ip], ['تاريخ التسجيل', new Date(x.created_at).toLocaleString('ar-IQ')]]
+        .forEach(function (kv) { if (kv[1]) facts.appendChild(el('div', {}, [el('dt', { text: kv[0] }), el('dd', { text: kv[1] })])); });
+      ul.appendChild(el('li', { class: 'panel' }, [
+        el('h3', {}, [x.name + ' ', badge(x.status === 'approved' ? 'published' : x.status === 'pending' ? 'pending' : 'hidden', LABEL[x.status])]), facts,
+        el('div', { class: 'btn-row' }, [
+          el('a', { class: 'btn', href: 'tel:' + x.phone, text: 'اتصال للتحقق' }),
+          x.status !== 'approved' ? el('button', { class: 'btn btn-primary', type: 'button', text: 'نشر بالدليل', onclick: function () { setStatus(x, 'approved'); } }) : null,
+          x.status === 'approved' ? el('button', { class: 'btn', type: 'button', text: 'إخفاء', onclick: function () { setStatus(x, 'hidden'); } }) : null,
+          el('button', { class: 'btn btn-danger', type: 'button', text: 'حذف', onclick: async function () {
+            if (!confirm('حذف «' + x.name + '» نهائياً؟')) return;
+            var d = await sb.from('engineers').delete().eq('id', x.id);
+            if (d.error) return say(errText(d.error), 'error'); say('انحذف.', 'ok'); engineersAdmin(box);
+          } })])]));
     });
   }
 
@@ -1454,6 +1518,6 @@
     });
   }
 
-  var init = { 'my-ads': initMyAds, delivery: initDelivery, 'rider-join': initRiderJoin, kitchen: initKitchen, 'add-business': initAddBusiness, submit: initSubmit, register: initRegister, login: initLogin, dashboard: initDashboard, menu: initMenu, admin: initAdmin }[page.getAttribute('data-page')];
+  var init = { 'engineer-join': initEngineerJoin, 'my-ads': initMyAds, delivery: initDelivery, 'rider-join': initRiderJoin, kitchen: initKitchen, 'add-business': initAddBusiness, submit: initSubmit, register: initRegister, login: initLogin, dashboard: initDashboard, menu: initMenu, admin: initAdmin }[page.getAttribute('data-page')];
   if (init) Promise.resolve(init()).catch(function (e) { say(errText(e), 'error'); });
 })();

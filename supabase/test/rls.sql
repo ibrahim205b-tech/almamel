@@ -593,4 +593,43 @@ do $$ begin
   if current_setting('request.jwt.claims', true) like '%aal2%' then raise exception 'bot admin claims leaked out of the transaction'; end if;
 end $$;
 
+-- ===== دليل المهندسين: المهندس يسجّل، والإدارة توافق =====
+select set_config('request.headers', '{"cf-connecting-ip":"9.8.7.6"}', false);
+select pg_temp.as_user(null);
+insert into engineers (name, specialty, services, location, phone, about) values ('م. علي', 'مهندس مدني', array['تصميم مخططات المنازل', ' ', 'إشراف'], 'بغداد', '07901234567', 'خبرة ١٠ سنوات');
+insert into engineers (name, specialty, services, location, phone, status) values ('غشاش', 'مهندس مدني', array['شي'], 'بغداد', '07901234568', 'approved');
+select pg_temp.expect_error($q$insert into engineers (name, specialty, services, location, phone) values ('مكرر', 'مهندس مدني', array['شي'], 'بغداد', '07901234567')$q$, 'same engineer phone twice');
+select pg_temp.expect_error($q$insert into engineers (name, specialty, services, location, phone) values ('بدون خدمات', 'مهندس مدني', array[' '], 'بغداد', '07901234569')$q$, 'engineer without services');
+insert into engineers (name, specialty, services, location, phone) values ('ثالث', 'مهندس كهربائي', array['تأسيس'], 'بغداد', '07901234570');
+select pg_temp.expect_error($q$insert into engineers (name, specialty, services, location, phone) values ('رابع', 'مهندس كهربائي', array['تأسيس'], 'بغداد', '07901234571')$q$, 'engineer signup flood from one network');
+do $$ begin
+  if exists (select 1 from engineers) then raise exception 'anon reads engineers table'; end if;
+  if exists (select 1 from public_engineers) then raise exception 'pending engineer is public (or self-approved)'; end if;
+end $$;
+select set_config('request.headers', '', false);
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+update engineers set status = 'approved';
+do $$ begin if exists (select 1 from public_engineers) then raise exception 'user approved an engineer'; end if; end $$;
+reset role;
+do $$ begin
+  if (select services from engineers where name = 'م. علي') <> array['تصميم مخططات المنازل', 'إشراف'] then raise exception 'services cleaned'; end if;
+  if (select client_ip from engineers where name = 'م. علي') <> '9.8.7.6' then raise exception 'engineer IP'; end if;
+end $$;
+set role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', false);
+do $$ begin if not exists (select 1 from jsonb_array_elements(public.bot_pending()) e where e->>'text' like '%م. علي%07901234567%') then raise exception 'engineer card'; end if; end $$;
+select public.bot_action('e', (select id from engineers where name = 'م. علي'), 'approve');
+select public.bot_action('e', (select id from engineers where name = 'غشاش'), 'delete');
+reset role;
+select pg_temp.as_user(null);
+do $$ begin
+  if (select name from public_engineers) <> 'م. علي' then raise exception 'approved engineer not public'; end if;
+  if exists (select 1 from information_schema.columns where table_name = 'public_engineers' and column_name in ('client_ip', 'status')) then raise exception 'private engineer columns public'; end if;
+end $$;
+-- المشرف يكدر يخفي مهندس
+select pg_temp.as_user('55555555-5555-5555-5555-555555555555');
+update engineers set status = 'hidden' where name = 'م. علي';
+reset role;
+do $$ begin if (select status from engineers where name = 'م. علي') <> 'hidden' or exists (select 1 from engineers where name = 'غشاش') then raise exception 'staff hide / bot delete'; end if; end $$;
+
 select 'ALL RLS TESTS PASSED';

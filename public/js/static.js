@@ -880,6 +880,79 @@
       return sbGet('rating_summary?select=target_id,avg,n&target_type=eq.' + type + '&target_id=in.(' + ids.join(',') + ')')
         .then(function (rows) { var m = {}; rows.forEach(function (r) { m[r.target_id] = r; }); return m; }).catch(function () { return {}; });
     };
+    // ---------- دليل المهندسين: المسجلين بأنفسهم (بعد موافقة الإدارة) ----------
+    var engWa = function (e) {
+      if (!e.whatsapp || !/^07\d{9}$/.test(e.phone || '')) return '';
+      var msg = 'مرحباً ' + e.name + '، شفت صفحتك بدليل المهندسين على دليل المعامل وأريد أستفسر عن خدماتك' + (e.services && e.services[0] ? ' (' + e.services[0] + ')' : '') + '.';
+      return 'https://wa.me/964' + e.phone.slice(1) + '?text=' + encodeURIComponent(msg);
+    };
+    var engInitial = function (n) { return (String(n || '').replace(/^(المهندس|م\.)\s*/, '').trim().charAt(0)) || '؟'; };
+    var engContact = function (e, big) {
+      var row = el('div', 'btn-row ' + (big ? 'eng-contact' : 'eng-actions')), wa = engWa(e), lg = big ? ' btn-lg' : '';
+      if (!big) { var d = el('a', 'btn', 'عرض التفاصيل'); d.href = BASE + '/engineers/e/?id=' + e.id; d.appendChild(iconEl('chevron', 'i i-sm')); row.appendChild(d); }
+      if (wa) { var a = el('a', 'btn btn-wa' + lg); a.href = wa; a.target = '_blank'; a.rel = 'noopener'; a.appendChild(iconEl('whatsapp', 'i')); a.appendChild(document.createTextNode('تواصل مع المهندس')); row.appendChild(a); }
+      if (big || !wa) { var t = el('a', (wa ? 'btn' : 'btn btn-primary') + lg); t.href = 'tel:' + e.phone; t.appendChild(iconEl('phone', 'i')); t.appendChild(document.createTextNode(wa ? 'اتصال ' : 'تواصل مع المهندس ')); if (wa) { var n = el('span', '', e.phone); n.dir = 'ltr'; t.appendChild(n); } row.appendChild(t); }
+      return row;
+    };
+    var engHead = function (e, big) {
+      var h = el(big ? 'header' : 'div', 'eng-head' + (big ? ' eng-head-lg' : ''));
+      var av = el('span', 'eng-avatar', engInitial(e.name)); av.setAttribute('aria-hidden', 'true'); h.appendChild(av);
+      var box = el('div'), nm = el(big ? 'h1' : 'h2', 'eng-name');
+      if (big) nm.textContent = e.name; else { var a = el('a', '', e.name); a.href = BASE + '/engineers/e/?id=' + e.id; nm.appendChild(a); }
+      box.appendChild(nm); box.appendChild(el('span', 'eng-spec', e.specialty)); h.appendChild(box);
+      return h;
+    };
+    var engList = document.querySelector('[data-live-engineers]');
+    if (engList) {
+      sbGet('public_engineers?select=*&order=decided_at.desc&limit=500').then(function (rows) {
+        rows.forEach(function (e) {
+          var li = el('li', 'eng-card'); li.setAttribute('data-specialty', e.specialty);
+          li.appendChild(engHead(e, false));
+          if ((e.services || []).length) { var ul = el('ul', 'eng-services'); ul.setAttribute('aria-label', 'الخدمات'); e.services.forEach(function (x) { ul.appendChild(el('li', '', x)); }); li.appendChild(ul); }
+          if (e.location) { var loc = el('p', 'eng-loc'); loc.appendChild(iconEl('pin', 'i i-sm')); loc.appendChild(document.createTextNode(e.location)); li.appendChild(loc); }
+          li.appendChild(engContact(e, false));
+          engList.appendChild(li);
+        });
+        var cards = engList.querySelectorAll('.eng-card');
+        var empty = document.querySelector('[data-eng-empty]'); if (empty) empty.hidden = cards.length > 0;
+        var specs = []; Array.prototype.forEach.call(cards, function (c) { var v = c.getAttribute('data-specialty'); if (specs.indexOf(v) === -1) specs.push(v); });
+        var bar = document.querySelector('[data-eng-filter-live]');
+        if (bar && specs.length > 1) {
+          [''].concat(specs).forEach(function (v) { var b = el('button', 'chip', v || 'الكل'); b.type = 'button'; b.setAttribute('data-value', v); b.setAttribute('aria-pressed', String(!v)); bar.appendChild(b); });
+          bar.hidden = false;
+          bar.addEventListener('click', function (ev) {
+            var b = ev.target.closest('button'); if (!b) return; var v = b.getAttribute('data-value');
+            Array.prototype.forEach.call(bar.children, function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+            Array.prototype.forEach.call(engList.querySelectorAll('.eng-card'), function (c) { c.hidden = !!v && c.getAttribute('data-specialty') !== v; });
+          });
+        }
+      }).catch(function () { var empty = document.querySelector('[data-eng-empty]'); if (empty && !engList.children.length) empty.hidden = false; });
+    }
+    var engPage = document.querySelector('[data-live-engineer]');
+    if (engPage) {
+      var ebox = engPage.querySelector('[data-eng-box]'), eid = (new URLSearchParams(location.search).get('id') || '').replace(/\D/g, '');
+      var egone = function () { ebox.textContent = ''; var x = el('div', 'empty'); x.appendChild(el('p', 'empty-title', 'المهندس غير موجود')); x.appendChild(el('p', '', 'ممكن انحذف أو بعده بانتظار المراجعة.')); ebox.appendChild(x); };
+      if (!eid) egone();
+      else sbGet('public_engineers?select=*&id=eq.' + eid).then(function (rows) {
+        var e = rows[0]; if (!e) return egone();
+        document.title = e.name + ': ' + e.specialty + ' | ' + document.title.split(' | ').pop();
+        engPage.querySelector('[data-crumb]').textContent = e.name;
+        ebox.textContent = '';
+        var art = el('article', 'eng-detail'); art.appendChild(engHead(e, true));
+        var dl = el('dl', 'facts'), fact = function (k, v) { if (!v) return; var d = el('div'); d.appendChild(el('dt', '', k)); d.appendChild(el('dd', '', v)); dl.appendChild(d); };
+        fact('الاختصاص', e.specialty); fact('الموقع', e.location); art.appendChild(dl);
+        if ((e.services || []).length) {
+          var sec = el('section'); sec.appendChild(el('h2', '', 'الخدمات'));
+          var ul = el('ul', 'eng-services eng-services-lg'); e.services.forEach(function (x) { var li = el('li'); li.appendChild(iconEl('check', 'i i-sm')); li.appendChild(document.createTextNode(x)); ul.appendChild(li); });
+          sec.appendChild(ul); art.appendChild(sec);
+        }
+        if (e.about) { var ab = el('section'); ab.appendChild(el('h2', '', 'نبذة')); var pr = el('div', 'prose'); e.about.split(/\n\s*\n/).forEach(function (para) { pr.appendChild(el('p', '', para)); }); ab.appendChild(pr); art.appendChild(ab); }
+        art.appendChild(engContact(e, true));
+        art.appendChild(el('p', 'muted eng-note', 'دليل المعامل يعرض معلومات المهندس كما سجّلها وراجعتها الإدارة. اتفق على تفاصيل العمل والسعر مع المهندس مباشرة.'));
+        ebox.appendChild(art);
+      }).catch(function () { ebox.textContent = ''; ebox.appendChild(el('p', 'muted', 'تعذّر تحميل الصفحة. حدّث الصفحة.')); });
+    }
+
     window.almamelTrust = { ratingWidget: ratingWidget, complaintForm: complaintForm, summaries: summaries, summaryEl: summaryEl };
 
     // صفحة الإعلان أو المحل: مشاهدة (مرة باليوم لكل جهاز)، تقييم المحل، وزر الإبلاغ

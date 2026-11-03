@@ -67,6 +67,12 @@ function mock(req: http.IncomingMessage, res: http.ServerResponse, body: Buffer)
   if (p.startsWith('/storage/v1/object/sign/proofs')) return send(200, (json().paths as string[]).map((x) => ({ path: x, signedURL: '/object/public/media/' + x + '?token=t', error: null })));
   if (p.startsWith('/storage/v1/object/')) return send(200, { Key: p.replace('/storage/v1/object/', '') });
   if (p === '/rest/v1/public_riders') return send(200, riders.filter((r) => r.status === 'approved').map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !['address', 'id_front', 'id_back', 'status', 'created_at'].includes(k)))));
+  if (p === '/rest/v1/public_engineers') {
+    const all = [{ id: 4, name: 'م. علي حسن', specialty: 'مهندس مدني', services: ['تصميم مخططات المنازل', 'إشراف على البناء'], location: 'بغداد', phone: '07901234567', whatsapp: true, about: 'خبرة ١٠ سنوات', decided_at: new Date().toISOString() },
+      { id: 5, name: 'م. سارة', specialty: 'مهندس معماري', services: ['واجهات'], location: 'المعامل', phone: '07901234500', whatsapp: false, about: null, decided_at: new Date().toISOString() }];
+    const id = u.searchParams.get('id'); return send(200, id ? all.filter((e) => 'eq.' + e.id === id) : all);
+  }
+  if (p === '/rest/v1/engineers' && req.method === 'GET') return send(200, auth.includes(ADMIN) ? [{ id: 6, name: 'م. جديد', specialty: 'مهندس كهربائي', services: ['تأسيس كهرباء'], location: 'بغداد', phone: '07901230000', whatsapp: true, about: null, status: 'pending', client_ip: '1.2.3.4', created_at: new Date().toISOString() }] : []);
   if (p === '/rest/v1/delivery_fares') return send(200, [{ kind: 'zone', label: 'داخل نفس المحلة', price: 1000, sort: 1 }, { kind: 'zone', label: 'أبعد من هيج', price: null, sort: 2 }, { kind: 'extra', label: 'بالليل بعد الساعة ١٢', price: 1000, sort: 3 }]);
   if (p === '/rest/v1/riders' && req.method === 'GET') return send(200, auth.includes(ADMIN) ? riders : []);
   if (p === '/rest/v1/public_posts') {
@@ -685,6 +691,54 @@ test('admin: complaints with the reporter\'s phone and IP, expiring ads with a W
   await p.waitForSelector('[data-expiring] li:has-text("وظيفة تنتهي")');
   assert.match((await p.getAttribute('[data-expiring] a.btn-wa', 'href'))!, /^https:\/\/wa\.me\/9647709990000\?text=/);
   await p.waitForSelector('[data-published] li:has-text("٥٧ مشاهدة")');
+  await p.context().close();
+});
+
+test('engineers directory: approved engineers as cards, filter by specialty, details page, WhatsApp with a ready message', async () => {
+  const p = await open('/engineers/');
+  await p.waitForSelector('.eng-card:has-text("م. علي حسن")');
+  assert.equal(await p.locator('.eng-card').count(), 2);
+  assert.equal(await p.isVisible('[data-eng-empty]'), false);
+  const wa = (await p.getAttribute('.eng-card:has-text("م. علي حسن") a.btn-wa', 'href'))!;
+  assert.match(wa, /^https:\/\/wa\.me\/9647901234567\?text=/);
+  assert.ok(decodeURIComponent(wa).includes('تصميم مخططات المنازل'));
+  assert.equal(await p.getAttribute('.eng-card:has-text("م. سارة") a[href^="tel:"]', 'href'), 'tel:07901234500', 'no WhatsApp → call');
+  await p.click('[data-eng-filter-live] button:has-text("مهندس معماري")');
+  assert.equal(await p.locator('.eng-card:visible').count(), 1);
+  await p.click('.eng-card:has-text("م. سارة") a:has-text("عرض التفاصيل")');
+  await p.waitForURL(/\/engineers\/e\/\?id=5$/);
+  await p.waitForSelector('[data-eng-box] h1:has-text("م. سارة")');
+  await p.goto(siteUrl + '/almamel/engineers/e/?id=4');
+  await p.waitForSelector('[data-eng-box] .eng-services-lg li:has-text("إشراف على البناء")');
+  assert.ok((await p.textContent('[data-eng-box]'))!.includes('خبرة ١٠ سنوات'));
+  await p.context().close();
+});
+
+test('an engineer adds himself: services one per line, other specialty, sent for review', async () => {
+  const p = await open('/engineers/join/');
+  await p.fill('#f-name', 'م. كرار');
+  await p.selectOption('#f-specialty', 'other');
+  await p.fill('#f-specialty_other', 'مهندس اتصالات');
+  await p.fill('#f-services', 'نصب أبراج\nشبكات منزلية\n ');
+  await p.fill('#f-location', 'بغداد'); await p.fill('#f-phone', '٠٧٩٠١١١٢٢٢٣');
+  await p.click('[data-engineer-form] button[type=submit]');
+  await p.waitForSelector('.live-msg.flash-error:has-text("التعهد")');
+  await p.check('#f-agree');
+  await p.click('[data-engineer-form] button[type=submit]');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("وصل طلبك")');
+  const row = JSON.parse(log.filter((r) => r.path === '/rest/v1/engineers' && r.method === 'POST').at(-1)!.body.toString());
+  assert.deepEqual([row.name, row.specialty, row.services, row.phone, row.status], ['م. كرار', 'مهندس اتصالات', ['نصب أبراج', 'شبكات منزلية'], '07901112223', undefined]);
+  await p.context().close();
+});
+
+test('admin reviews engineers: pending with phone and IP, publish', async () => {
+  const p = await adminLogin(1280);
+  await p.waitForSelector('[data-engineers-admin] li:has-text("م. جديد")');
+  assert.ok((await p.textContent('[data-engineers-admin] li'))!.includes('1.2.3.4'));
+  await p.click('[data-engineers-admin] button:has-text("نشر بالدليل")');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("م. جديد")');
+  const call = log.filter((r) => r.path === '/rest/v1/engineers' && r.method === 'PATCH').at(-1)!;
+  assert.equal(call.query.get('id'), 'eq.6'); assert.equal(JSON.parse(call.body.toString()).status, 'approved');
   await p.context().close();
 });
 

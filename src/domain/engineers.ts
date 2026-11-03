@@ -22,7 +22,7 @@ export function loadEngineers(file = ENGINEERS_FILE): Engineer[] {
   for (const e of list as Record<string, unknown>[]) {
     const slug = str(e?.slug, 40).toLowerCase();
     const name = str(e?.name, 80), specialty = str(e?.specialty, 60);
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(slug) || seen.has(slug) || !name || !specialty) continue;
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(slug) || ['join', 'e'].includes(slug) || seen.has(slug) || !name || !specialty) continue;
     seen.add(slug);
     const phone = str(e?.phone, 20).replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660)).replace(/\D/g, '').replace(/^964/, '0');
     out.push({

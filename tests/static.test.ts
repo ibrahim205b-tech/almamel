@@ -164,20 +164,16 @@ test('invalid listing files stop the build with clear messages', async () => {
   });
 });
 
-test('engineers directory: cards with specialty, services, location; details page; no invented phone', async () => {
+test('engineers directory page exists, reachable from the home page, with an empty state until engineers join', async () => {
   const dir = fixture();
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'almamel-eng-'));
   await buildStatic({ siteUrl: 'https://user.github.io/almamel', contentDir: dir, outDir: out, repo: 'user/almamel', quiet: true });
   const list = fs.readFileSync(path.join(out, 'engineers', 'index.html'), 'utf8');
-  assert.ok(list.includes('<h1>دليل المهندسين</h1>'));
-  assert.ok(list.includes('حسين المهندس') && list.includes('مهندس مدني') && list.includes('تصميم مخططات المنازل') && list.includes('بغداد'));
-  assert.ok(list.includes('href="/almamel/engineers/hussein/"'), 'details link');
-  assert.ok(list.includes('رقم التواصل يُضاف قريباً') && !/wa\.me\/964\d+\?text=[^"]*%D8%AD%D8%B3%D9%8A%D9%86/.test(list), 'no phone yet, no fake WhatsApp');
-  const detail = fs.readFileSync(path.join(out, 'engineers', 'hussein', 'index.html'), 'utf8');
-  assert.ok(detail.includes('<h1 class="eng-name">حسين المهندس</h1>') && detail.includes('<dt>الموقع</dt><dd>بغداد</dd>'));
+  assert.ok(list.includes('<h1>دليل المهندسين</h1>') && list.includes('أضف نفسك كمهندس'));
+  assert.ok(!list.includes('حسين المهندس'), 'the sample engineer was removed');
+  assert.ok(/<div class="empty" data-eng-empty >/.test(list), 'empty state shown');
   const home = fs.readFileSync(path.join(out, 'index.html'), 'utf8');
   assert.ok(home.includes('href="/almamel/engineers/"'), 'section reachable from the home page and menu');
-  assert.ok(fs.readFileSync(path.join(out, 'sitemap.xml'), 'utf8').includes('/engineers/hussein'));
 });
 
 test('engineers file: bad entries skipped, phone normalised, WhatsApp only with a real number', async () => {

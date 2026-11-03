@@ -192,6 +192,7 @@ export function adminLivePage(): SafeHtml {
       <li class="stat"><a href="#products"><span class="stat-ico">${icon('image')}</span><b class="stat-n" data-stat="products">—</b>منتجات بانتظار الموافقة</a></li>
       <li class="stat" data-admin-only><a href="#debts"><span class="stat-ico">${icon('tag')}</span><b class="stat-n" data-stat="debts">—</b>ديون إعلانات (د.ع)</a></li>
       <li class="stat" data-admin-only><a href="#riders"><span class="stat-ico">${icon('bike')}</span><b class="stat-n" data-stat="riders">—</b>تسجيلات دلفري جديدة</a></li>
+      <li class="stat"><a href="#engineers"><span class="stat-ico">${icon('helmet')}</span><b class="stat-n" data-stat="engineers">—</b>مهندسين بانتظار المراجعة</a></li>
       <li class="stat"><a href="#complaints"><span class="stat-ico">${icon('flag')}</span><b class="stat-n" data-stat="complaints">—</b>شكاوى مفتوحة</a></li>
       <li class="stat"><a href="#published"><span class="stat-ico">${icon('check')}</span><b class="stat-n" data-stat="published">—</b>منشور حالياً</a></li>
       <li class="stat stat-gold" data-admin-only><a href="#commission"><span class="stat-ico">${icon('percent')}</span><b class="stat-n" data-stat="due">—</b>نسبة مستحقة هذا الشهر (د.ع)</a></li>
@@ -202,6 +203,7 @@ export function adminLivePage(): SafeHtml {
       <a href="#products">منتجات جديدة <span class="count" data-count="products"></span></a>
       <a href="#debts" data-admin-only>ديون الإعلانات <span class="count" data-count="debts"></span></a>
       <a href="#riders" data-admin-only>دلفري حر <span class="count" data-count="riders"></span></a>
+      <a href="#engineers">المهندسين <span class="count" data-count="engineers"></span></a>
       <a href="#complaints">الشكاوى والتقييمات <span class="count" data-count="complaints"></span></a>
       <a href="#expiring">تنتهي قريباً <span class="count" data-count="expiring"></span></a>
       <a href="#published">المنشور حالياً</a>
@@ -216,6 +218,7 @@ export function adminLivePage(): SafeHtml {
       <div data-debts></div></section>
     <section id="riders" class="block" data-admin-only><h2>دلفري حر</h2><p class="muted">قبل الموافقة: اتصل بيه، وطابق الاسم وية الهوية. الهوية والعنوان يظهرون هنا فقط.</p><div data-riders-admin></div>
       <h3>تسعيرة الكروة</h3><p class="muted">تطلع للكل بصفحة «دلفري حر». خلي السعر فارغ إذا «اتفاق».</p><div data-fares-admin></div></section>
+    <section id="engineers" class="block"><h2>دليل المهندسين</h2><p class="muted">المهندس يسجّل بنفسه، ويطلع بالدليل بعد ما تنشره. اتصل بيه وتأكد قبل النشر.</p><div data-engineers-admin></div></section>
     <section id="complaints" class="block"><h2>الشكاوى</h2><div data-complaints></div>
       <h3>تعليقات تنتظر الموافقة</h3><p class="muted">النجوم تنحسب مباشرة؛ التعليق يطلع للناس بعد موافقتك.</p><div data-reviews-admin></div></section>
     <section id="expiring" class="block"><h2>إعلانات تنتهي خلال ٣ أيام</h2><p class="muted">ذكّر صاحبها بالواتساب. التجديد يحسب ${'1,000'} د.ع مثل إعلان جديد.</p><div data-expiring></div></section>
@@ -367,5 +370,32 @@ export function myAdsPage(): SafeHtml {
     <p class="lede">إعلاناتك الي نشرتها من هذا الجهاز: تشوف حالتها، تحذفها إذا بعت أو انتهى الشغل، أو تجددها قبل لا تنتهي.</p>
     ${msg}${noJs}
     <div data-my-ads><div class="skeleton" aria-label="جارِ التحميل"><span class="sk"></span><span class="sk"></span></div></div>
+  </div>`;
+}
+
+/** تسجيل مهندس بدليل المهندسين: ينشر بعد موافقة الإدارة. */
+export function engineerJoinPage(specialties: string[]): SafeHtml {
+  return html`<div class="wrap narrow" data-page="engineer-join">
+    <nav class="crumbs" aria-label="مسار التنقل"><a href="/engineers">دليل المهندسين</a><span aria-hidden="true">/</span><span aria-current="page">أضف نفسك</span></nav>
+    <h1>أضف نفسك لدليل المهندسين</h1>
+    <p class="lede">اكتب اختصاصك وخدماتك ورقمك، وبعد ما تراجعها الإدارة تطلع بطاقتك بالدليل ويوصلولك أصحاب البيوت مباشرة.</p>
+    ${msg}${noJs}
+    <form class="form" data-engineer-form novalidate>
+      <fieldset class="group"><legend>معلوماتك</legend>
+        ${field({ name: 'name', label: 'الاسم', required: true, max: 80, hint: 'مثلاً: م. حسين علي' })}
+        ${select({ name: 'specialty', label: 'الاختصاص', required: true, placeholder: 'اختر', options: [...specialties.map((s): [string, string] => [s, s]), ['other', 'اختصاص آخر']] })}
+        <div data-other-specialty hidden>${field({ name: 'specialty_other', label: 'اكتب اختصاصك', max: 60, hint: 'مثلاً: مهندس اتصالات' })}</div>
+        ${textarea({ name: 'services', label: 'الخدمات الي تقدمها', required: true, rows: 4, max: 1200, hint: 'كل خدمة بسطر. مثلاً: تصميم مخططات المنازل، إشراف على البناء، حساب الكميات' })}
+        ${field({ name: 'location', label: 'وين تشتغل', required: true, max: 80, hint: 'مثلاً: بغداد، أو المعامل وقضاء الزوراء' })}
+        ${textarea({ name: 'about', label: 'نبذة عنك', max: 1500, rows: 3, hint: 'سنوات الخبرة، مشاريع سويتها، شهاداتك' })}
+      </fieldset>
+      <fieldset class="group"><legend>التواصل</legend>
+        ${field({ name: 'phone', label: 'رقمك', type: 'tel', dir: 'ltr', required: true, attrs: 'inputmode="tel"', hint: 'يطلع للزوار حتى يتصلون بيك' })}
+        ${checkbox({ name: 'whatsapp', label: 'رقمي عليه واتساب', checked: true })}
+      </fieldset>
+      ${checkbox({ name: 'agree', label: 'أتعهد إن المعلومات صحيحة وإني مهندس بهذا الاختصاص' })}
+      <div class="hp" aria-hidden="true"><label for="f-website">اتركه فارغاً</label><input id="f-website" name="website" tabindex="-1" autocomplete="off"></div>
+      <button class="btn btn-primary btn-lg" type="submit">${icon('check')}إرسال للمراجعة</button>
+    </form>
   </div>`;
 }
