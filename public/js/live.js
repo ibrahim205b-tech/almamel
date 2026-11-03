@@ -449,6 +449,12 @@
     f.appendChild(field('body', 'وصف المحل', b.body, true, 'شنو تبيع أو تقدم، وأي شي يميز محلك'));
     f.appendChild(field('address', 'العنوان', d.address, false, 'الشارع أو أقرب نقطة دالة'));
     f.appendChild(field('hours', 'أوقات الدوام', d.hours, false, 'مثال: يومياً من ٩ الصبح لـ ١١ بالليل'));
+    // ساعة الفتح والسد: الموقع يكتب «مفتوح الآن» أو «مغلق الآن» لحاله
+    var tf = el('input', { type: 'time', id: 'e' + b.id + '-from', name: 'open_from', value: d.open_from || '' });
+    var tt = el('input', { type: 'time', id: 'e' + b.id + '-to', name: 'open_to', value: d.open_to || '' });
+    f.appendChild(el('div', { class: 'field' }, [el('span', { class: 'label', text: 'ساعات الفتح (حتى يطلع «مفتوح الآن» تلقائياً)' }),
+      el('div', { class: 'time-row' }, [el('label', { for: tf.id, text: 'يفتح' }), tf, el('label', { for: tt.id, text: 'يسد' }), tt]),
+      el('span', { class: 'hint', text: 'إذا تسد بعد نص الليل عادي، مثلاً يفتح 16:00 ويسد 02:00.' })]));
     f.appendChild(field('services', 'الخدمات أو المنتجات الرئيسية', d.services, true));
     f.appendChild(field('delivery', 'مناطق التوصيل', d.delivery, false, 'إذا عندك توصيل'));
     var waId = 'e' + b.id + '-wa', wa = el('input', { type: 'checkbox', id: waId, checked: b.whatsapp });
@@ -478,7 +484,7 @@
         var paths = keep.slice();
         for (var i = 0; i < fresh.length; i++) { say('جارِ رفع الصور (' + (i + 1) + ' من ' + fresh.length + ')...', 'ok'); paths.push(await upload('media', 'u/' + b.owner_id + '/' + hex() + '.webp', await toWebp(fresh[i]))); }
         var r = await sb.rpc('update_business_info', { p_id: b.id, p_body: f.elements.body.value.trim(), p_images: paths, p_whatsapp: wa.checked,
-          p_details: { address: f.elements.address.value, hours: f.elements.hours.value, services: f.elements.services.value, delivery: f.elements.delivery.value } });
+          p_details: { address: f.elements.address.value, hours: f.elements.hours.value, services: f.elements.services.value, delivery: f.elements.delivery.value, open_from: tf.value, open_to: tt.value } });
         if (r.error) throw r.error;
         say('تم حفظ معلومات المحل ✅ تظهر بصفحتك بعد التحديث التلقائي للموقع.', 'ok');
         initDashboard();
@@ -1113,6 +1119,12 @@
       say(a.data + ' ✅ يدخل من نفس رابط الإدارة، ويفعّل الدخول بخطوتين أول مرة.', 'ok'); staffAdmin(box);
     });
     box.appendChild(form);
+    var tg = el('button', { class: 'btn btn-sm', type: 'button', text: 'تجربة تنبيهات تيليغرام', onclick: async function () {
+      var t = await sb.rpc('telegram_test');
+      if (t.error) return say(errText(t.error), 'error');
+      say(t.data ? 'انرسلت رسالة تجربة ✅ إذا ما وصلتك خلال دقيقة، تأكد من رمز البوت ورقم المحادثة.' : 'التنبيهات بعدها مو مفعّلة. شوف خطوات التفعيل بملف التحديث 2026-11-trust.sql.', t.data ? 'ok' : 'error');
+    } });
+    box.appendChild(el('div', { class: 'btn-row' }, [tg]));
   }
 
   // ---------- دلفري حر: القائمة العامة ----------

@@ -768,6 +768,10 @@ begin
   foreach k in array array['address', 'hours', 'services', 'delivery'] loop
     if p_details ? k then d := d || jsonb_build_object(k, left(trim(coalesce(p_details->>k, '')), case when k = 'services' then 1000 else 300 end)); end if;
   end loop;
+  -- ساعة الفتح والسد (HH:MM) حتى يطلع «مفتوح الآن» أو «مغلق الآن» تلقائياً
+  foreach k in array array['open_from', 'open_to'] loop
+    if p_details ? k then d := d || jsonb_build_object(k, case when p_details->>k ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' then p_details->>k else '' end); end if;
+  end loop;
   update posts set body = coalesce(p_body, ''), details = details || d, images = coalesce(p_images, '{}'), whatsapp = coalesce(p_whatsapp, whatsapp), updated_at = now()
     where id = p_id;
   insert into moderation_log (post_id, actor_id, action) values (p_id, auth.uid(), 'owner_edit');
@@ -1148,3 +1152,96 @@ end $$;
 revoke all on function public.guest_posts(text[]), public.guest_remove_post(text), public.guest_renew_post(text), public.renew_post(bigint), public.expiring_posts() from public;
 grant execute on function public.guest_posts(text[]), public.guest_remove_post(text), public.guest_renew_post(text) to anon, authenticated;
 grant execute on function public.renew_post(bigint), public.expiring_posts() to authenticated;
+
+-- ---------- تنبيهات تيليغرام للإدارة ----------
+-- كل إعلان جديد، تسجيل دلفري، شكوى، أو واحد وصل حد الدين: رسالة فورية لموبايلك.
+-- التفعيل (مرة وحدة، من SQL Editor): ضع رمز البوت ورقم المحادثة مالتك:
+--   insert into private.secrets (name, value) values ('telegram_token', '123456:ABC...'), ('telegram_chat', '123456789')
+--   on conflict (name) do update set value = excluded.value;
+create or replace function private.telegram(p_text text) returns void
+language plpgsql security definer set search_path = public as $$
+declare tok text; chat text;
+begin
+  select value into tok from private.secrets where name = 'telegram_token';
+  select value into chat from private.secrets where name = 'telegram_chat';
+  if coalesce(tok, '') = '' or coalesce(chat, '') = '' then return; end if;
+  begin
+    perform net.http_post(url := 'https://api.telegram.org/bot' || tok || '/sendMessage',
+      body := jsonb_build_object('chat_id', chat, 'text', left(p_text, 3500), 'disable_web_page_preview', true),
+      headers := jsonb_build_object('Content-Type', 'application/json'));
+  exception when others then
+    raise notice 'تعذّر إرسال تنبيه تيليغرام: %', sqlerrm; -- ما يمنع أي عملية أبداً
+  end;
+end $$;
+revoke all on function private.telegram(text) from public, anon, authenticated;
+
+create or replace function private.notify_post() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare kind text := case new.type when 'business' then 'طلب محل جديد' when 'job' then 'وظيفة' when 'property' then 'عقار'
+  when 'service' then 'خدمة' when 'market' then 'بيع وشراء' when 'offer' then 'عرض' when 'community' then 'خبر' when 'help' then 'طلب مساعدة' else new.type end;
+  debt int;
+begin
+  perform private.telegram('📥 ' || kind || ' بانتظار المراجعة' || chr(10) || '«' || new.title || '»' || chr(10)
+    || coalesce(new.guest_name, '') || ' ' || coalesce(new.contact_phone, '')
+    || case when new.fee_due > 0 then chr(10) || 'رسوم: ' || new.fee_due || ' د.ع' else '' end);
+  if new.fee_due > 0 then
+    debt := public.ad_debt(new.author_id, new.contact_phone, new.client_ip);
+    if debt >= public.ad_debt_limit() then
+      perform private.telegram('⛔ ' || coalesce(new.guest_name, 'صاحب حساب') || ' ' || coalesce(new.contact_phone, '') || ' وصل دينه ' || debt || ' د.ع وانمنع من النشر لحد ما يسدد.');
+    end if;
+  end if;
+  return null;
+end $$;
+drop trigger if exists posts_notify on public.posts;
+create trigger posts_notify after insert on public.posts for each row execute function private.notify_post();
+
+create or replace function private.notify_rider() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform private.telegram('🛵 دلفري جديد سجّل: ' || new.name || ' ' || new.phone || chr(10) || new.vehicle || '، يوصل إلى: ' || new.areas || chr(10) || 'تحقق من هويته من لوحة الإدارة.');
+  return null;
+end $$;
+drop trigger if exists riders_notify on public.riders;
+create trigger riders_notify after insert on public.riders for each row execute function private.notify_rider();
+
+create or replace function private.notify_complaint() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare what text;
+begin
+  if new.target_type = 'rider' then select 'الدلفري ' || name || ' ' || phone into what from riders where id = new.target_id;
+  else select '«' || title || '»' into what from posts where id = new.target_id; end if;
+  perform private.telegram('⚠️ شكوى جديدة على ' || coalesce(what, '#' || new.target_id) || chr(10)
+    || case new.reason when 'scam' then 'نصب أو احتيال' when 'bad_service' then 'خدمة سيئة أو تأخير' when 'wrong_info' then 'معلومات غلط'
+         when 'abuse' then 'إساءة' else 'شي ثاني' end
+    || coalesce(chr(10) || new.details, '') || coalesce(chr(10) || 'رقم المشتكي: ' || new.phone, ''));
+  return null;
+end $$;
+drop trigger if exists complaints_notify on public.complaints;
+create trigger complaints_notify after insert on public.complaints for each row execute function private.notify_complaint();
+
+-- المدير: رسالة تجربة حتى يتأكد إن التنبيهات توصل
+create or replace function public.telegram_test() returns boolean
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'غير مسموح'; end if;
+  if not exists (select 1 from private.secrets where name = 'telegram_token') or not exists (select 1 from private.secrets where name = 'telegram_chat') then return false; end if;
+  perform private.telegram('✅ تنبيهات دليل المعامل شغّالة. راح توصلك هنا الإعلانات والشكاوى والتسجيلات الجديدة.');
+  return true;
+end $$;
+revoke all on function public.telegram_test() from public, anon;
+grant execute on function public.telegram_test() to authenticated;
+
+-- ---------- صيانة دورية (يشغّلها النسخ الاحتياطي اليومي بمفتاح الخدمة) ----------
+-- تمسح عناوين IP الأقدم من ٦ أشهر، والشكاوى المغلقة الأقدم من سنة، والمشاهدات الأقدم من ٤٠٠ يوم.
+create or replace function public.maintenance() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare a int; b int; c int; d int;
+begin
+  update posts set client_ip = null where client_ip is not null and created_at < now() - interval '180 days'; get diagnostics a = row_count;
+  update complaints set client_ip = null where client_ip is not null and created_at < now() - interval '180 days'; get diagnostics b = row_count;
+  delete from complaints where status = 'closed' and created_at < now() - interval '365 days'; get diagnostics c = row_count;
+  delete from post_views where day < current_date - 400; get diagnostics d = row_count;
+  return jsonb_build_object('ips_cleared', a + b, 'complaints_deleted', c, 'views_deleted', d);
+end $$;
+revoke all on function public.maintenance() from public, anon, authenticated;
+do $$ begin execute 'grant execute on function public.maintenance() to service_role'; exception when others then null; end $$;

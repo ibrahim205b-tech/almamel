@@ -46,7 +46,7 @@ function showcase(kind: 'food' | 'shops', items: ListItem[], addShop: string): S
           ? html`<img src="${mediaUrl((p.logo || p.thumb)!)}" alt="" width="240" height="240" loading="lazy" decoding="async">`
           : icon(food ? 'utensils' : 'store', 'i i-food')}</span>
         <span class="food-name">${p.title}${p.verified ? html` <span class="verified" title="بيانات موثقة">${icon('badge', 'i i-xs')}<span class="sr">موثّق</span></span>` : ''}</span>
-        <span class="food-meta">${p.category_name}${p.open_state === 'open' ? html` · <span class="food-open">مفتوح الآن</span>` : ''}</span>
+        <span class="food-meta">${p.category_name}${hoursOk(parseDetails(p)) ? html` · ${openHours(p, parseDetails(p))}` : p.open_state === 'open' ? html` · <span class="food-open">مفتوح الآن</span>` : ''}</span>
         ${p.featured ? html`<span class="ribbon">مميز</span>` : ''}
       </a></li>`)}
       <li><a class="food-card food-add" href="${addShop}"${wa ? raw(' target="_blank" rel="noopener"') : ''}>
@@ -194,14 +194,20 @@ export interface DetailData {
 }
 
 const yes = (v: unknown) => v === true || v === 'true' || v === 'on';
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const hoursOk = (d: Record<string, unknown>) => HHMM.test(String(d.open_from ?? '')) && HHMM.test(String(d.open_to ?? ''));
+/** «مفتوح الآن» حسب ساعة بغداد: static.js يحسبها بالمتصفح (الصفحة ثابتة). إذا صاحب المحل كاتب «مغلق» يبقى مغلق. */
+const openHours = (p: ListItem, d: Record<string, unknown>) => html`<span data-open-hours="${String(d.open_from)}-${String(d.open_to)}" data-state="${p.open_state}">${p.open_state === 'unknown' ? '' : OPEN_STATE[p.open_state]}</span>`;
 
 function facts(p: ListItem, d: Record<string, string | number>): [string, SafeHtml | string][] {
   const out: [string, SafeHtml | string][] = [['التصنيف', p.category_name], ['المنطقة', p.area_name]];
   switch (p.type) {
     case 'business':
-      if (p.open_state !== 'unknown') out.push(['الحالة', OPEN_STATE[p.open_state]]);
+      if (hoursOk(d)) out.push(['الحالة', openHours(p, d)]);
+      else if (p.open_state !== 'unknown') out.push(['الحالة', OPEN_STATE[p.open_state]]);
       if (d.address) out.push(['العنوان', String(d.address)]);
       if (d.hours) out.push(['ساعات العمل', String(d.hours)]);
+      else if (hoursOk(d)) out.push(['ساعات العمل', `من ${d.open_from} لـ ${d.open_to}`]);
       if (d.delivery) out.push(['مناطق التوصيل', String(d.delivery)]);
       break;
     case 'job':

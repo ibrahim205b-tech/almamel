@@ -785,6 +785,17 @@
     }
   }
 
+  // ---------- «مفتوح الآن» حسب ساعات المحل (توقيت بغداد UTC+3) ----------
+  Array.prototype.forEach.call(document.querySelectorAll('[data-open-hours]'), function (node) {
+    var m = node.getAttribute('data-open-hours').match(/^(\d\d):(\d\d)-(\d\d):(\d\d)$/); if (!m) return;
+    var from = +m[1] * 60 + +m[2], to = +m[3] * 60 + +m[4];
+    var now = new Date(Date.now() + 3 * 3600e3), t = now.getUTCHours() * 60 + now.getUTCMinutes();
+    var open = from === to || (from < to ? t >= from && t < to : t >= from || t < to);
+    if (node.getAttribute('data-state') === 'closed') open = false; // صاحب المحل سدّه (عطلة مثلاً)
+    node.textContent = open ? 'مفتوح الآن' : 'مغلق الآن';
+    node.className = open ? 'food-open' : 'food-closed';
+  });
+
   // ---------- الثقة: المشاهدات والتقييم والشكاوى ----------
   // live.js يستخدم نفس الأدوات لبطاقات «دلفري حر» (window.almamelTrust).
   if (SB) {

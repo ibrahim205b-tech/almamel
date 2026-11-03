@@ -1,0 +1,61 @@
+# نسخة احتياطية يومية من Supabase (الجداول + صور الهويات الخاصة)، مشفّرة بكلمة سر،
+# وبعدها صيانة: مسح الصور اليتيمة وعناوين IP الأقدم من ٦ أشهر. الشرح: docs/BACKUP.md
+name: Daily backup
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '41 0 * * *' # ٣:٤١ الفجر بتوقيت بغداد
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            site.config.json
+            scripts/supabase-backup.ts
+            package.json
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check secrets
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+        run: |
+          if [ -z "$SUPABASE_SERVICE_KEY" ] || [ -z "$BACKUP_PASSWORD" ]; then
+            echo "::warning::النسخ الاحتياطي متوقف: ضيف SUPABASE_SERVICE_KEY و BACKUP_PASSWORD بأسرار المستودع (docs/BACKUP.md)"; exit 1
+          fi
+          if [ ${#BACKUP_PASSWORD} -lt 12 ]; then echo "::error::BACKUP_PASSWORD لازم ١٢ حرف أو أكثر"; exit 1; fi
+      - name: Back up
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+        run: |
+          F=almamel-backup-$(date -u +%F)
+          node scripts/supabase-backup.ts backup /tmp/$F.json.gz
+          # التشفير قبل الرفع: الملف فيه هويات وعناوين وأرقام
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in /tmp/$F.json.gz -out $F.json.gz.enc -pass env:BACKUP_PASSWORD
+          rm -f /tmp/$F.json.gz
+          echo "FILE=$F.json.gz.enc" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.FILE }}
+          path: ${{ env.FILE }}
+          retention-days: 30
+          if-no-files-found: error
+      - name: Clean up old data and orphan images
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node scripts/supabase-backup.ts cleanup

@@ -532,4 +532,26 @@ reset role;
 do $$ begin if (select status from posts where title = 'إعلان برمز') <> 'removed' then raise exception 'guest remove'; end if; end $$;
 select set_config('request.headers', '', false);
 
+-- ===== التنبيهات والصيانة =====
+reset role;
+insert into private.secrets (name, value) values ('telegram_token', 'test:token'), ('telegram_chat', '1')
+  on conflict (name) do update set value = excluded.value;
+-- حتى لو فشل الإرسال (ما كو pg_net هنا) الإعلان والشكوى يتسجلون عادي
+select pg_temp.as_user(null);
+insert into posts (type, title, category, guest_name, contact_phone) values ('market', 'إعلان مع تنبيه', 'أجهزة', 'زائر', '07706666666');
+select pg_temp.expect_error($q$select public.telegram_test()$q$, 'anon tests telegram');
+select pg_temp.expect_error($q$select public.maintenance()$q$, 'anon runs maintenance');
+select pg_temp.expect_error($q$select private.telegram('x')$q$, 'anon sends telegram');
+select pg_temp.as_user('55555555-5555-5555-5555-555555555555');
+select pg_temp.expect_error($q$select public.telegram_test()$q$, 'moderator tests telegram');
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+do $$ begin if not public.telegram_test() then raise exception 'telegram_test'; end if; end $$;
+select pg_temp.expect_error($q$select public.maintenance()$q$, 'admin browser runs maintenance');
+reset role;
+update posts set created_at = now() - interval '200 days', client_ip = '1.2.3.4' where title = 'إعلان مع تنبيه';
+do $$ begin
+  perform public.maintenance();
+  if (select client_ip from posts where title = 'إعلان مع تنبيه') is not null then raise exception 'old IP kept'; end if;
+end $$;
+
 select 'ALL RLS TESTS PASSED';

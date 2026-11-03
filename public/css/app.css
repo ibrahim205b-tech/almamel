@@ -922,3 +922,6 @@ body.no-scroll{overflow:hidden}
 .trust-note>.i{flex:none;width:28px;height:28px;color:var(--gold);margin-top:2px}
 .trust-note strong{color:#fff;font-size:var(--t-md)}
 .trust-note p{margin:4px 0 0;line-height:1.75}
+.food-closed{color:var(--ink-2);font-weight:600}
+.time-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.time-row input{min-height:44px;border:1px solid var(--line-strong);border-radius:var(--r);padding:0 10px;font:inherit}

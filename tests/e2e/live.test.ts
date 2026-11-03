@@ -32,7 +32,7 @@ const menu: { id: number; business_id: number; section: string; name: string; pr
 ];
 const published = [
   { id: 1000001, type: 'business', title: 'مطعم المحاكاة', body: 'مشويات', category: 'مطاعم', area: 'المعامل', price: null, contact_phone: '07705555555', show_phone: true, whatsapp: true,
-    details: { address: 'الشارع العام', evil: { x: 1 } }, images: ['u/' + UID + '/' + 'a'.repeat(32) + '.webp'], business_id: null, open_state: 'open', verified: true, is_official: false,
+    details: { address: 'الشارع العام', evil: { x: 1 }, open_from: '00:00', open_to: '23:59' }, images: ['u/' + UID + '/' + 'a'.repeat(32) + '.webp'], business_id: null, open_state: 'open', verified: true, is_official: false,
     published_at: new Date().toISOString(), expires_at: null, updated_at: new Date().toISOString() },
   { id: 1000002, type: 'job', title: 'وظيفة بتصنيف خاطئ', body: '', category: 'غير موجود', area: 'المعامل', price: null, contact_phone: null, show_phone: false, whatsapp: false,
     details: {}, images: [], business_id: null, open_state: 'unknown', verified: false, is_official: false, published_at: new Date().toISOString(), expires_at: null, updated_at: new Date().toISOString() },
@@ -328,11 +328,13 @@ test('owner portal: shop owner edits details and photos of their page and opens 
   fs.writeFileSync(img, await sharp({ create: { width: 800, height: 600, channels: 3, background: '#357' } }).jpeg().toBuffer());
   await p.setInputFiles('.owner-edit input[type=file]', img);
   assert.equal(await p.locator('.owner-edit .picked li').count(), 2, 'old photo + new photo');
+  await p.fill('.owner-edit input[name=open_from]', '16:00'); await p.fill('.owner-edit input[name=open_to]', '02:00');
   await p.click('.owner-edit button:has-text("حفظ التعديلات")');
   await p.waitForSelector('.live-msg.flash-ok:has-text("تم حفظ معلومات المحل")');
   const call = JSON.parse(log.filter((r) => r.path === '/rest/v1/rpc/update_business_info').at(-1)!.body.toString());
   assert.equal(call.p_id, 1000001);
   assert.equal(call.p_details.hours, 'يومياً من ١٢ الظهر لـ ١٢ بالليل');
+  assert.deepEqual([call.p_details.open_from, call.p_details.open_to], ['16:00', '02:00']);
   assert.equal(call.p_images.length, 2);
   assert.match(call.p_images[1], new RegExp(`^u/${UID}/[0-9a-f]{32}\\.webp$`));
   await p.context().close();
@@ -626,6 +628,7 @@ test('admin with only a password must set up the two-step code before seeing any
 test('business page: view counted once a day, star rating, approved reviews and a report form', async () => {
   const p = await open('/businesses/1000001/');
   await p.waitForSelector('[data-trust]:not([hidden]) .rating-sum:has-text("٤٫٥")');
+  assert.equal((await p.textContent('.facts [data-open-hours]'))!.trim(), 'مفتوح الآن', 'open now from the shop hours');
   assert.ok((await p.textContent('[data-trust]'))!.includes('أكل طيب وتوصيل سريع'));
   const hits = () => log.filter((r) => r.path === '/rest/v1/rpc/hit').length;
   const h1 = hits(); assert.ok(h1 >= 1);

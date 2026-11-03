@@ -53,6 +53,8 @@ const DETAILS = {
   business: {
     d_address: text('العنوان التفصيلي', 3, 200),
     d_hours: optText('ساعات العمل', 200),
+    d_open_from: optText('ساعة الفتح', 5),
+    d_open_to: optText('ساعة السد', 5),
     d_services: optText('الخدمات', 1000),
     d_delivery: optText('مناطق التوصيل', 300),
     d_lat: coord(-90, 90),
