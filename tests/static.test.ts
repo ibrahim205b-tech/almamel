@@ -76,7 +76,7 @@ test('libraries category: ready service list parses into sections and the page s
   const { LIBRARY_MENU, LIBRARY_CATEGORY } = await import('../src/views/category-kits.ts');
   const r = parseMenuText(LIBRARY_MENU.split('\n'));
   assert.equal(r.error, undefined);
-  assert.deepEqual([...new Set(r.items.map((i) => i.section))], ['طباعة واستنساخ', 'صور', 'خدمات إلكترونية', 'قرطاسية', 'ملازم وكتب']);
+  assert.deepEqual([...new Set(r.items.map((i) => i.section))], ['طباعة واستنساخ', 'معاملات مرورية', 'صور', 'خدمات إلكترونية', 'قرطاسية', 'ملازم وكتب']);
   assert.ok(r.items.length >= 18);
   assert.equal(r.items.find((i) => i.name.startsWith('طباعة ملونة'))!.price, 1000);
   const dir = fixture();
