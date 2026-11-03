@@ -554,4 +554,43 @@ do $$ begin
   if (select client_ip from posts where title = 'إعلان مع تنبيه') is not null then raise exception 'old IP kept'; end if;
 end $$;
 
+-- ===== البوت: أزرار تيليغرام (مفتاح الخدمة فقط) =====
+select pg_temp.as_user(null);
+select pg_temp.expect_error($q$select public.bot_action('p', 1, 'approve')$q$, 'anon bot action');
+select pg_temp.expect_error($q$select public.bot_config()$q$, 'anon reads bot token');
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+select pg_temp.expect_error($q$select public.bot_action('p', 1, 'approve')$q$, 'admin browser calls bot action');
+select pg_temp.expect_error($q$select public.bot_pending()$q$, 'admin browser lists bot pending');
+-- محتوى ينتظر: إعلان، دلفري، شكوى، منتجات
+select set_config('request.headers', '{"cf-connecting-ip":"8.8.4.4"}', false);
+select pg_temp.as_user(null);
+insert into posts (type, title, category, guest_name, contact_phone) values ('market', 'إعلان للبوت', 'أجهزة', 'زائر', '07708080808');
+insert into posts (type, title, category, guest_name, contact_phone) values ('market', 'إعلان مرفوض بالبوت', 'أجهزة', 'زائر', '07708080809');
+insert into riders (name, phone, vehicle, areas, address, id_front, id_back) values ('دلفري البوت', '07708080810', 'ستوتة', 'المعامل', 'عنوان كامل هنا',
+  'rider/11111111111111111111111111111111.webp', 'rider/22222222222222222222222222222222.webp');
+select set_config('request.headers', '', false);
+reset role;
+set role service_role;
+select set_config('request.jwt.claim.sub', '', false);
+select set_config('request.jwt.claims', '{"role":"service_role"}', false);
+do $$ declare c jsonb; begin
+  c := public.bot_pending();
+  if not exists (select 1 from jsonb_array_elements(c) e where e->>'text' like '%إعلان للبوت%' and e->'kb'->0->0->>'callback_data' like 'p:%:approve') then raise exception 'pending ad card'; end if;
+  if not exists (select 1 from jsonb_array_elements(c) e where e->>'text' like '%دلفري البوت%عنوان كامل هنا%') then raise exception 'pending rider card'; end if;
+  if (public.bot_config()->>'chat') <> '1' then raise exception 'bot config'; end if;
+end $$;
+select public.bot_action('p', (select id from posts where title = 'إعلان للبوت'), 'approve');
+select public.bot_action('p', (select id from posts where title = 'إعلان مرفوض بالبوت'), 'dup');
+select public.bot_action('r', (select id from riders where name = 'دلفري البوت'), 'approve');
+select pg_temp.expect_error($q$select public.bot_action('p', (select id from posts where title = 'إعلان للبوت'), 'approve')$q$, 'approve twice');
+select pg_temp.expect_error($q$select public.bot_action('x', 1, 'boom')$q$, 'unknown bot command');
+reset role;
+do $$ begin
+  if (select status from posts where title = 'إعلان للبوت') <> 'published' then raise exception 'bot approve'; end if;
+  if (select approved_by from posts where title = 'إعلان للبوت') <> '33333333-3333-3333-3333-333333333333' then raise exception 'bot acts as the admin'; end if;
+  if (select status_reason from posts where title = 'إعلان مرفوض بالبوت') <> 'الإعلان مكرر.' then raise exception 'bot reject reason'; end if;
+  if (select status from riders where name = 'دلفري البوت') <> 'approved' then raise exception 'bot rider'; end if;
+  if current_setting('request.jwt.claims', true) like '%aal2%' then raise exception 'bot admin claims leaked out of the transaction'; end if;
+end $$;
+
 select 'ALL RLS TESTS PASSED';

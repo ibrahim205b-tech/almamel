@@ -14,7 +14,7 @@
     "dev": "node --watch src/server.ts",
     "typecheck": "tsc -p .",
     "lint": "eslint .",
-    "test": "node --test --test-concurrency=1 tests/unit.test.ts tests/workflow.test.ts tests/security.test.ts tests/static.test.ts tests/owner.test.ts tests/supabase.test.ts",
+    "test": "node --test --test-concurrency=1 tests/unit.test.ts tests/workflow.test.ts tests/security.test.ts tests/static.test.ts tests/owner.test.ts tests/supabase.test.ts tests/telegram-bot.test.ts",
     "test:e2e": "node --test --test-concurrency=1 tests/e2e/*.test.ts",
     "check": "npm run typecheck && npm run lint && npm test",
     "admin:create": "node scripts/create-admin.ts",
