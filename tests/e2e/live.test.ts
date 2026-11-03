@@ -73,12 +73,18 @@ function mock(req: http.IncomingMessage, res: http.ServerResponse, body: Buffer)
   if (p === '/rest/v1/rpc/kitchen_orders') return send(200, [{ ...order, title: 'مطعم المحاكاة', items: 2, customer_name: 'زبون', customer_phone: '07701234567', landmark: 'قرب الجامع', lat: 33.4, lng: 44.3, note: null }]);
   if (p === '/rest/v1/rpc/create_invite') return send(200, 'abc123def4567890');
   if (p === '/rest/v1/rpc/invite_info' || p === '/rest/v1/rpc/accept_invite') return send(200, json().p_code === 'abc123def4567890' ? [{ business_id: 1000001, title: 'مركز حمد فون' }] : []);
+  if (p === '/rest/v1/rpc/admin_debts') return send(200, [{ post_id: 1000020, name: 'مستعجل', phones: ['07701000001', '07701000002'], ips: ['5.6.7.8'], ads: 3, total: 3000, blocked: true, last_at: new Date().toISOString() }]);
+  if (p === '/rest/v1/rpc/settle_debt') return send(200, 3000);
   if (p.startsWith('/rest/v1/rpc/')) return send(200, null);
   if (p === '/rest/v1/profiles') { const admin = u.searchParams.get('id') === 'eq.' + ADMIN; const prof = { name: admin ? 'المدير' : 'أبو علي', phone: '07701111111', role: admin ? 'admin' : 'owner' }; return send(200, one ? prof : [prof]); }
   if (p === '/rest/v1/menu_items' && req.method === 'GET' && u.searchParams.get('approved') === 'eq.false') {
     return send(200, [{ id: 31, name: 'قميص قطن', price: 15000, note: 'مقاسات كاملة', section: 'رجالي', image: 'u/' + UID + '/' + 'c'.repeat(32) + '.webp', business_id: 1000001, posts: { title: 'مطعم المحاكاة', status: 'published' } }]);
   }
   if (p === '/rest/v1/menu_items' && req.method === 'GET') { const rows = menu.filter((m) => (u.searchParams.get('business_id') ?? '').includes('1000001') ? m.business_id === 1000001 : true); return send(200, rows); }
+  if (p === '/rest/v1/posts' && req.method === 'POST' && body.toString().includes('07701000001')) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ code: 'P0001', message: 'عليك 3,000 د.ع رسوم إعلانات سابقة. سدّدها للإدارة على الواتساب وبعدها تكدر تنشر.', details: null, hint: null }));
+  }
   if (p === '/rest/v1/posts' && req.method === 'POST') { const row = { id: 1000005 }; return one ? send(201, row) : String(req.headers.prefer ?? '').includes('representation') ? send(201, [row]) : send(201, null); }
   if (p === '/rest/v1/posts' && req.method === 'GET' && u.searchParams.get('or')?.includes('owner_id') && !u.searchParams.get('type')) {
     return send(200, [{ id: 1000001, type: 'business', title: 'مطعم المحاكاة', category: 'مطاعم', area: 'المعامل', status: 'published', owner_id: UID, author_id: UID, open_state: 'open',
@@ -424,6 +430,19 @@ test('visitor posts an ad with a photo directly from the site', async () => {
   await p.context().close();
 });
 
+test('a visitor who owes 3,000 cannot post and gets a WhatsApp button to pay', async () => {
+  const p = await open('/submit/market/');
+  assert.ok((await p.textContent('.note-price'))!.includes('1,000 د.ع'), 'new price shown');
+  await p.waitForFunction(() => (document.querySelector('select[name=category]') as HTMLSelectElement).options.length > 1);
+  await p.selectOption('select[name=category]', { index: 1 });
+  await p.fill('#f-title', 'ثلاجة مستعملة'); await p.fill('#f-body', 'نظيفة');
+  await p.fill('#f-guest_name', 'مستعجل'); await p.fill('#f-contact_phone', '07701000001');
+  await p.click('[data-live-submit] button[type=submit]');
+  await p.waitForSelector('.live-msg.flash-error:has-text("عليك 3,000 د.ع")');
+  assert.match((await p.getAttribute('.live-msg a.btn-wa', 'href'))!, /^https:\/\/wa\.me\/9647763438000\?text=/);
+  await p.context().close();
+});
+
 test('help requests have their own fields: blood type, units, hospital, consent', async () => {
   const p = await open('/submit/help/');
   await p.waitForFunction(() => (document.querySelector('select[name=category]') as HTMLSelectElement).options.length > 1);
@@ -554,6 +573,20 @@ test('admin sees rider IDs and address, and approves a pending rider', async () 
   const fares = JSON.parse(log.filter((r) => r.path === '/rest/v1/rpc/set_delivery_fares').at(-1)!.body.toString()).p_rows;
   assert.deepEqual(fares, [{ kind: 'zone', label: 'داخل نفس المحلة', price: 1250 }, { kind: 'zone', label: 'أبعد من هيج', price: null },
     { kind: 'extra', label: 'بالليل بعد الساعة ١٢', price: 1000 }, { kind: 'extra', label: 'مطر أو برد', price: 500 }]);
+  await p.context().close();
+});
+
+test('admin sees debtors with phones and IPs, and «تم الدفع، تنشيط» clears the debt', async () => {
+  const p = await adminLogin(1280);
+  await p.waitForSelector('[data-debts] li:has-text("مستعجل")');
+  await p.waitForFunction(() => document.querySelector('[data-stat="debts"]')!.textContent === '٣٬٠٠٠');
+  const card = p.locator('[data-debts] li.panel', { hasText: 'مستعجل' });
+  const text = (await card.textContent())!;
+  assert.ok(text.includes('ممنوع من النشر') && text.includes('5.6.7.8') && text.includes('07701000002'));
+  await card.locator('button:has-text("تم الدفع، تنشيط")').click();
+  await p.waitForSelector('.live-msg.flash-ok:has-text("انمسح دين")');
+  const call = JSON.parse(log.filter((r) => r.path === '/rest/v1/rpc/settle_debt').at(-1)!.body.toString());
+  assert.equal(call.p_id, 1000020);
   await p.context().close();
 });
 

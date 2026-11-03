@@ -49,6 +49,12 @@
     box.setAttribute('role', kind === 'error' ? 'alert' : 'status');
     box.scrollIntoView({ block: 'center' });
   }
+  // رسالة المنع بسبب الدين: نضيف زر واتساب للتسديد
+  function debtHelp(msg) {
+    if (!/سدّدها/.test(msg || '')) return;
+    var wa = waTo('هلو، أريد أسدد رسوم إعلاناتي بدليل المعامل حتى أكدر أنشر. ' + msg);
+    if (wa) $('[data-msg]').appendChild(el('p', {}, [el('a', { class: 'btn btn-wa btn-sm', href: wa, target: '_blank', rel: 'noopener', text: 'سدّد على الواتساب' })]));
+  }
   function errText(e) {
     var m = (e && (e.message || e.error_description)) || '';
     if (/Invalid login credentials/i.test(m)) return 'البريد أو كلمة المرور غير صحيحة.';
@@ -189,7 +195,7 @@
         if (r.error) throw r.error;
         form.reset(); fill(); if ($('[data-preview]')) $('[data-preview]').textContent = '';
         say('وصل إعلانك. راح يظهر بالموقع بعد مراجعة الإدارة.', 'ok');
-      } catch (err) { say(err.message && /[؀-ۿ]/.test(err.message) ? err.message : errText(err), 'error'); }
+      } catch (err) { say(err.message && /[؀-ۿ]/.test(err.message) ? err.message : errText(err), 'error'); debtHelp(err.message); }
       finally { busy(form, false); }
     });
   }
@@ -501,7 +507,7 @@
     ads.forEach(function (a) {
       ul.appendChild(el('li', {}, [el('strong', { text: a.title }), ' ', el('span', { class: 'muted', text: TYPE_LABEL[a.type] }), ' ', badge(a.status),
         a.status_reason ? el('p', { class: 'reason', text: a.status_reason }) : null,
-        a.fee_due > 0 && a.status === 'pending' ? el('p', { class: 'note note-price' }, ['رسوم هذا الإعلان ' + nf.format(a.fee_due) + ' د.ع (الإعلان الأول فقط مجاني). يُنشر بعد الدفع. ',
+        a.fee_due > 0 && a.status !== 'rejected' && a.status !== 'removed' ? el('p', { class: 'note note-price' }, ['رسوم هذا الإعلان ' + nf.format(a.fee_due) + ' د.ع (الإعلان الأول فقط مجاني). إذا وصلت رسومك 3,000 د.ع يتوقف النشر لحد ما تسدد. ',
           waTo('أريد دفع رسوم إعلاني «' + a.title + '» (' + nf.format(a.fee_due) + ' د.ع).') ? el('a', { href: waTo('أريد دفع رسوم إعلاني «' + a.title + '» (' + nf.format(a.fee_due) + ' د.ع).'), target: '_blank', rel: 'noopener', text: 'تواصل للدفع' }) : null]) : null,
         el('button', { class: 'btn btn-sm', type: 'button', text: 'حذف', onclick: async function () {
           if (!confirm('حذف الإعلان؟')) return;
@@ -816,11 +822,10 @@
       var ul = el('ul', { class: 'cards-admin' }); box.appendChild(ul);
       (pend.data || []).forEach(function (x) {
         var actions = [el('button', { class: 'btn btn-primary', type: 'button', text: 'موافقة ونشر', onclick: function () {
-            if (x.fee_due > 0 && !confirm('رسوم ' + nf.format(x.fee_due) + ' د.ع لم تُسجَّل كمدفوعة. نشر رغم ذلك؟')) return;
             act(x.id, 'approve'); } }),
           el('button', { class: 'btn', type: 'button', text: 'رفض', onclick: function () { act(x.id, 'reject', true); } })];
         if (x.fee_due > 0) {
-          actions.unshift(el('span', { class: 'badge badge-warn', text: 'مستحق ' + nf.format(x.fee_due) + ' د.ع' }));
+          actions.unshift(el('span', { class: 'badge badge-warn', text: 'دين ' + nf.format(x.fee_due) + ' د.ع (غير مسدد)' }));
           actions.push(el('button', { class: 'btn', type: 'button', text: 'تم استلام المبلغ', onclick: async function () {
             var r = await sb.rpc('mark_fee_paid', { p_id: x.id });
             if (r.error) return say(errText(r.error), 'error'); say('سُجّل الدفع.', 'ok'); load();
@@ -934,6 +939,7 @@
       });
     }
     load();
+    debtsAdmin($('[data-debts]'), load);
     ridersAdmin($('[data-riders-admin]'));
     faresAdmin($('[data-fares-admin]'));
     commissionBox($('[data-commission]'), true);
@@ -1059,6 +1065,37 @@
             } })])]));
       })(x, ids);
     }
+  }
+
+  // ---------- الإدارة: ديون الإعلانات ----------
+  async function debtsAdmin(box, after) {
+    var r = await sb.rpc('admin_debts');
+    box.textContent = '';
+    if (r.error) return box.appendChild(el('p', { class: 'muted', text: 'قسم الديون يحتاج تشغيل تحديث supabase/updates/2026-11-ad-credit.sql.' }));
+    var rows = r.data || [], total = rows.reduce(function (n, x) { return n + x.total; }, 0);
+    $('[data-count=debts]').textContent = String(rows.filter(function (x) { return x.blocked; }).length || '');
+    stat('debts', total);
+    if (!rows.length) return box.appendChild(el('p', { class: 'empty-inline', text: 'ما كو ديون. كل الناس مسددين.' }));
+    var ul = el('ul', { class: 'cards-admin debts' }); box.appendChild(ul);
+    rows.forEach(function (x) {
+      var ph = (x.phones || [])[0];
+      ul.appendChild(el('li', { class: 'panel' + (x.blocked ? ' debt-blocked' : '') }, [
+        el('h3', {}, [(x.name || 'بدون اسم') + ' ', x.blocked ? el('span', { class: 'badge badge-warn', text: 'ممنوع من النشر' }) : null]),
+        el('dl', { class: 'facts' }, [
+          el('div', {}, [el('dt', { text: 'المبلغ' }), el('dd', { class: 'num', text: nf.format(x.total) + ' د.ع' })]),
+          el('div', {}, [el('dt', { text: 'إعلانات غير مسددة' }), el('dd', { text: nf.format(x.ads) })]),
+          el('div', {}, [el('dt', { text: 'الأرقام' }), el('dd', { dir: 'ltr', text: (x.phones || []).join('، ') || '-' })]),
+          el('div', {}, [el('dt', { text: 'عناوين IP' }), el('dd', { dir: 'ltr', text: (x.ips || []).join('، ') || '-' })]),
+          el('div', {}, [el('dt', { text: 'آخر إعلان' }), el('dd', { text: new Date(x.last_at).toLocaleString('ar-IQ') })])]),
+        el('div', { class: 'btn-row' }, [
+          ph ? el('a', { class: 'btn btn-wa', href: 'https://wa.me/964' + ph.replace(/^0/, '') + '?text=' + encodeURIComponent('هلو ' + (x.name || '') + '، عليك ' + nf.format(x.total) + ' د.ع رسوم إعلانات بدليل المعامل.'), target: '_blank', rel: 'noopener', text: 'مراسلة بالواتساب' }) : null,
+          el('button', { class: 'btn btn-primary', type: 'button', text: 'تم الدفع، تنشيط', onclick: async function () {
+            if (!confirm('استلمت ' + nf.format(x.total) + ' د.ع من ' + (x.name || 'هذا الشخص') + '؟ راح تنمسح ديونه ويكدر ينشر.')) return;
+            var s2 = await sb.rpc('settle_debt', { p_id: x.post_id });
+            if (s2.error) return say(errText(s2.error), 'error');
+            say('تم ✅ انمسح دين ' + (x.name || '') + ' (' + nf.format(s2.data) + ' د.ع) ويكدر ينشر هسه.', 'ok'); debtsAdmin(box, after); if (after) after();
+          } })])]));
+    });
   }
 
   async function faresAdmin(box) {

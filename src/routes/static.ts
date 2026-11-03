@@ -71,12 +71,12 @@ export async function staticRoutes(app: FastifyInstance) {
     // النماذج والحسابات عبر Supabase: الإرسال مباشر، والنشر بعد موافقة الإدارة
     app.get('/delivery', (req, reply) => reply.page(req, { title: 'دلفري حر: توصيل بالمعامل', description: 'أصحاب دراجات وستوتات يوصلون أكل وأدوية وأغراض داخل المعامل (قضاء الزوراء). كلهم مسجلين بهويتهم عند الإدارة.', head: head(req) }, deliveryPage()));
     app.get('/delivery/join', (req, reply) => reply.page(req, { title: 'سجّل كدلفري حر', head: head(req) }, riderJoinPage()));
-    app.get('/submit', (req, reply) => reply.page(req, { title: 'أضف إعلانك', head: head() }, liveSubmitPage('', catsBySection(), areaNames(), addShopLink(req.settings.whatsapp_phone ?? ''))));
+    app.get('/submit', (req, reply) => reply.page(req, { title: 'أضف إعلانك', head: head(req) }, liveSubmitPage('', catsBySection(), areaNames(), addShopLink(req.settings.whatsapp_phone ?? ''))));
     app.get('/submit/:type', (req, reply) => {
       const type = (req.params as { type: string }).type;
       if (!isPostType(type) || !sectionEnabled(req.settings, type)) return reply.callNotFound();
       if (type === 'business') return reply.redirect(addShopLink(req.settings.whatsapp_phone ?? ''));
-      return reply.page(req, { title: `أضف ${TYPES[type].single}`, canonical: '/submit', head: head() }, liveSubmitPage(type, catsBySection(), areaNames(), addShopLink(req.settings.whatsapp_phone ?? '')));
+      return reply.page(req, { title: `أضف ${TYPES[type].single}`, canonical: '/submit', head: head(req) }, liveSubmitPage(type, catsBySection(), areaNames(), addShopLink(req.settings.whatsapp_phone ?? '')));
     });
     app.get('/owner', (req, reply) => reply.page(req, { title: 'أضف مطعمك أو محلك', description: 'سجّل مطعمك أو محلك في دليل المعامل وأدر قائمة الطعام والأسعار بنفسك.' }, ownerLandingPage()));
     app.get('/owner/register', (req, reply) => reply.page(req, { title: 'سجّل مطعمك أو محلك', noindex: true, head: head() }, ownerRegisterPage(catsBySection().business ?? [], areaNames(), app.cfg.publicUrl)));

@@ -136,7 +136,7 @@ insert into posts (type, title, category, guest_name, contact_phone, fee_due) va
 reset role;
 do $$ begin
   if (select fee_due from posts where id = public.t_id('أول إعلان مجاني')) <> 0 then raise exception 'first ad should be free'; end if;
-  if (select fee_due from posts where id = public.t_id('ثاني إعلان مدفوع')) <> 3000 then raise exception 'second ad should cost 3000'; end if;
+  if (select fee_due from posts where id = public.t_id('ثاني إعلان مدفوع')) <> 1000 then raise exception 'second ad should cost 1000'; end if;
   if (select featured_until from posts where id = public.t_id('أول إعلان مجاني')) is not null then raise exception 'client set featured_until'; end if;
 end $$;
 select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
@@ -152,6 +152,42 @@ do $$ begin
   if (select fee_due from posts where id = public.t_id('ثاني إعلان مدفوع')) <> 0 then raise exception 'fee not cleared'; end if;
   if (select featured_until from public_posts where id = public.t_id('أول إعلان مجاني')) < now() + interval '9 days' then raise exception 'not featured for 10 days'; end if;
 end $$;
+-- ===== دين الإعلانات: الأول مجاني، بعده ١٬٠٠٠ لكل إعلان، وعند ٣٬٠٠٠ ينمنع. الـIP يعرف الشخص حتى لو غيّر رقمه =====
+reset role;
+select set_config('request.headers', '{"cf-connecting-ip":"5.6.7.8","x-forwarded-for":"1.1.1.1"}', false);
+select pg_temp.as_user(null);
+insert into posts (type, title, category, guest_name, contact_phone) values ('market', 'دين ١', 'أجهزة', 'مستعجل', '07701000001');
+insert into posts (type, title, category, guest_name, contact_phone) values ('market', 'دين ٢', 'أجهزة', 'مستعجل', '07701000001');
+insert into posts (type, title, category, guest_name, contact_phone) values ('market', 'دين ٣', 'أجهزة', 'مستعجل', '07701000002');
+insert into posts (type, title, category, guest_name, contact_phone) values ('market', 'دين ٤', 'أجهزة', 'مستعجل', '07701000003');
+select pg_temp.expect_error($q$insert into posts (type, title, category, guest_name, contact_phone) values ('market', 'دين ٥', 'أجهزة', 'مستعجل', '07701000004')$q$, 'blocked at 3000 by IP');
+select pg_temp.expect_error($q$insert into posts (type, title, category, guest_name, contact_phone, client_ip) values ('market', 'دين ٥', 'أجهزة', 'مستعجل', '07701000004', '8.8.8.8')$q$, 'spoofed client_ip column');
+select set_config('request.headers', '{"cf-connecting-ip":"9.9.9.9"}', false);
+select pg_temp.expect_error($q$insert into posts (type, title, category, guest_name, contact_phone) values ('market', 'نفس الرقم', 'أجهزة', 'مستعجل', '07701000001')$q$, 'blocked by phone from another IP');
+insert into posts (type, title, category, guest_name, contact_phone) values ('market', 'شخص ثاني', 'أجهزة', 'غريب', '07701000009');
+reset role;
+do $$ begin
+  if (select client_ip from posts where id = public.t_id('دين ١')) <> '5.6.7.8' then raise exception 'IP not recorded'; end if;
+  if (select fee_due from posts where id = public.t_id('دين ١')) <> 0 then raise exception 'first ad not free'; end if;
+  if (select sum(fee_due) from posts where title in ('دين ٢', 'دين ٣', 'دين ٤')) <> 3000 then raise exception 'debt not 3 x 1000'; end if;
+  if (select fee_due from posts where id = public.t_id('شخص ثاني')) <> 0 then raise exception 'other person charged'; end if;
+end $$;
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+select pg_temp.expect_error($q$select * from public.admin_debts()$q$, 'user lists debts');
+select pg_temp.expect_error($q$select public.settle_debt(public.t_id('دين ٢'))$q$, 'user settles debt');
+select pg_temp.expect_error($q$select public.ad_debt(null, '07701000001', null)$q$, 'user reads debt of a phone');
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+do $$ begin
+  if not exists (select 1 from public.admin_debts() where '5.6.7.8' = any(ips) and total = 3000 and ads = 3 and blocked and '07701000003' = any(phones)) then raise exception 'debtor row wrong'; end if;
+  if (select public.settle_debt(public.t_id('دين ٢'))) <> 3000 then raise exception 'settle amount'; end if;
+  if exists (select 1 from public.admin_debts() where '5.6.7.8' = any(ips)) then raise exception 'debt not cleared'; end if;
+end $$;
+select set_config('request.headers', '{"cf-connecting-ip":"5.6.7.8"}', false);
+select pg_temp.as_user(null);
+insert into posts (type, title, category, guest_name, contact_phone) values ('market', 'بعد التسديد', 'أجهزة', 'مستعجل', '07701000001');
+reset role;
+do $$ begin if (select fee_due from posts where id = public.t_id('بعد التسديد')) <> 1000 then raise exception 'after paying, next ad should cost 1000'; end if; end $$;
+select set_config('request.headers', '', false);
 -- الشعار: صاحب المحل المعتمد فقط، ومن مجلده فقط
 select pg_temp.as_user('22222222-2222-2222-2222-222222222222');
 select pg_temp.expect_error($q$select public.set_business_logo(public.t_id('مطعم أبو علي'), 'u/22222222-2222-2222-2222-222222222222/0123456789abcdef0123456789abcdef.webp')$q$, 'logo on someone else''s business');
