@@ -184,38 +184,42 @@ export function menuManagerPage(back = '/owner/dashboard'): SafeHtml {
 export function adminLivePage(): SafeHtml {
   return html`<div class="wrap" data-page="admin">
     <div class="page-head"><div><h1>لوحة الإدارة</h1><p class="lede">المعتمد يظهر بالموقع خلال ربع ساعة تقريباً.</p></div>
-      <div class="btn-row"><a class="btn btn-sign" href="/admin/business">${icon('plus')}إضافة مطعم أو محل</a><button class="btn" type="button" data-logout>${icon('logout')}خروج</button></div></div>
+      <div class="btn-row"><a class="btn btn-sign" href="/admin/business" data-admin-only>${icon('plus')}إضافة مطعم أو محل</a><button class="btn" type="button" data-logout>${icon('logout')}خروج</button></div></div>
     ${msg}${noJs}
     <ul class="stats" aria-label="ملخص">
       <li class="stat"><a href="#pending"><span class="stat-ico">${icon('clock')}</span><b class="stat-n" data-stat="pending">—</b>بانتظار المراجعة</a></li>
-      <li class="stat"><a href="#claims"><span class="stat-ico">${icon('store')}</span><b class="stat-n" data-stat="claims">—</b>طلبات أصحاب المحلات</a></li>
+      <li class="stat" data-admin-only><a href="#claims"><span class="stat-ico">${icon('store')}</span><b class="stat-n" data-stat="claims">—</b>طلبات أصحاب المحلات</a></li>
       <li class="stat"><a href="#products"><span class="stat-ico">${icon('image')}</span><b class="stat-n" data-stat="products">—</b>منتجات بانتظار الموافقة</a></li>
-      <li class="stat"><a href="#debts"><span class="stat-ico">${icon('tag')}</span><b class="stat-n" data-stat="debts">—</b>ديون إعلانات (د.ع)</a></li>
-      <li class="stat"><a href="#riders"><span class="stat-ico">${icon('bike')}</span><b class="stat-n" data-stat="riders">—</b>تسجيلات دلفري جديدة</a></li>
+      <li class="stat" data-admin-only><a href="#debts"><span class="stat-ico">${icon('tag')}</span><b class="stat-n" data-stat="debts">—</b>ديون إعلانات (د.ع)</a></li>
+      <li class="stat" data-admin-only><a href="#riders"><span class="stat-ico">${icon('bike')}</span><b class="stat-n" data-stat="riders">—</b>تسجيلات دلفري جديدة</a></li>
       <li class="stat"><a href="#published"><span class="stat-ico">${icon('check')}</span><b class="stat-n" data-stat="published">—</b>منشور حالياً</a></li>
-      <li class="stat stat-gold"><a href="#commission"><span class="stat-ico">${icon('percent')}</span><b class="stat-n" data-stat="due">—</b>نسبة مستحقة هذا الشهر (د.ع)</a></li>
+      <li class="stat stat-gold" data-admin-only><a href="#commission"><span class="stat-ico">${icon('percent')}</span><b class="stat-n" data-stat="due">—</b>نسبة مستحقة هذا الشهر (د.ع)</a></li>
     </ul>
     <nav class="menu-tabs" aria-label="أقسام الإدارة">
       <a href="#pending">بانتظار المراجعة <span class="count" data-count="pending"></span></a>
-      <a href="#claims">طلبات أصحاب المحلات <span class="count" data-count="claims"></span></a>
+      <a href="#claims" data-admin-only>طلبات أصحاب المحلات <span class="count" data-count="claims"></span></a>
       <a href="#products">منتجات جديدة <span class="count" data-count="products"></span></a>
-      <a href="#debts">ديون الإعلانات <span class="count" data-count="debts"></span></a>
-      <a href="#riders">دلفري حر <span class="count" data-count="riders"></span></a>
+      <a href="#debts" data-admin-only>ديون الإعلانات <span class="count" data-count="debts"></span></a>
+      <a href="#riders" data-admin-only>دلفري حر <span class="count" data-count="riders"></span></a>
       <a href="#published">المنشور حالياً</a>
-      <a href="#commission">نسبة الطلبات</a>
+      <a href="#commission" data-admin-only>نسبة الطلبات</a>
+      <a href="#staff" data-admin-only>المشرفين</a>
     </nav>
     <section id="pending" class="block"><h2>بانتظار المراجعة</h2><div data-pending><div class="skeleton" aria-label="جارِ التحميل"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div></div></section>
-    <section id="claims" class="block"><h2>طلبات أصحاب المحلات</h2><div data-claims></div></section>
+    <section id="claims" class="block" data-admin-only><h2>طلبات أصحاب المحلات</h2><div data-claims></div></section>
     <section id="products" class="block"><h2>منتجات جديدة بانتظار الموافقة</h2><p class="muted">منتجات أضافها أصحاب المحلات بصورها. السعر والتوفر يتعدلون بدون موافقة.</p><div data-products></div></section>
-    <section id="debts" class="block"><h2>ديون الإعلانات</h2>
+    <section id="debts" class="block" data-admin-only><h2>ديون الإعلانات</h2>
       <p class="muted">الإعلان الأول مجاني، وكل إعلان بعده 1,000 د.ع. الي وصل 3,000 ممنوع من النشر لحد ما يسدد. الشخص يتعرف بحسابه أو رقمه أو عنوان IP. لما يسددك بالواتساب اضغط «تم الدفع، تنشيط».</p>
       <div data-debts></div></section>
-    <section id="riders" class="block"><h2>دلفري حر</h2><p class="muted">قبل الموافقة: اتصل بيه، وطابق الاسم وية الهوية. الهوية والعنوان يظهرون هنا فقط.</p><div data-riders-admin></div>
+    <section id="riders" class="block" data-admin-only><h2>دلفري حر</h2><p class="muted">قبل الموافقة: اتصل بيه، وطابق الاسم وية الهوية. الهوية والعنوان يظهرون هنا فقط.</p><div data-riders-admin></div>
       <h3>تسعيرة الكروة</h3><p class="muted">تطلع للكل بصفحة «دلفري حر». خلي السعر فارغ إذا «اتفاق».</p><div data-fares-admin></div></section>
     <section id="published" class="block"><h2>المنشور حالياً</h2><div data-published></div></section>
-    <section id="commission" class="block"><h2>نسبة الطلبات (٥٪)</h2>
+    <section id="commission" class="block" data-admin-only><h2>نسبة الطلبات (٥٪)</h2>
       <p class="muted">كل طلب يُرسل من سلة الموقع إلى واتساب المطعم يُسجَّل هنا. استلم النسبة من كل مطعم آخر الشهر واضغط «تم الدفع».</p>
       <div data-commission></div></section>
+    <section id="staff" class="block" data-admin-only><h2>المشرفين</h2>
+      <p class="muted">المشرف يراجع الإعلانات والمنتجات وينشرها بس. ما يشوف هويات الدلفري ولا الديون ولا نسبة المطاعم. يسوي حساب من «دخول أصحاب المحلات» أول، وبعدين تضيفه هنا ببريده.</p>
+      <div data-staff></div></section>
   </div>`;
 }
 

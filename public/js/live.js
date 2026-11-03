@@ -115,6 +115,53 @@
     if (!s) { go('/login/?next=' + encodeURIComponent(location.pathname.replace(BASE, '') + location.search)); return null; }
     return s;
   }
+  // ---------- الدخول بخطوتين للإدارة والمشرفين ----------
+  // صلاحيات الإدارة بقاعدة البيانات ما تشتغل إلا بجلسة متحققة بكود التطبيق (aal2).
+  function jwtPayload(t) { try { return JSON.parse(window.atob(String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); } catch { return {}; } }
+  async function ensureMfa() {
+    var s = await session(); if (!s) return false;
+    if (jwtPayload(s.access_token).aal === 'aal2') return true;
+    var root = page;
+    Array.prototype.forEach.call(root.children, function (c) { if (!c.hasAttribute('data-msg') && c.tagName !== 'H1' && !c.classList.contains('page-head')) c.hidden = true; });
+    var box = el('section', { class: 'panel mfa-box', 'data-mfa': '' }); root.appendChild(box);
+    var u = await sb.auth.getUser();
+    var factors = ((u.data && u.data.user && u.data.user.factors) || []).filter(function (f) { return f.factor_type === 'totp'; });
+    var ok = factors.filter(function (f) { return f.status === 'verified'; })[0];
+    var factorId = ok && ok.id;
+    if (!ok) {
+      for (var i = 0; i < factors.length; i++) await sb.auth.mfa.unenroll({ factorId: factors[i].id });
+      var en = await sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'دليل المعامل ' + Date.now() });
+      if (en.error) { say(errText(en.error), 'error'); return false; }
+      factorId = en.data.id;
+      box.appendChild(el('h2', { text: 'فعّل الدخول بخطوتين (مرة وحدة)' }));
+      box.appendChild(el('ol', { class: 'mfa-steps' }, [
+        el('li', { text: 'نزّل تطبيق Google Authenticator أو Microsoft Authenticator على موبايلك.' }),
+        el('li', { text: 'افتح التطبيق واضغط + ثم «مسح رمز QR» وامسح هذا الرمز:' })]));
+      box.appendChild(el('img', { class: 'mfa-qr', src: en.data.totp.qr_code, alt: 'رمز QR للدخول بخطوتين', width: 200, height: 200 }));
+      box.appendChild(el('p', { class: 'muted' }, ['ما يشتغل المسح؟ اكتب هذا المفتاح بالتطبيق يدوياً: ', el('code', { dir: 'ltr', text: en.data.totp.secret })]));
+      box.appendChild(el('p', { class: 'note', text: 'احتفظ بالموبايل. إذا ضاع، تكدر ترجع الدخول من Supabase (الشرح بملف التحديث).' }));
+    } else {
+      box.appendChild(el('h2', { text: 'الدخول بخطوتين' }));
+      box.appendChild(el('p', { text: 'افتح تطبيق المصادقة على موبايلك واكتب الكود المكوّن من ٦ أرقام.' }));
+    }
+    var input = el('input', { type: 'text', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 6, dir: 'ltr', 'aria-label': 'كود التطبيق', placeholder: '123456', class: 'mfa-code' });
+    var form = el('form', { class: 'btn-row' }, [input, el('button', { class: 'btn btn-primary', type: 'submit', text: 'تأكيد' })]);
+    box.appendChild(form);
+    input.focus();
+    return new Promise(function () {
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var code = digits(input.value).replace(/\D/g, '');
+        if (code.length !== 6) return say('الكود ٦ أرقام.', 'error');
+        busy(form, true);
+        var r = await sb.auth.mfa.challengeAndVerify({ factorId: factorId, code: code });
+        busy(form, false);
+        if (r.error) return say('الكود غلط أو انتهى وقته. جرّب الكود الجديد بالتطبيق.', 'error');
+        location.reload();
+      });
+    });
+  }
+
   $$('[data-logout]').forEach(function (b) { b.addEventListener('click', async function () { await sb.auth.signOut(); go('/'); }); });
 
   function showFor(form, type) {
@@ -523,6 +570,7 @@
   // ---------- القائمة ----------
   async function initMenu() {
     var s = await requireLogin(); if (!s) return;
+    if (ADMIN_SITE && !(await ensureMfa())) return;
     var bid = Number(new URLSearchParams(location.search).get('b'));
     var b = bid ? (await sb.from('posts').select('id, title, status, owner_id, author_id, category').eq('id', bid).maybeSingle()).data : null;
     if (!b) { say('المحل غير موجود أو ما تملك صلاحية إدارته.', 'error'); return; }
@@ -789,7 +837,11 @@
   async function initAdmin() {
     var s = await requireLogin(); if (!s) return;
     var p = await profile(s.user.id);
-    if (!p || p.role !== 'admin') { say('هذه الصفحة للإدارة فقط.', 'error'); $$('section').forEach(function (x) { x.hidden = true; }); return; }
+    if (!p || (p.role !== 'admin' && p.role !== 'moderator')) { say('هذه الصفحة للإدارة فقط.', 'error'); $$('section').forEach(function (x) { x.hidden = true; }); return; }
+    if (!(await ensureMfa())) return;
+    var IS_ADMIN = p.role === 'admin';
+    // المشرف: المراجعة والمنتجات والشكاوى بس؛ الهويات والفلوس والمحلات للمدير
+    if (!IS_ADMIN) $$('[data-admin-only]').forEach(function (x) { x.hidden = true; });
     async function feature(x, days) {
       if (days && !confirm('تمييز «' + x.title + '» ' + days + ' أيام؟ تأكد من استلام ' + nf.format(FEE) + ' د.ع.')) return;
       var r = await sb.rpc('feature_post', { p_id: x.id, p_days: days });
@@ -908,7 +960,7 @@
           x.verified ? el('span', { class: 'badge badge-ok', text: 'موثّق' }) : null,
           el('div', { class: 'btn-row' }, [
             x.type === 'business' ? el('a', { class: 'btn btn-sm btn-primary', href: BASE + '/admin/menu/?b=' + x.id, text: 'القائمة والأسعار' }) : null,
-            x.type === 'business' ? el('button', { class: 'btn btn-sm btn-sign', type: 'button', text: 'رابط خاص لصاحب المحل', onclick: async function () {
+            IS_ADMIN && x.type === 'business' ? el('button', { class: 'btn btn-sm btn-sign', type: 'button', text: 'رابط خاص لصاحب المحل', onclick: async function () {
               var r = await sb.rpc('create_invite', { p_business: x.id });
               if (r.error) return say(errText(r.error), 'error');
               var link = location.origin + BASE.replace(/\/idara$/, '') + '/mat3am/login/?invite=' + r.data;
@@ -923,7 +975,7 @@
                   } })])]));
               box.scrollIntoView({ block: 'nearest' });
             } }) : null,
-            x.type === 'business' ? el('button', { class: 'btn btn-sm', type: 'button', text: x.owner_id ? 'تغيير حساب المطعم' : 'ربط حساب المطعم', onclick: async function () {
+            IS_ADMIN && x.type === 'business' ? el('button', { class: 'btn btn-sm', type: 'button', text: x.owner_id ? 'تغيير حساب المطعم' : 'ربط حساب المطعم', onclick: async function () {
               var email = prompt('بريد حساب صاحب المطعم (يسويه من موقع المطعم /mat3am):');
               if (!email || email.indexOf('@') < 1) return;
               var r = await sb.rpc('assign_owner', { p_business: x.id, p_email: email.trim() });
@@ -934,15 +986,45 @@
             el('button', { class: 'btn btn-sm btn-danger', type: 'button', text: 'حذف', onclick: function () { act(x.id, 'remove', true); } }),
             x.type === 'business' || x.type === 'help' ? el('button', { class: 'btn btn-sm', type: 'button', text: x.verified ? 'إلغاء التوثيق' : 'توثيق (بعد التحقق)', onclick: function () { act(x.id, x.verified ? 'unverify' : 'verify'); } }) : null,
             x.type === 'community' ? el('button', { class: 'btn btn-sm', type: 'button', text: x.is_official ? 'إلغاء «خبر مؤكد»' : 'خبر مؤكد', onclick: function () { act(x.id, x.is_official ? 'unofficial' : 'official'); } }) : null,
-            el('button', { class: 'btn btn-sm btn-sign', type: 'button', text: 'تمييز ' + FEATURE_DAYS + ' أيام (مدفوع)', onclick: function () { feature(x, FEATURE_DAYS); } }),
-            x.featured_until && new Date(x.featured_until) > new Date() ? el('button', { class: 'btn btn-sm', type: 'button', text: 'مميز حتى ' + dayText(x.featured_until) + ' — إلغاء', onclick: function () { feature(x, 0); } }) : null])]));
+            IS_ADMIN ? el('button', { class: 'btn btn-sm btn-sign', type: 'button', text: 'تمييز ' + FEATURE_DAYS + ' أيام (مدفوع)', onclick: function () { feature(x, FEATURE_DAYS); } }) : null,
+            IS_ADMIN && x.featured_until && new Date(x.featured_until) > new Date() ? el('button', { class: 'btn btn-sm', type: 'button', text: 'مميز حتى ' + dayText(x.featured_until) + ' — إلغاء', onclick: function () { feature(x, 0); } }) : null])]));
       });
     }
     load();
+    if (!IS_ADMIN) return;
     debtsAdmin($('[data-debts]'), load);
     ridersAdmin($('[data-riders-admin]'));
     faresAdmin($('[data-fares-admin]'));
     commissionBox($('[data-commission]'), true);
+    staffAdmin($('[data-staff]'));
+  }
+
+  // ---------- الإدارة: المشرفين ----------
+  async function staffAdmin(box) {
+    var r = await sb.rpc('staff_list');
+    box.textContent = '';
+    if (r.error) return box.appendChild(el('p', { class: 'muted', text: 'المشرفين يحتاجون تشغيل تحديث supabase/updates/2026-11-trust.sql.' }));
+    var ul = el('ul', { class: 'manage-list' });
+    (r.data || []).forEach(function (x) {
+      ul.appendChild(el('li', {}, [el('strong', { text: x.name }), ' ', el('span', { class: 'muted', dir: 'ltr', text: x.email }), ' ',
+        el('span', { class: 'badge', text: x.role === 'admin' ? 'مدير' : 'مشرف' }),
+        x.role === 'moderator' ? el('button', { class: 'btn btn-sm', type: 'button', text: 'شيله من المشرفين', onclick: async function () {
+          if (!confirm('تشيل ' + x.name + ' من المشرفين؟')) return;
+          var d = await sb.rpc('set_staff_role', { p_email: x.email, p_role: 'owner' });
+          if (d.error) return say(errText(d.error), 'error'); say(d.data, 'ok'); staffAdmin(box);
+        } }) : null]));
+    });
+    box.appendChild(ul);
+    var input = el('input', { type: 'email', dir: 'ltr', placeholder: 'بريد المشرف', 'aria-label': 'بريد المشرف', class: 'staff-email' });
+    var form = el('form', { class: 'btn-row' }, [input, el('button', { class: 'btn btn-primary', type: 'submit', text: 'إضافة مشرف' })]);
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault(); delete form.dataset.submitting;
+      if (input.value.indexOf('@') < 1) return say('اكتب بريد المشرف.', 'error');
+      var a = await sb.rpc('set_staff_role', { p_email: input.value.trim(), p_role: 'moderator' });
+      if (a.error) return say(errText(a.error), 'error');
+      say(a.data + ' ✅ يدخل من نفس رابط الإدارة، ويفعّل الدخول بخطوتين أول مرة.', 'ok'); staffAdmin(box);
+    });
+    box.appendChild(form);
   }
 
   // ---------- دلفري حر: القائمة العامة ----------
@@ -1194,6 +1276,7 @@
     var s = await requireLogin(); if (!s) return;
     var p = await profile(s.user.id);
     if (!p || p.role !== 'admin') { say('هذه الصفحة للإدارة فقط.', 'error'); $('[data-add-business]').hidden = true; return; }
+    if (!(await ensureMfa())) return;
     kitForm($('[data-add-business]'));
     var form = $('[data-add-business]');
     form.addEventListener('submit', async function (e) {

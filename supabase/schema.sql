@@ -35,9 +35,25 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- الأدوار: owner صاحب محل، moderator مشرف (يراجع الإعلانات والمنتجات والشكاوى فقط)، admin المدير (كلشي).
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles add constraint profiles_role_check check (role in ('owner', 'moderator', 'admin'));
+
+-- الدخول بخطوتين: صلاحيات الإدارة ما تشتغل إلا إذا الجلسة متحققة بكود التطبيق (aal2).
+-- حتى لو انسرقت كلمة السر، ما يكدر يشوف الهويات أو يغيّر شي بدون الموبايل.
+create or replace function public.mfa_ok() returns boolean language sql stable as $$
+  select coalesce(auth.jwt()->>'aal', '') = 'aal2'
+$$;
+
 create or replace function public.is_admin() returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.profiles where id = auth.uid() and role = 'admin');
+  select public.mfa_ok() and exists (select 1 from public.profiles where id = auth.uid() and role = 'admin');
+$$;
+
+-- المدير أو المشرف
+create or replace function public.is_staff() returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.mfa_ok() and exists (select 1 from public.profiles where id = auth.uid() and role in ('admin', 'moderator'));
 $$;
 
 drop policy if exists profiles_read on public.profiles;
@@ -204,7 +220,7 @@ create trigger posts_before_update before update on public.posts for each row ex
 -- (المنشور فقط، ومن دون اسم المرسل أو الرقم المخفي).
 drop policy if exists posts_read on public.posts;
 create policy posts_read on public.posts for select using (
-  author_id = auth.uid() or owner_id = auth.uid() or public.is_admin()
+  author_id = auth.uid() or owner_id = auth.uid() or public.is_staff()
 );
 
 create or replace view public.public_posts with (security_barrier = true) as
@@ -243,7 +259,7 @@ alter table public.menu_items enable row level security;
 -- يدير القائمة: المالك المعتمد، أو صاحب الطلب أثناء التحقق، أو المدير.
 create or replace function public.can_manage(bid bigint) returns boolean
 language sql stable security definer set search_path = public as $$
-  select public.is_admin() or exists (
+  select public.is_staff() or exists (
     select 1 from posts p where p.id = bid and p.type = 'business' and p.status not in ('removed', 'rejected')
       and (p.owner_id = auth.uid() or (p.owner_id is null and p.author_id = auth.uid())));
 $$;
@@ -259,13 +275,13 @@ begin
   if tg_op = 'UPDATE' then new.business_id := old.business_id; end if;
   -- الصورة تُفحص فقط إذا تغيّرت (حتى صاحب المحل يكدر يعدّل صنف صورته رفعتها الإدارة)
   if new.image is not null and (tg_op = 'INSERT' or new.image is distinct from old.image)
-     and new.image !~ ('^u/' || auth.uid()::text || '/') and not public.is_admin() then
+     and new.image !~ ('^u/' || auth.uid()::text || '/') and not public.is_staff() then
     raise exception 'مسار صورة غير صالح'; end if;
   if tg_op = 'INSERT' and (select count(*) from menu_items where business_id = new.business_id) >= 300 then
     raise exception 'الحد الأقصى ٣٠٠ صنف'; end if;
   -- منتج جديد من صاحب المحل، أو تغيير اسمه أو وصفه أو صورته: ينتظر موافقة الإدارة.
   -- السعر والقسم والتوفر يتعدلون بدون موافقة. منتجات محل لم يُعتمد بعد تُراجع ويا المحل نفسه.
-  if not public.is_admin() then
+  if not public.is_staff() then
     if tg_op = 'INSERT' then new.approved := not public.is_public_business(new.business_id);
     elsif new.name is distinct from old.name or new.note is distinct from old.note or new.image is distinct from old.image then new.approved := false;
     else new.approved := old.approved; end if;
@@ -344,7 +360,7 @@ create or replace function public.moderate_post(p_id bigint, p_action text, p_re
 language plpgsql security definer set search_path = public as $$
 declare p posts; days int;
 begin
-  if not public.is_admin() then raise exception 'غير مسموح'; end if;
+  if not public.is_staff() then raise exception 'غير مسموح'; end if;
   select * into p from posts where id = p_id for update;
   if not found then raise exception 'المنشور غير موجود'; end if;
   if p_action in ('reject', 'hide', 'remove') and char_length(trim(coalesce(p_reason, ''))) < 3 then raise exception 'اكتب السبب'; end if;
@@ -497,6 +513,28 @@ language sql stable security definer set search_path = public as $$
     (select max(updated_at)::text from menu_items), (select count(*) from menu_items),
     to_char(now() at time zone 'Asia/Baghdad', 'YYYY-MM-DD'));
 $$;
+
+-- المدير: يضيف مشرف أو يشيله (بالبريد). المشرف يراجع بس، وما يشوف الهويات والفلوس.
+create or replace function public.set_staff_role(p_email text, p_role text) returns text
+language plpgsql security definer set search_path = public as $$
+declare uid uuid;
+begin
+  if not public.is_admin() then raise exception 'غير مسموح'; end if;
+  if p_role not in ('moderator', 'owner') then raise exception 'دور غير صالح'; end if;
+  select id into uid from auth.users where lower(email) = lower(trim(p_email));
+  if uid is null then raise exception 'ما كو حساب بهذا البريد. خلي المشرف يسوي حساب من صفحة دخول أصحاب المحلات أول.'; end if;
+  if exists (select 1 from profiles where id = uid and role = 'admin') then raise exception 'هذا حساب مدير'; end if;
+  update profiles set role = p_role where id = uid;
+  return case p_role when 'moderator' then 'صار مشرف' else 'انشال من المشرفين' end;
+end $$;
+create or replace function public.staff_list() returns table (email text, name text, role text)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'غير مسموح'; end if;
+  return query select u.email::text, p.name, p.role from profiles p join auth.users u on u.id = p.id where p.role in ('admin', 'moderator') order by p.role, p.name;
+end $$;
+revoke all on function public.set_staff_role(text, text), public.staff_list() from public, anon;
+grant execute on function public.set_staff_role(text, text), public.staff_list() to authenticated;
 
 -- تعيين مدير: شغّلها من SQL Editor فقط، مثل: select public.make_admin('you@example.com');
 create or replace function public.make_admin(p_email text) returns text

@@ -6,6 +6,7 @@ begin
 end $$;
 create or replace function pg_temp.as_user(uid text) returns void language plpgsql as $$
 begin perform set_config('request.jwt.claim.sub', coalesce(uid, ''), false);
+  perform set_config('request.jwt.claims', case when uid is null then '{}' else '{"aal":"aal2"}' end, false);
   if uid is null then execute 'set role anon'; else execute 'set role authenticated'; end if; end $$;
 
 reset role;
@@ -418,5 +419,39 @@ do $$ begin if (select count(*) from delivery_fares) <> 2 or (select price from 
   or (select price from delivery_fares where label = 'بالليل') is not null then raise exception 'admin fares not saved'; end if; end $$;
 reset role;
 do $$ begin if exists (select 1 from riders) or exists (select 1 from storage.objects where name like 'rider/%') then raise exception 'admin cannot delete rider and IDs'; end if; end $$;
+
+-- ===== الدخول بخطوتين والمشرفين =====
+reset role;
+insert into auth.users (id, email, raw_user_meta_data) values ('55555555-5555-5555-5555-555555555555', 'mod@x.iq', '{"name":"مشرف","phone":"07705555550"}');
+insert into posts (type, title, category, guest_name, contact_phone) values ('market', 'إعلان للمشرف', 'أجهزة', 'زائر', '07705555551');
+-- المدير بكلمة السر بس (aal1): ما عنده أي صلاحية
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+select set_config('request.jwt.claims', '{"aal":"aal1"}', false);
+do $$ begin if public.is_admin() or public.is_staff() then raise exception 'admin without second step'; end if; end $$;
+select pg_temp.expect_error($q$select * from public.admin_debts()$q$, 'aal1 admin lists debts');
+select pg_temp.expect_error($q$select public.moderate_post(public.t_id('إعلان للمشرف'), 'approve')$q$, 'aal1 admin moderates');
+do $$ begin if exists (select 1 from posts where status = 'pending' and author_id is null) then raise exception 'aal1 admin reads pending posts'; end if; end $$;
+-- المدير بالخطوتين يضيف مشرف
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+select public.set_staff_role('mod@x.iq', 'moderator');
+select pg_temp.expect_error($q$select public.set_staff_role('admin@x.iq', 'owner')$q$, 'demote the admin');
+select pg_temp.expect_error($q$select public.set_staff_role('mod@x.iq', 'admin')$q$, 'make admin from the browser');
+do $$ begin if not exists (select 1 from public.staff_list() where email = 'mod@x.iq' and role = 'moderator') then raise exception 'staff list'; end if; end $$;
+-- المشرف: يراجع وينشر، بس ما يشوف الهويات ولا الديون ولا يضيف مشرفين
+select pg_temp.as_user('55555555-5555-5555-5555-555555555555');
+select public.moderate_post(public.t_id('إعلان للمشرف'), 'approve');
+select pg_temp.expect_error($q$select * from public.admin_debts()$q$, 'moderator lists debts');
+select pg_temp.expect_error($q$select public.settle_debt(public.t_id('إعلان للمشرف'))$q$, 'moderator settles debt');
+select pg_temp.expect_error($q$select public.set_staff_role('owner@x.iq', 'moderator')$q$, 'moderator adds moderators');
+select pg_temp.expect_error($q$select public.set_delivery_fares('[]'::jsonb)$q$, 'moderator sets fares');
+do $$ begin
+  if exists (select 1 from riders) then raise exception 'moderator reads riders'; end if;
+  if exists (select 1 from storage.objects where bucket_id = 'proofs') then raise exception 'moderator reads proofs'; end if;
+end $$;
+-- المشرف بدون الخطوة الثانية: ولا شي
+select set_config('request.jwt.claims', '{"aal":"aal1"}', false);
+select pg_temp.expect_error($q$select public.moderate_post(public.t_id('إعلان للمشرف'), 'hide', 'اختبار')$q$, 'aal1 moderator moderates');
+reset role;
+do $$ begin if (select status from posts where id = public.t_id('إعلان للمشرف')) <> 'published' then raise exception 'moderator approve failed'; end if; end $$;
 
 select 'ALL RLS TESTS PASSED';

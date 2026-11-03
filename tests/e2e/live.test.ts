@@ -20,7 +20,10 @@ const servers: http.Server[] = [];
 const cspErrors: string[] = [];
 let png: Buffer;
 
-const session = (id: string, email: string) => ({ access_token: 'tok-' + id, token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'r-' + id,
+// رمز بشكل JWT (المكتبة تقرأ منه مستوى التحقق aal)؛ التوقيع يحمل المعرّف حتى يعرف الخادم الوهمي صاحبه
+const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
+const jwt = (id: string, aal: string) => b64({ alg: 'HS256', typ: 'JWT' }) + '.' + b64({ sub: id, aal, role: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600 }) + '.tok-' + id;
+const session = (id: string, email: string, aal = 'aal2') => ({ access_token: jwt(id, aal), token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'r-' + id,
   user: { id, aud: 'authenticated', role: 'authenticated', email, app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString() } });
 const menu: { id: number; business_id: number; section: string; name: string; price: number | null; note: string; image: string | null; available: boolean; sort: number }[] = [
   { id: 1, business_id: 1000001, section: 'مشويات', name: 'تكة لحم', price: 6000, note: 'نفر', image: 'u/' + UID + '/' + 'b'.repeat(32) + '.webp', available: true, sort: 0 },
@@ -53,8 +56,12 @@ function mock(req: http.IncomingMessage, res: http.ServerResponse, body: Buffer)
   const auth = String(req.headers.authorization ?? '');
   const p = u.pathname;
   if (p === '/auth/v1/signup') { const b = json(); return send(200, session(UID, b.email)); }
-  if (p === '/auth/v1/token') { const b = json(); return send(200, session(b.email === 'admin@x.iq' ? ADMIN : UID, b.email)); }
-  if (p === '/auth/v1/user') return send(200, session(auth.includes(ADMIN) ? ADMIN : UID, 'x@x.iq').user);
+  if (p === '/auth/v1/token') { const b = json(); return send(200, b.email === 'mfa@x.iq' ? session(ADMIN, b.email, 'aal1') : session(b.email === 'admin@x.iq' ? ADMIN : UID, b.email)); }
+  if (p === '/auth/v1/user') return send(200, { ...session(auth.includes(ADMIN) ? ADMIN : UID, 'x@x.iq').user, factors: [] });
+  // الدخول بخطوتين
+  if (p === '/auth/v1/factors' && req.method === 'POST') return send(200, { id: 'f1', type: 'totp', friendly_name: json().friendly_name, totp: { qr_code: '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>', secret: 'JBSWY3DPEHPK3PXP', uri: 'otpauth://totp/x' } });
+  if (p === '/auth/v1/factors/f1/challenge') return send(200, { id: 'c1', type: 'totp', expires_at: Math.floor(Date.now() / 1000) + 300 });
+  if (p === '/auth/v1/factors/f1/verify') return json().code === '123456' ? send(200, session(ADMIN, 'mfa@x.iq', 'aal2')) : send(422, { code: 'mfa_verification_failed', msg: 'Invalid TOTP code entered' });
   if (p.startsWith('/storage/v1/object/public/media/')) { res.writeHead(200, { 'Content-Type': 'image/webp' }); return res.end(png); }
   if (p.startsWith('/storage/v1/object/sign/proofs')) return send(200, (json().paths as string[]).map((x) => ({ path: x, signedURL: '/object/public/media/' + x + '?token=t', error: null })));
   if (p.startsWith('/storage/v1/object/')) return send(200, { Key: p.replace('/storage/v1/object/', '') });
@@ -587,6 +594,22 @@ test('admin sees debtors with phones and IPs, and «تم الدفع، تنشيط
   await p.waitForSelector('.live-msg.flash-ok:has-text("انمسح دين")');
   const call = JSON.parse(log.filter((r) => r.path === '/rest/v1/rpc/settle_debt').at(-1)!.body.toString());
   assert.equal(call.p_id, 1000020);
+  await p.context().close();
+});
+
+test('admin with only a password must set up the two-step code before seeing anything', async () => {
+  const p = await open('/login/', 1280, '/almamel-admin');
+  await p.fill('#f-email', 'mfa@x.iq'); await p.fill('#f-password', 'admin-pass-1234');
+  await p.click('[data-login] button[type=submit]');
+  await p.waitForURL(/\/almamel-admin\/admin\//);
+  await p.waitForSelector('[data-mfa] img.mfa-qr');
+  assert.ok((await p.textContent('[data-mfa]'))!.includes('JBSWY3DPEHPK3PXP'), 'manual key shown');
+  assert.equal(await p.isVisible('#pending'), false, 'admin sections hidden until the code is verified');
+  await p.fill('.mfa-code', '000000'); await p.click('[data-mfa] button[type=submit]');
+  await p.waitForSelector('.live-msg.flash-error:has-text("الكود غلط")');
+  await p.fill('.mfa-code', '١٢٣٤٥٦'); await p.click('[data-mfa] button[type=submit]');
+  await p.waitForSelector('#pending:not([hidden]) [data-pending] li');
+  assert.equal(await p.locator('[data-mfa]').count(), 0);
   await p.context().close();
 });
 
