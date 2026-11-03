@@ -192,6 +192,7 @@ export function adminLivePage(): SafeHtml {
       <li class="stat"><a href="#products"><span class="stat-ico">${icon('image')}</span><b class="stat-n" data-stat="products">—</b>منتجات بانتظار الموافقة</a></li>
       <li class="stat" data-admin-only><a href="#debts"><span class="stat-ico">${icon('tag')}</span><b class="stat-n" data-stat="debts">—</b>ديون إعلانات (د.ع)</a></li>
       <li class="stat" data-admin-only><a href="#riders"><span class="stat-ico">${icon('bike')}</span><b class="stat-n" data-stat="riders">—</b>تسجيلات دلفري جديدة</a></li>
+      <li class="stat"><a href="#complaints"><span class="stat-ico">${icon('flag')}</span><b class="stat-n" data-stat="complaints">—</b>شكاوى مفتوحة</a></li>
       <li class="stat"><a href="#published"><span class="stat-ico">${icon('check')}</span><b class="stat-n" data-stat="published">—</b>منشور حالياً</a></li>
       <li class="stat stat-gold" data-admin-only><a href="#commission"><span class="stat-ico">${icon('percent')}</span><b class="stat-n" data-stat="due">—</b>نسبة مستحقة هذا الشهر (د.ع)</a></li>
     </ul>
@@ -201,6 +202,8 @@ export function adminLivePage(): SafeHtml {
       <a href="#products">منتجات جديدة <span class="count" data-count="products"></span></a>
       <a href="#debts" data-admin-only>ديون الإعلانات <span class="count" data-count="debts"></span></a>
       <a href="#riders" data-admin-only>دلفري حر <span class="count" data-count="riders"></span></a>
+      <a href="#complaints">الشكاوى والتقييمات <span class="count" data-count="complaints"></span></a>
+      <a href="#expiring">تنتهي قريباً <span class="count" data-count="expiring"></span></a>
       <a href="#published">المنشور حالياً</a>
       <a href="#commission" data-admin-only>نسبة الطلبات</a>
       <a href="#staff" data-admin-only>المشرفين</a>
@@ -213,6 +216,9 @@ export function adminLivePage(): SafeHtml {
       <div data-debts></div></section>
     <section id="riders" class="block" data-admin-only><h2>دلفري حر</h2><p class="muted">قبل الموافقة: اتصل بيه، وطابق الاسم وية الهوية. الهوية والعنوان يظهرون هنا فقط.</p><div data-riders-admin></div>
       <h3>تسعيرة الكروة</h3><p class="muted">تطلع للكل بصفحة «دلفري حر». خلي السعر فارغ إذا «اتفاق».</p><div data-fares-admin></div></section>
+    <section id="complaints" class="block"><h2>الشكاوى</h2><div data-complaints></div>
+      <h3>تعليقات تنتظر الموافقة</h3><p class="muted">النجوم تنحسب مباشرة؛ التعليق يطلع للناس بعد موافقتك.</p><div data-reviews-admin></div></section>
+    <section id="expiring" class="block"><h2>إعلانات تنتهي خلال ٣ أيام</h2><p class="muted">ذكّر صاحبها بالواتساب. التجديد يحسب ${'1,000'} د.ع مثل إعلان جديد.</p><div data-expiring></div></section>
     <section id="published" class="block"><h2>المنشور حالياً</h2><div data-published></div></section>
     <section id="commission" class="block" data-admin-only><h2>نسبة الطلبات (٥٪)</h2>
       <p class="muted">كل طلب يُرسل من سلة الموقع إلى واتساب المطعم يُسجَّل هنا. استلم النسبة من كل مطعم آخر الشهر واضغط «تم الدفع».</p>
@@ -302,7 +308,8 @@ export function deliveryPage(): SafeHtml {
     <div class="page-head"><div><h1>دلفري حر</h1>
       <p class="lede">تحتاج أحد يوصلك غرض؟ أكل، أدوية، أغراض من السوق، أو تسلم وتستلم. اتصل مباشرة بصاحب الدراجة القريب منك، والكروة حسب التسعيرة المعتمدة جوة.</p></div>
       <a class="btn btn-sign" href="/delivery/join">${icon('plus')}سجّل كدلفري</a></div>
-    <p class="note">${icon('shield', 'i i-sm')}كل واحد بالقائمة سلّم هويته الوطنية وعنوانه للإدارة قبل ما ينشر، حتى تتعامل وياه وانت مطمّن.</p>
+    <div class="trust-note">${icon('shield', 'i')}<div><strong>كل دلفري بهالقائمة مسؤوليتنا.</strong>
+      <p>هويته الوطنية وعنوانه الكامل ورقمه محفوظة عند إدارة دليل المعامل، وما ينشر إلا بعد ما نتحقق منه شخصياً. إذا صار أي شي، بلّغنا من بطاقته أو على الواتساب ونتصرف وياه مباشرة.</p></div></div>
     ${msg}${noJs}
     <section class="fares" data-fares aria-labelledby="h-fares" hidden><h2 id="h-fares">الكروة المعتمدة</h2>
       <p class="muted">أقل كروة <b>3,000 د.ع</b>. المسافات القريبة جداً يتفق عليها الزبون والسائق. هاي التسعيرة يلتزم بيها كل دلفري بالقائمة.</p>
@@ -350,5 +357,15 @@ export function riderJoinPage(): SafeHtml {
       <div class="hp" aria-hidden="true"><label for="f-website">اتركه فارغاً</label><input id="f-website" name="website" tabindex="-1" autocomplete="off"></div>
       <button class="btn btn-primary btn-lg" type="submit">${icon('check')}إرسال التسجيل</button>
     </form>
+  </div>`;
+}
+
+/** «إعلاناتي»: إعلانات الزائر المحفوظة على جهازه (يحذفها أو يجددها برابط سري، بدون حساب). */
+export function myAdsPage(): SafeHtml {
+  return html`<div class="wrap narrow" data-page="my-ads">
+    <h1>إعلاناتي</h1>
+    <p class="lede">إعلاناتك الي نشرتها من هذا الجهاز: تشوف حالتها، تحذفها إذا بعت أو انتهى الشغل، أو تجددها قبل لا تنتهي.</p>
+    ${msg}${noJs}
+    <div data-my-ads><div class="skeleton" aria-label="جارِ التحميل"><span class="sk"></span><span class="sk"></span></div></div>
   </div>`;
 }

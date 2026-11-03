@@ -454,4 +454,82 @@ select pg_temp.expect_error($q$select public.moderate_post(public.t_id('إعلا
 reset role;
 do $$ begin if (select status from posts where id = public.t_id('إعلان للمشرف')) <> 'published' then raise exception 'moderator approve failed'; end if; end $$;
 
+-- ===== الشكاوى والتقييم والمشاهدات و«إعلاناتي» =====
+reset role;
+select set_config('request.headers', '{"cf-connecting-ip":"7.7.7.7"}', false);
+select pg_temp.as_user(null);
+-- الزائر ينشر ويحتفظ برمز سري (البصمة بس تنحفظ)
+insert into posts (type, title, category, guest_name, contact_phone, edit_hash)
+  values ('market', 'إعلان برمز', 'أجهزة', 'زائر', '07707777777', encode(sha256(convert_to('0123456789abcdef0123456789abcdef', 'UTF8')), 'hex'));
+do $$ begin
+  if (select title from public.guest_posts(array['0123456789abcdef0123456789abcdef'])) <> 'إعلان برمز' then raise exception 'guest_posts by token'; end if;
+  if exists (select 1 from public.guest_posts(array['ffffffffffffffffffffffffffffffff'])) then raise exception 'wrong token sees post'; end if;
+end $$;
+select pg_temp.expect_error($q$select public.guest_remove_post('ffffffffffffffffffffffffffffffff')$q$, 'remove with wrong token');
+select pg_temp.expect_error($q$select public.guest_renew_post('0123456789abcdef0123456789abcdef')$q$, 'renew unpublished');
+-- المشرف ينشره، والمدة قربت تخلص → الزائر يجدده (ويتسجل 1,000)
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+select public.moderate_post((select id from posts where title = 'إعلان برمز'), 'approve');
+reset role;
+update posts set expires_at = now() + interval '1 day', fee_due = 0 where title = 'إعلان برمز';
+select pg_temp.as_user(null);
+select public.guest_renew_post('0123456789abcdef0123456789abcdef');
+reset role;
+do $$ begin
+  if (select expires_at from posts where title = 'إعلان برمز') < now() + interval '29 days' then raise exception 'renew did not extend'; end if;
+  if (select fee_due from posts where title = 'إعلان برمز') <> 1000 then raise exception 'renew not charged'; end if;
+end $$;
+select pg_temp.as_user(null);
+select pg_temp.expect_error($q$select public.guest_renew_post('0123456789abcdef0123456789abcdef')$q$, 'renew twice in a row');
+-- مشاهدات: الزائر يزيد العداد بس، وما يقرأ الأرقام
+select public.hit((select id from public_posts where title = 'إعلان برمز'));
+select public.hit((select id from public_posts where title = 'إعلان برمز'));
+select public.hit(999999999);
+do $$ begin if exists (select 1 from post_views) then raise exception 'anon reads views'; end if; end $$;
+select pg_temp.expect_error($q$select * from public.views_30d()$q$, 'anon reads all views');
+-- شكوى وتقييم
+select public.submit_complaint('post', (select id from public_posts where title = 'إعلان برمز'), 'scam', 'طلب فلوس قبل التسليم', '07701112233');
+select pg_temp.expect_error($q$select public.submit_complaint('post', 999999999, 'scam')$q$, 'complaint on missing post');
+select pg_temp.expect_error($q$select public.submit_complaint('post', 1, 'bad reason')$q$, 'complaint bad reason');
+do $$ begin if exists (select 1 from complaints) then raise exception 'anon reads complaints'; end if; end $$;
+select pg_temp.expect_error($q$select public.rate('post', (select id from public_posts where title = 'إعلان برمز'), 5)$q$, 'rate a non-business ad');
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+insert into posts (type, title, category, contact_phone) values ('business', 'محل للتقييم', 'مطاعم', '07707777778');
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+select public.moderate_post(public.t_id('محل للتقييم'), 'approve');
+select pg_temp.as_user(null);
+select public.rate('post', public.t_id('محل للتقييم'), 5, 'أكل طيب', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+select public.rate('post', public.t_id('محل للتقييم'), 4, 'أكل طيب', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'); -- نفس الجهاز يعدّل تقييمه
+select public.rate('post', public.t_id('محل للتقييم'), 2, null, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb');
+select public.rate('post', public.t_id('محل للتقييم'), 1, null, 'cccccccccccccccccccccccccccccccc');
+select pg_temp.expect_error($q$select public.rate('post', public.t_id('محل للتقييم'), 1, null, 'dddddddddddddddddddddddddddddddd')$q$, 'one network floods ratings');
+select pg_temp.expect_error($q$select public.rate('post', public.t_id('محل للتقييم'), 9)$q$, 'stars out of range');
+do $$ begin
+  if (select n from rating_summary where target_id = public.t_id('محل للتقييم')) <> 3 then raise exception 'rating count'; end if;
+  if (select avg from rating_summary where target_id = public.t_id('محل للتقييم')) <> 2.3 then raise exception 'rating avg'; end if;
+  if exists (select 1 from public_reviews) then raise exception 'unapproved comment public'; end if;
+  if exists (select 1 from ratings) then raise exception 'anon reads raw ratings'; end if;
+end $$;
+-- صاحب المحل يشوف مشاهداته، وغيره لا
+select public.hit(public.t_id('محل للتقييم'));
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+do $$ begin if (select sum(n) from public.post_stats(public.t_id('محل للتقييم'))) <> 1 then raise exception 'owner views'; end if; end $$;
+select pg_temp.as_user('22222222-2222-2222-2222-222222222222');
+select pg_temp.expect_error($q$select * from public.post_stats(public.t_id('محل للتقييم'))$q$, 'stranger reads views');
+-- المشرف: يشوف الشكاوى ويوافق على التعليق
+select pg_temp.as_user('55555555-5555-5555-5555-555555555555');
+do $$ begin
+  if (select count(*) from complaints where reason = 'scam' and client_ip = '7.7.7.7') <> 1 then raise exception 'staff complaints'; end if;
+  if not exists (select 1 from public.views_30d()) then raise exception 'staff views'; end if;
+  if (select count(*) from public.expiring_posts()) <> 0 then raise exception 'expiring list'; end if;
+end $$;
+update ratings set approved = true where comment = 'أكل طيب';
+update complaints set status = 'closed';
+select pg_temp.as_user(null);
+do $$ begin if (select comment from public_reviews) <> 'أكل طيب' then raise exception 'approved review not public'; end if; end $$;
+select public.guest_remove_post('0123456789abcdef0123456789abcdef');
+reset role;
+do $$ begin if (select status from posts where title = 'إعلان برمز') <> 'removed' then raise exception 'guest remove'; end if; end $$;
+select set_config('request.headers', '', false);
+
 select 'ALL RLS TESTS PASSED';

@@ -311,6 +311,7 @@ export function detailPage(x: DetailData): SafeHtml {
         </form></details>` : x.user ? '' : html`<p><a href="/login?next=${encodeURIComponent(postUrl(p))}">سجّل الدخول</a> حتى تكتب تقييماً.</p>`}
     </section>` : ''}
 
+    ${!x.preview && x.staticMode ? html`<section class="block trust" data-trust data-id="${p.id}" data-kind="${p.type === 'business' ? 'business' : 'ad'}" aria-label="التقييم والإبلاغ" hidden></section>` : ''}
     ${!x.preview && !x.staticMode ? html`<section class="block report" aria-label="إبلاغ وملكية">
       <details class="panel"><summary>${icon('flag', 'i i-sm')}إبلاغ عن هذا المنشور</summary>
         <form method="post" action="/posts/${p.id}/report" class="form">${x.csrf}

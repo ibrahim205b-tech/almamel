@@ -181,6 +181,7 @@ ${ctx.adminSite ? adminHeader(ctx) : ctx.kitchenSite ? kitchenHeader(ctx) : ctx.
       <p class="drawer-title">المزيد</p>
       ${ctx.staticMode ? html`<ul class="nav-list nav-account"><li><a href="/search">${icon('search')}البحث</a></li>
         <li><a href="${addShopLink(s0(ctx))}" target="_blank" rel="noopener">${icon('utensils')}أضف مطعمك أو محلك</a></li>
+        ${ctx.supabaseOrigin ? html`<li><a href="/my-ads">${icon('tag')}إعلاناتي</a></li>` : ''}
         <li><a href="/contact">${icon('phone')}تواصل معنا</a></li>
         <li data-install hidden><button class="linklike" type="button">${icon('plus')}ثبّت الموقع على موبايلك</button></li></ul>` : html`<ul class="nav-list nav-account">
         ${u ? html`

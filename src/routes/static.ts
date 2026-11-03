@@ -8,7 +8,7 @@ import { sectionEnabled } from '../domain/settings.ts';
 import { livePostPage, staticSearchPage } from '../views/pages/public.ts';
 import { checkbox, field, select, textarea, postUrl } from '../views/components.ts';
 import { icon } from '../views/layout.ts';
-import { adminBusinessPage, adminLivePage, dashboardPage, liveHead, pricingNote, liveLoginPage, liveSubmitPage, menuManagerPage, kitchenPage, orderStatusPage, notConfiguredPage, ownerLandingPage, ownerRegisterPage, deliveryPage, riderJoinPage } from '../views/pages/live.ts';
+import { adminBusinessPage, adminLivePage, dashboardPage, liveHead, pricingNote, liveLoginPage, liveSubmitPage, menuManagerPage, kitchenPage, orderStatusPage, notConfiguredPage, ownerLandingPage, ownerRegisterPage, deliveryPage, riderJoinPage, myAdsPage } from '../views/pages/live.ts';
 import { assetVersion } from '../app.ts';
 import { typeFieldGroup, typeLabelsJson, typeTextJson } from '../views/type-fields.ts';
 
@@ -69,6 +69,7 @@ export async function staticRoutes(app: FastifyInstance) {
 
   if (live) {
     // النماذج والحسابات عبر Supabase: الإرسال مباشر، والنشر بعد موافقة الإدارة
+    app.get('/my-ads', (req, reply) => reply.page(req, { title: 'إعلاناتي', noindex: true, head: head(req) }, myAdsPage()));
     app.get('/delivery', (req, reply) => reply.page(req, { title: 'دلفري حر: توصيل بالمعامل', description: 'أصحاب دراجات وستوتات يوصلون أكل وأدوية وأغراض داخل المعامل (قضاء الزوراء). كلهم مسجلين بهويتهم عند الإدارة.', head: head(req) }, deliveryPage()));
     app.get('/delivery/join', (req, reply) => reply.page(req, { title: 'سجّل كدلفري حر', head: head(req) }, riderJoinPage()));
     app.get('/submit', (req, reply) => reply.page(req, { title: 'أضف إعلانك', head: head(req) }, liveSubmitPage('', catsBySection(), areaNames(), addShopLink(req.settings.whatsapp_phone ?? ''))));

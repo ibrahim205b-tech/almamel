@@ -73,6 +73,12 @@
   }
   function money(s) { var d = digits(s).replace(/[,\s٬.]/g, ''); return d && /^\d{1,11}$/.test(d) ? Number(d) : null; }
   function hex() { var a = new Uint8Array(16); crypto.getRandomValues(a); return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }
+  async function sha256(text) {
+    var buf = await crypto.subtle.digest('SHA-256', new window.TextEncoder().encode(text));
+    return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+  }
+  function myAds() { try { return JSON.parse(window.localStorage.getItem('almamel-my-ads') || '[]').filter(function (t) { return /^[0-9a-f]{32}$/.test(t); }); } catch { return []; } }
+  function saveMyAd(t) { var l = myAds(); if (l.indexOf(t) === -1) l.unshift(t); try { window.localStorage.setItem('almamel-my-ads', JSON.stringify(l.slice(0, 50))); } catch { /* وضع خاص */ } }
   function busy(form, on) { $$('button', form).forEach(function (b) { b.disabled = on; }); form.setAttribute('aria-busy', on ? 'true' : 'false'); }
   function mediaUrl(p) { return URL_ + '/storage/v1/object/public/media/' + p; }
   function price(n) { return n == null ? 'حسب الطلب' : nf.format(n) + ' د.ع'; }
@@ -234,14 +240,18 @@
         var folder = s ? 'u/' + s.user.id + '/' : 'guest/';
         var images = [];
         for (var i = 0; i < files.length; i++) images.push(await upload('media', folder + hex() + '.webp', await toWebp(files[i])));
-        var row = { type: t, category: f.category.value, title: title, body: body, area: f.area.value, contact_phone: ph,
+        var token = hex(), editHash = await sha256(token);
+        var row = { type: t, category: f.category.value, title: title, body: body, area: f.area.value, contact_phone: ph, edit_hash: editHash,
           show_phone: f.show_phone.checked, whatsapp: f.whatsapp.checked, details: details, images: images,
           price: f.price && !f.price.disabled ? money(f.price.value) : null };
         if (!s) row.guest_name = name;
         var r = await sb.from('posts').insert(row);
         if (r.error) throw r.error;
         form.reset(); fill(); if ($('[data-preview]')) $('[data-preview]').textContent = '';
+        saveMyAd(token);
         say('وصل إعلانك. راح يظهر بالموقع بعد مراجعة الإدارة.', 'ok');
+        var my = BASE + '/my-ads/?t=' + token;
+        $('[data-msg]').appendChild(el('p', {}, ['تتابع إعلانك وتحذفه أو تجدده من ', el('a', { href: my, text: 'صفحة «إعلاناتي»' }), '. احفظ هذا الرابط إذا تريد تفتحه من جهاز ثاني.']));
       } catch (err) { say(err.message && /[؀-ۿ]/.test(err.message) ? err.message : errText(err), 'error'); debtHelp(err.message); }
       finally { busy(form, false); }
     });
@@ -506,6 +516,15 @@
       var row = el('div', { class: 'btn-row' }, [el('a', { class: 'btn btn-primary', href: BASE + '/owner/menu/?b=' + b.id, text: /مطاعم|أفران/.test(b.category) ? 'قائمة الطعام' : (KITS[b.category] ? KITS[b.category].label : 'المنتجات والأسعار') })]);
       if (b.status === 'published') row.appendChild(el('a', { class: 'btn', href: BASE + PATHS.business + '/' + b.id + '/', text: 'عرض الصفحة' }));
       card.appendChild(row);
+      if (b.status === 'published') {
+        var statLine = el('p', { class: 'owner-stats muted', text: 'جارِ حساب المشاهدات...' }); card.appendChild(statLine);
+        (async function (b, statLine) {
+          var v = await sb.rpc('post_stats', { p_id: b.id });
+          var rs = await sb.from('rating_summary').select('avg, n').eq('target_type', 'post').eq('target_id', b.id).maybeSingle();
+          var total = (v.data || []).reduce(function (n, d) { return n + d.n; }, 0);
+          statLine.textContent = v.error ? '' : 'صفحتك انشافت ' + nf.format(total) + ' مرة خلال آخر ٣٠ يوم' + (rs.data && rs.data.n ? '، وتقييمك ' + rs.data.avg + ' من ٥ (' + nf.format(rs.data.n) + ' تقييم)' : '') + '.';
+        })(b, statLine);
+      }
       if (owner && b.status === 'published') {
         var st = el('div', { class: 'btn-row' }, [el('span', { text: 'المحل الآن:' })]);
         [['open', 'مفتوح'], ['closed', 'مغلق'], ['unknown', 'غير محدد']].forEach(function (o) {
@@ -955,8 +974,9 @@
       var pbox = $('[data-published]'); pbox.textContent = '';
       stat('published', (pub.data || []).length);
       var pul = el('ul', { class: 'manage-list' }); pbox.appendChild(pul);
+      var vw = await sb.rpc('views_30d'), views = {}; (vw.data || []).forEach(function (v) { views[v.post_id] = v.n; });
       (pub.data || []).forEach(function (x) {
-        pul.appendChild(el('li', {}, [el('a', { href: BASE + PATHS[x.type] + '/' + x.id + '/', text: x.title }), ' ', el('span', { class: 'muted', text: TYPE_LABEL[x.type] }),
+        pul.appendChild(el('li', {}, [el('a', { href: BASE + PATHS[x.type] + '/' + x.id + '/', text: x.title }), ' ', el('span', { class: 'muted', text: TYPE_LABEL[x.type] + ' · ' + nf.format(views[x.id] || 0) + ' مشاهدة' }),
           x.verified ? el('span', { class: 'badge badge-ok', text: 'موثّق' }) : null,
           el('div', { class: 'btn-row' }, [
             x.type === 'business' ? el('a', { class: 'btn btn-sm btn-primary', href: BASE + '/admin/menu/?b=' + x.id, text: 'القائمة والأسعار' }) : null,
@@ -991,12 +1011,80 @@
       });
     }
     load();
+    trustAdmin();
     if (!IS_ADMIN) return;
     debtsAdmin($('[data-debts]'), load);
     ridersAdmin($('[data-riders-admin]'));
     faresAdmin($('[data-fares-admin]'));
     commissionBox($('[data-commission]'), true);
     staffAdmin($('[data-staff]'));
+  }
+
+  // ---------- الإدارة: الشكاوى والتعليقات والإعلانات الي تنتهي ----------
+  var REASON = { scam: 'نصب أو احتيال', bad_service: 'خدمة سيئة أو تأخير', wrong_info: 'معلومات أو رقم غلط', abuse: 'إساءة', other: 'شي ثاني' };
+  async function trustAdmin() {
+    var cbox = $('[data-complaints]'), rbox = $('[data-reviews-admin]'), ebox = $('[data-expiring]');
+    var c = await sb.from('complaints').select('*').eq('status', 'open').order('created_at', { ascending: false }).limit(100);
+    cbox.textContent = '';
+    if (c.error) { cbox.appendChild(el('p', { class: 'muted', text: 'الشكاوى تحتاج تشغيل تحديث supabase/updates/2026-11-trust.sql.' })); return; }
+    var rows = c.data || [];
+    $('[data-count=complaints]').textContent = String(rows.length || ''); stat('complaints', rows.length);
+    // أسماء الإعلانات والدلفري المشتكى عليهم
+    var pids = rows.filter(function (x) { return x.target_type === 'post'; }).map(function (x) { return x.target_id; });
+    var rids = rows.filter(function (x) { return x.target_type === 'rider'; }).map(function (x) { return x.target_id; });
+    var names = {};
+    if (pids.length) ((await sb.from('posts').select('id, title, type').in('id', pids)).data || []).forEach(function (p) { names['post' + p.id] = p; });
+    if (rids.length) ((await sb.from('public_riders').select('id, name, phone').in('id', rids)).data || []).forEach(function (r) { names['rider' + r.id] = { title: 'دلفري: ' + r.name + ' (' + r.phone + ')' }; });
+    if (!rows.length) cbox.appendChild(el('p', { class: 'empty-inline', text: 'ما كو شكاوى مفتوحة.' }));
+    var ul = el('ul', { class: 'cards-admin' }); cbox.appendChild(ul);
+    rows.forEach(function (x) {
+      var t = names[x.target_type + x.target_id] || { title: '#' + x.target_id };
+      ul.appendChild(el('li', { class: 'panel' }, [
+        el('h3', {}, [t.type ? el('a', { href: BASE + PATHS[t.type] + '/' + x.target_id + '/', target: '_blank', rel: 'noopener', text: t.title }) : t.title, ' ', el('span', { class: 'badge badge-warn', text: REASON[x.reason] || x.reason })]),
+        x.details ? el('p', { class: 'prose', text: x.details }) : null,
+        el('p', { class: 'muted' }, [new Date(x.created_at).toLocaleString('ar-IQ'), x.client_ip ? ' · IP ' + x.client_ip : '', x.phone ? ' · رقم المشتكي ' : '', x.phone ? el('a', { href: 'tel:' + x.phone, dir: 'ltr', text: x.phone }) : null]),
+        el('div', { class: 'btn-row' }, [
+          x.phone ? el('a', { class: 'btn btn-wa btn-sm', href: 'https://wa.me/964' + x.phone.replace(/^0/, ''), target: '_blank', rel: 'noopener', text: 'مراسلة المشتكي' }) : null,
+          el('button', { class: 'btn btn-primary btn-sm', type: 'button', text: 'تمت المعالجة', onclick: async function () {
+            var u = await sb.from('complaints').update({ status: 'closed' }).eq('id', x.id);
+            if (u.error) return say(errText(u.error), 'error'); say('انغلقت الشكوى.', 'ok'); trustAdmin();
+          } })])]));
+    });
+
+    var rv = await sb.from('ratings').select('id, target_type, target_id, stars, comment, created_at').eq('approved', false).not('comment', 'is', null).order('created_at', { ascending: false }).limit(100);
+    rbox.textContent = '';
+    if (!(rv.data || []).length) rbox.appendChild(el('p', { class: 'empty-inline', text: 'ما كو تعليقات جديدة.' }));
+    var rl = el('ul', { class: 'manage-list' }); rbox.appendChild(rl);
+    (rv.data || []).forEach(function (x) {
+      rl.appendChild(el('li', {}, [el('span', { class: 'stars-view', text: '★★★★★'.slice(0, x.stars) + '☆☆☆☆☆'.slice(0, 5 - x.stars) }), ' ', el('span', { text: x.comment }), ' ',
+        el('span', { class: 'muted', text: (x.target_type === 'rider' ? 'دلفري #' : 'محل #') + x.target_id }),
+        el('div', { class: 'btn-row' }, [
+          el('button', { class: 'btn btn-sm btn-primary', type: 'button', text: 'نشر التعليق', onclick: async function () {
+            var u = await sb.from('ratings').update({ approved: true }).eq('id', x.id);
+            if (u.error) return say(errText(u.error), 'error'); trustAdmin();
+          } }),
+          el('button', { class: 'btn btn-sm', type: 'button', text: 'حذف التعليق (تبقى النجوم)', onclick: async function () {
+            var u = await sb.from('ratings').update({ comment: null }).eq('id', x.id);
+            if (u.error) return say(errText(u.error), 'error'); trustAdmin();
+          } })])]));
+    });
+
+    var ex = await sb.rpc('expiring_posts');
+    ebox.textContent = '';
+    var exRows = ex.data || [];
+    $('[data-count=expiring]').textContent = String(exRows.length || '');
+    if (!exRows.length) ebox.appendChild(el('p', { class: 'empty-inline', text: 'ما كو إعلانات تنتهي قريباً.' }));
+    var el2 = el('ul', { class: 'manage-list' }); ebox.appendChild(el2);
+    exRows.forEach(function (x) {
+      var msg = 'هلو ' + (x.name || '') + '، إعلانك «' + x.title + '» بدليل المعامل ينتهي بتاريخ ' + new Date(x.expires_at).toLocaleDateString('ar-IQ') + '. تريد نجدده؟ التجديد ' + nf.format(1000) + ' د.ع. تكدر تجدده بنفسك من صفحة «إعلاناتي» بالموقع.';
+      el2.appendChild(el('li', {}, [el('a', { href: BASE + PATHS[x.type] + '/' + x.id + '/', text: x.title }), ' ', el('span', { class: 'muted', text: 'ينتهي ' + new Date(x.expires_at).toLocaleDateString('ar-IQ') }),
+        el('div', { class: 'btn-row' }, [
+          x.contact_phone ? el('a', { class: 'btn btn-wa btn-sm', href: 'https://wa.me/964' + x.contact_phone.replace(/^0/, '') + '?text=' + encodeURIComponent(msg), target: '_blank', rel: 'noopener', text: 'تذكير بالواتساب' }) : null,
+          el('button', { class: 'btn btn-sm', type: 'button', text: 'تجديد (يحسب ' + nf.format(1000) + ')', onclick: async function () {
+            var r = await sb.rpc('renew_post', { p_id: x.id });
+            if (r.error) return say(errText(r.error), 'error'); say('تم التجديد وانحسب ' + nf.format(1000) + ' د.ع على صاحبه.', 'ok'); trustAdmin();
+          } })])]));
+    });
   }
 
   // ---------- الإدارة: المشرفين ----------
@@ -1049,6 +1137,7 @@
     var r = await sb.from('public_riders').select('*').order('decided_at', { ascending: false }).limit(500);
     if (r.error) { ul.textContent = ''; return say(errText(r.error), 'error'); }
     var rows = r.data || [];
+    var T = window.almamelTrust, sums = T ? await T.summaries('rider', rows.map(function (x) { return x.id; })) : {};
     function norm(t) { return String(t || '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').toLowerCase(); }
     function draw() {
       var term = norm(q.value.trim());
@@ -1062,15 +1151,51 @@
           el('p', { class: 'rider-areas' }, [el('b', { text: 'يوصل إلى: ' }), x.areas]),
           x.hours ? el('p', { class: 'muted', text: 'الأوقات: ' + x.hours }) : null,
           x.min_fare ? el('p', { class: 'rider-fare' }, ['كروته تبدي من ', el('b', { class: 'num', text: money2(x.min_fare) })]) : null,
+          T ? T.summaryEl(sums[x.id]) : null,
           x.note ? el('p', { class: 'rider-note', text: x.note }) : null,
           el('div', { class: 'btn-row' }, [
             el('a', { class: 'btn btn-primary', href: 'tel:' + x.phone }, ['اتصال ', el('span', { dir: 'ltr', text: x.phone })]),
-            x.whatsapp ? el('a', { class: 'btn btn-wa', href: waNum(x.phone) + '?text=' + encodeURIComponent('هلو ' + x.name + '، شفت رقمك بدليل المعامل (دلفري حر). أريد توصيل:'), target: '_blank', rel: 'noopener', text: 'واتساب' }) : null])]));
+            x.whatsapp ? el('a', { class: 'btn btn-wa', href: waNum(x.phone) + '?text=' + encodeURIComponent('هلو ' + x.name + '، شفت رقمك بدليل المعامل (دلفري حر). أريد توصيل:'), target: '_blank', rel: 'noopener', text: 'واتساب' }) : null]),
+          T ? el('details', { class: 'rider-more' }, [el('summary', { text: 'قيّمه أو بلّغ عنه' }), T.ratingWidget('rider', x.id, sums[x.id]), T.complaintForm('rider', x.id, 'صار شي وياه؟ بلّغ الإدارة')]) : null]));
       });
       if (!shown.length) ul.appendChild(el('li', { class: 'empty' }, [el('p', { class: 'empty-title', text: rows.length ? 'ما لكينا أحد بهالبحث' : 'ما كو أحد مسجل بعد' }),
         el('p', { text: rows.length ? 'جرّب اسم منطقة ثانية.' : 'عندك دراجة؟ كون أول واحد يسجّل.' })]));
     }
     q.addEventListener('input', draw); draw();
+  }
+
+  // ---------- «إعلاناتي» للزائر ----------
+  async function initMyAds() {
+    var t = new URLSearchParams(location.search).get('t');
+    if (t && /^[0-9a-f]{32}$/.test(t)) { saveMyAd(t); window.history.replaceState(null, '', location.pathname); }
+    var box = $('[data-my-ads]'), tokens = myAds();
+    box.textContent = '';
+    if (!tokens.length) return box.appendChild(el('div', { class: 'empty' }, [el('p', { class: 'empty-title', text: 'ما كو إعلانات على هذا الجهاز' }),
+      el('p', { text: 'الإعلانات الي تنشرها من هذا الموبايل تطلع هنا. إذا نشرت من جهاز ثاني افتح الرابط الي طلعلك وقت النشر.' }), el('a', { class: 'btn btn-primary', href: BASE + '/submit/', text: 'أضف إعلان' })]));
+    var r = await sb.rpc('guest_posts', { p_tokens: tokens });
+    if (r.error) return say(errText(r.error), 'error');
+    var LABEL = { pending: 'بانتظار المراجعة', published: 'منشور', rejected: 'مرفوض', hidden: 'مخفي', removed: 'محذوف' };
+    var ul = el('ul', { class: 'cards-admin' }); box.appendChild(ul);
+    (r.data || []).forEach(function (x) {
+      var exp = x.expires_at ? new Date(x.expires_at) : null, soon = exp && x.status === 'published' && exp < new Date(Date.now() + 5 * 864e5);
+      ul.appendChild(el('li', { class: 'panel' }, [
+        el('h3', {}, [x.status === 'published' ? el('a', { href: BASE + PATHS[x.type] + '/' + x.id + '/', text: x.title }) : x.title, ' ', badge(x.status, LABEL[x.status])]),
+        x.status_reason && x.status !== 'published' ? el('p', { class: 'note', text: x.status_reason }) : null,
+        exp && x.status === 'published' ? el('p', { class: soon ? 'note note-warn' : 'muted', text: (exp < new Date() ? 'انتهى بتاريخ ' : 'ينتهي بتاريخ ') + exp.toLocaleDateString('ar-IQ') }) : null,
+        x.fee_due > 0 && x.status !== 'removed' && x.status !== 'rejected' ? el('p', { class: 'note note-price', text: 'رسوم هذا الإعلان ' + nf.format(x.fee_due) + ' د.ع (غير مسددة).' }) : null,
+        el('div', { class: 'btn-row' }, [
+          soon ? el('button', { class: 'btn btn-primary btn-sm', type: 'button', text: 'تجديد (' + nf.format(1000) + ' د.ع)', onclick: async function () {
+            var rr = await sb.rpc('guest_renew_post', { p_token: x.token });
+            if (rr.error) { say(errText(rr.error), 'error'); debtHelp(rr.error.message); return; }
+            say('تم التجديد ✅', 'ok'); initMyAds();
+          } }) : null,
+          x.status !== 'removed' && x.status !== 'rejected' ? el('button', { class: 'btn btn-sm btn-danger', type: 'button', text: 'حذف الإعلان', onclick: async function () {
+            if (!confirm('تحذف «' + x.title + '»؟')) return;
+            var d = await sb.rpc('guest_remove_post', { p_token: x.token });
+            if (d.error) return say(errText(d.error), 'error');
+            say('انحذف الإعلان. يختفي من الموقع خلال دقائق.', 'ok'); initMyAds();
+          } }) : null])]));
+    });
   }
 
   // ---------- دلفري حر: التسجيل ----------
@@ -1317,6 +1442,6 @@
     });
   }
 
-  var init = { delivery: initDelivery, 'rider-join': initRiderJoin, kitchen: initKitchen, 'add-business': initAddBusiness, submit: initSubmit, register: initRegister, login: initLogin, dashboard: initDashboard, menu: initMenu, admin: initAdmin }[page.getAttribute('data-page')];
+  var init = { 'my-ads': initMyAds, delivery: initDelivery, 'rider-join': initRiderJoin, kitchen: initKitchen, 'add-business': initAddBusiness, submit: initSubmit, register: initRegister, login: initLogin, dashboard: initDashboard, menu: initMenu, admin: initAdmin }[page.getAttribute('data-page')];
   if (init) Promise.resolve(init()).catch(function (e) { say(errText(e), 'error'); });
 })();

@@ -4,6 +4,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -82,7 +83,14 @@ function mock(req: http.IncomingMessage, res: http.ServerResponse, body: Buffer)
   if (p === '/rest/v1/rpc/invite_info' || p === '/rest/v1/rpc/accept_invite') return send(200, json().p_code === 'abc123def4567890' ? [{ business_id: 1000001, title: 'مركز حمد فون' }] : []);
   if (p === '/rest/v1/rpc/admin_debts') return send(200, [{ post_id: 1000020, name: 'مستعجل', phones: ['07701000001', '07701000002'], ips: ['5.6.7.8'], ads: 3, total: 3000, blocked: true, last_at: new Date().toISOString() }]);
   if (p === '/rest/v1/rpc/settle_debt') return send(200, 3000);
+  if (p === '/rest/v1/rpc/guest_posts') return send(200, (json().p_tokens as string[]).map((t, i) => ({ id: 1000030 + i, type: 'market', title: 'ثلاجة للبيع', status: 'published', status_reason: null, expires_at: new Date(Date.now() + 2 * 864e5).toISOString(), fee_due: 1000, token: t })));
+  if (p === '/rest/v1/rpc/expiring_posts') return send(200, [{ id: 1000002, type: 'job', title: 'وظيفة تنتهي', contact_phone: '07709990000', name: 'أبو حسن', expires_at: new Date(Date.now() + 864e5).toISOString() }]);
+  if (p === '/rest/v1/rpc/views_30d') return send(200, [{ post_id: 1000001, n: 57 }, { post_id: 1000005, n: 57 }]);
+  if (p === '/rest/v1/rpc/post_stats') return send(200, [{ day: '2026-11-01', n: 40 }, { day: '2026-11-02', n: 17 }]);
   if (p.startsWith('/rest/v1/rpc/')) return send(200, null);
+  if (p === '/rest/v1/rating_summary') return send(200, [{ target_id: u.searchParams.get('target_type') === 'eq.rider' ? 1 : 1000001, avg: 4.5, n: 12 }]);
+  if (p === '/rest/v1/public_reviews') return send(200, [{ stars: 5, comment: 'أكل طيب وتوصيل سريع', created_at: new Date().toISOString() }]);
+  if (p === '/rest/v1/complaints' && req.method === 'GET') return send(200, auth.includes(ADMIN) ? [{ id: 9, target_type: 'rider', target_id: 1, reason: 'bad_service', details: 'تأخر ساعتين', phone: '07701231231', client_ip: '5.6.7.8', status: 'open', created_at: new Date().toISOString() }] : []);
   if (p === '/rest/v1/profiles') { const admin = u.searchParams.get('id') === 'eq.' + ADMIN; const prof = { name: admin ? 'المدير' : 'أبو علي', phone: '07701111111', role: admin ? 'admin' : 'owner' }; return send(200, one ? prof : [prof]); }
   if (p === '/rest/v1/menu_items' && req.method === 'GET' && u.searchParams.get('approved') === 'eq.false') {
     return send(200, [{ id: 31, name: 'قميص قطن', price: 15000, note: 'مقاسات كاملة', section: 'رجالي', image: 'u/' + UID + '/' + 'c'.repeat(32) + '.webp', business_id: 1000001, posts: { title: 'مطعم المحاكاة', status: 'published' } }]);
@@ -517,6 +525,8 @@ test('«دلفري حر»: approved riders only, search by area, call and WhatsA
   assert.ok((await p.textContent('[data-fares-zone]'))!.includes('اتفاق'), 'empty price reads «اتفاق»');
   assert.ok((await p.textContent('[data-fares-extra]'))!.includes('+ ١٬٠٠٠ د.ع'));
   assert.ok((await p.textContent('.rider-fare'))!.includes('٣٬٥٠٠'), 'rider own fare on the card');
+  await p.waitForSelector('.rider .rating-sum:has-text("٤٫٥")');
+  assert.equal(await p.locator('.rider details.rider-more .stars-input .star').count(), 5);
   if (process.env.SHOTS) { await p.evaluate(() => document.querySelectorAll('[data-anim]').forEach((e) => e.removeAttribute('data-anim'))); await p.screenshot({ path: process.env.SHOTS + '/delivery-full.png', fullPage: true }); }
   const html = await p.content();
   assert.ok(!html.includes('محلة ٧٠٣') && !html.includes('rider/'), 'no private data');
@@ -610,6 +620,68 @@ test('admin with only a password must set up the two-step code before seeing any
   await p.fill('.mfa-code', '١٢٣٤٥٦'); await p.click('[data-mfa] button[type=submit]');
   await p.waitForSelector('#pending:not([hidden]) [data-pending] li');
   assert.equal(await p.locator('[data-mfa]').count(), 0);
+  await p.context().close();
+});
+
+test('business page: view counted once a day, star rating, approved reviews and a report form', async () => {
+  const p = await open('/businesses/1000001/');
+  await p.waitForSelector('[data-trust]:not([hidden]) .rating-sum:has-text("٤٫٥")');
+  assert.ok((await p.textContent('[data-trust]'))!.includes('أكل طيب وتوصيل سريع'));
+  const hits = () => log.filter((r) => r.path === '/rest/v1/rpc/hit').length;
+  const h1 = hits(); assert.ok(h1 >= 1);
+  await p.reload(); await p.waitForSelector('[data-trust]:not([hidden])');
+  assert.equal(hits(), h1, 'second visit the same day is not counted');
+  await p.click('.stars-input .star:nth-child(4)');
+  await p.fill('.rate-comment', 'زين');
+  await p.click('.rate-form button:has-text("إرسال التقييم")');
+  await p.waitForSelector('.rate-form:has-text("وصل تقييمك")');
+  const rate = JSON.parse(log.filter((r) => r.path === '/rest/v1/rpc/rate').at(-1)!.body.toString());
+  assert.equal(rate.p_stars, 4); assert.equal(rate.p_id, 1000001); assert.equal(rate.p_type, 'post'); assert.match(rate.p_device, /^[0-9a-f]{32}$/);
+  await p.click('.complain summary');
+  await p.selectOption('.complain-form select', 'wrong_info');
+  await p.fill('.complain-form input', '٠٧٧٠١٢٣٤٥٦٧');
+  await p.click('.complain-form button[type=submit]');
+  await p.waitForSelector('.complain:has-text("وصلت شكواك")');
+  const c = JSON.parse(log.filter((r) => r.path === '/rest/v1/rpc/submit_complaint').at(-1)!.body.toString());
+  assert.deepEqual([c.p_type, c.p_id, c.p_reason, c.p_phone], ['post', 1000001, 'wrong_info', '07701234567']);
+  await p.context().close();
+});
+
+test('a visitor gets a private «إعلاناتي» link: the ad stores only its SHA-256, and the page can renew or delete it', async () => {
+  const p = await open('/submit/market/');
+  await p.waitForFunction(() => (document.querySelector('select[name=category]') as HTMLSelectElement).options.length > 1);
+  await p.selectOption('select[name=category]', { index: 1 });
+  await p.fill('#f-title', 'ثلاجة للبيع'); await p.fill('#f-body', 'نظيفة');
+  await p.fill('#f-guest_name', 'زائر'); await p.fill('#f-contact_phone', '07701239999');
+  await p.click('[data-live-submit] button[type=submit]');
+  await p.waitForSelector('.live-msg a:has-text("إعلاناتي")');
+  const href = (await p.getAttribute('.live-msg a:has-text("إعلاناتي")', 'href'))!;
+  const token = href.match(/t=([0-9a-f]{32})$/)![1];
+  const row = JSON.parse(posts().at(-1)!.body.toString());
+  assert.equal(row.edit_hash, crypto.createHash('sha256').update(token).digest('hex'));
+  assert.ok(!JSON.stringify(row).includes(token), 'the token itself is never sent');
+  await p.goto(siteUrl + '/almamel/my-ads/');
+  await p.waitForSelector('[data-my-ads] li:has-text("ثلاجة للبيع")');
+  assert.deepEqual(JSON.parse(log.filter((r) => r.path === '/rest/v1/rpc/guest_posts').at(-1)!.body.toString()).p_tokens, [token]);
+  await p.click('[data-my-ads] button:has-text("تجديد")');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("تم التجديد")');
+  await p.click('[data-my-ads] button:has-text("حذف الإعلان")');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("انحذف")');
+  assert.equal(JSON.parse(log.filter((r) => r.path === '/rest/v1/rpc/guest_remove_post').at(-1)!.body.toString()).p_token, token);
+  await p.context().close();
+});
+
+test('admin: complaints with the reporter\'s phone and IP, expiring ads with a WhatsApp reminder, views per post', async () => {
+  const p = await adminLogin(1280);
+  await p.waitForSelector('[data-complaints] li:has-text("تأخر ساعتين")');
+  const c = (await p.textContent('[data-complaints] li'))!;
+  assert.ok(c.includes('حسين الدراج') && c.includes('5.6.7.8') && c.includes('07701231231'));
+  await p.click('[data-complaints] button:has-text("تمت المعالجة")');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("انغلقت الشكوى")');
+  assert.deepEqual(JSON.parse(log.filter((r) => r.path === '/rest/v1/complaints' && r.method === 'PATCH').at(-1)!.body.toString()), { status: 'closed' });
+  await p.waitForSelector('[data-expiring] li:has-text("وظيفة تنتهي")');
+  assert.match((await p.getAttribute('[data-expiring] a.btn-wa', 'href'))!, /^https:\/\/wa\.me\/9647709990000\?text=/);
+  await p.waitForSelector('[data-published] li:has-text("٥٧ مشاهدة")');
   await p.context().close();
 });
 

@@ -784,4 +784,116 @@
       }).catch(function () { box2.textContent = ''; box2.appendChild(el('p', 'muted', 'تعذّر تحميل الإعلان. حدّث الصفحة.')); });
     }
   }
+
+  // ---------- الثقة: المشاهدات والتقييم والشكاوى ----------
+  // live.js يستخدم نفس الأدوات لبطاقات «دلفري حر» (window.almamelTrust).
+  if (SB) {
+    var sbRpc = function (fn, body) {
+      var k = SB.getAttribute('data-key');
+      return window.fetch(SB.content + '/rest/v1/rpc/' + fn, { method: 'POST', headers: { apikey: k, Authorization: 'Bearer ' + k, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(function (r) { return r.text().then(function (t) { var j; try { j = t ? JSON.parse(t) : null; } catch { j = null; } if (!r.ok) throw new Error((j && j.message) || 'تعذّر الإرسال. تأكد من الاتصال.'); return j; }); });
+    };
+    var ls = {
+      get: function (k) { try { return window.localStorage.getItem(k); } catch { return null; } },
+      set: function (k, v) { try { window.localStorage.setItem(k, v); } catch { /* وضع خاص */ } },
+    };
+    var hex32 = function () { var a = new Uint8Array(16); window.crypto.getRandomValues(a); return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); };
+    var device = function () { var d = ls.get('almamel-device'); if (!/^[0-9a-f]{32}$/.test(d || '')) { d = hex32(); ls.set('almamel-device', d); } return d; };
+    var nfa = new Intl.NumberFormat('ar-IQ', { maximumFractionDigits: 1 });
+    var REASONS = [['scam', 'نصب أو احتيال'], ['bad_service', 'خدمة سيئة أو تأخير'], ['wrong_info', 'معلومات أو رقم غلط'], ['abuse', 'إساءة أو كلام غير لائق'], ['other', 'شي ثاني']];
+    var starsText = function (avg) { var n = Math.round(avg); return '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n); };
+
+    var summaryEl = function (sum) {
+      var p = el('p', 'rating-sum');
+      if (!sum || !sum.n) { p.textContent = 'ما عنده تقييم بعد. كون أول واحد يقيّم.'; return p; }
+      p.appendChild(el('span', 'stars-view', starsText(sum.avg)));
+      p.appendChild(el('b', 'num', ' ' + nfa.format(sum.avg) + ' '));
+      p.appendChild(el('span', 'muted', '(' + nfa.format(sum.n) + ' تقييم)'));
+      return p;
+    };
+    var ratingWidget = function (type, id, sum) {
+      var box = el('div', 'rating-box');
+      box.appendChild(summaryEl(sum));
+      var key = 'almamel-rated-' + type + '-' + id, mine = Number(ls.get(key) || 0), pick = mine;
+      var row = el('div', 'stars-input'); row.setAttribute('role', 'radiogroup'); row.setAttribute('aria-label', 'قيّم من ١ لـ ٥');
+      var btns = [];
+      var paint = function () { btns.forEach(function (b, i) { b.textContent = i < pick ? '★' : '☆'; b.setAttribute('aria-checked', String(i + 1 === pick)); }); };
+      for (var i = 1; i <= 5; i++) (function (n) {
+        var b = el('button', 'star'); b.type = 'button'; b.setAttribute('role', 'radio'); b.setAttribute('aria-label', n + ' من ٥');
+        b.addEventListener('click', function () { pick = n; paint(); });
+        btns.push(b); row.appendChild(b);
+      })(i);
+      paint();
+      var ta = el('textarea', 'rate-comment'); ta.maxLength = 300; ta.rows = 2; ta.placeholder = 'تعليق قصير (اختياري، يظهر بعد المراجعة)'; ta.setAttribute('aria-label', 'تعليق');
+      var send = el('button', 'btn btn-sm btn-primary', mine ? 'تعديل تقييمي' : 'إرسال التقييم'); send.type = 'button';
+      var msg = el('p', 'muted'); msg.setAttribute('role', 'status');
+      send.addEventListener('click', function () {
+        if (!pick) { msg.textContent = 'اختار عدد النجوم أول.'; return; }
+        send.disabled = true;
+        sbRpc('rate', { p_type: type, p_id: id, p_stars: pick, p_comment: ta.value.trim() || null, p_device: device() })
+          .then(function () { ls.set(key, String(pick)); msg.textContent = 'شكراً، وصل تقييمك ✅'; send.textContent = 'تعديل تقييمي'; })
+          .catch(function (e) { msg.textContent = e.message; })
+          .then(function () { send.disabled = false; });
+      });
+      var head = el('p', 'rate-label', mine ? 'تقييمك:' : 'قيّم:');
+      var wrap = el('div', 'rate-form'); wrap.appendChild(head); wrap.appendChild(row); wrap.appendChild(ta); wrap.appendChild(send); wrap.appendChild(msg);
+      box.appendChild(wrap);
+      return box;
+    };
+    var complaintForm = function (type, id, label) {
+      var d = el('details', 'complain'), sm = el('summary', '', label || 'إبلاغ عن مشكلة'); d.appendChild(sm);
+      var f = el('form', 'form complain-form');
+      var sel = el('select'); sel.setAttribute('aria-label', 'نوع المشكلة'); sel.required = true;
+      var o0 = el('option', '', 'شنو المشكلة؟'); o0.value = ''; sel.appendChild(o0);
+      REASONS.forEach(function (r) { var o = el('option', '', r[1]); o.value = r[0]; sel.appendChild(o); });
+      var ta = el('textarea'); ta.maxLength = 500; ta.rows = 3; ta.placeholder = 'اشرح شنو صار (اختياري)'; ta.setAttribute('aria-label', 'التفاصيل');
+      var ph = el('input'); ph.type = 'tel'; ph.dir = 'ltr'; ph.inputMode = 'tel'; ph.placeholder = 'رقمك حتى نتواصل وياك (اختياري)'; ph.setAttribute('aria-label', 'رقمك');
+      var b = el('button', 'btn btn-sm', 'إرسال للإدارة'); b.type = 'submit';
+      var msg = el('p', 'muted'); msg.setAttribute('role', 'status');
+      f.appendChild(sel); f.appendChild(ta); f.appendChild(ph); f.appendChild(b); f.appendChild(msg);
+      f.addEventListener('submit', function (e) {
+        e.preventDefault(); delete f.dataset.submitting;
+        var phone = (ph.value || '').replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 0x660); }).replace(/\D/g, '').replace(/^964/, '0');
+        if (!sel.value) { msg.textContent = 'اختار نوع المشكلة.'; return; }
+        if (phone && !/^07\d{9}$/.test(phone)) { msg.textContent = 'الرقم لازم يبدي بـ 07 ومن ١١ رقم.'; return; }
+        b.disabled = true;
+        sbRpc('submit_complaint', { p_type: type, p_id: id, p_reason: sel.value, p_details: ta.value.trim() || null, p_phone: phone || null })
+          .then(function () { f.textContent = ''; f.appendChild(el('p', 'flash flash-ok', 'وصلت شكواك للإدارة ✅ نتابعها ونتصرف.')); })
+          .catch(function (er) { msg.textContent = er.message; b.disabled = false; });
+      });
+      d.appendChild(f);
+      return d;
+    };
+    var summaries = function (type, ids) {
+      if (!ids.length) return Promise.resolve({});
+      return sbGet('rating_summary?select=target_id,avg,n&target_type=eq.' + type + '&target_id=in.(' + ids.join(',') + ')')
+        .then(function (rows) { var m = {}; rows.forEach(function (r) { m[r.target_id] = r; }); return m; }).catch(function () { return {}; });
+    };
+    window.almamelTrust = { ratingWidget: ratingWidget, complaintForm: complaintForm, summaries: summaries, summaryEl: summaryEl };
+
+    // صفحة الإعلان أو المحل: مشاهدة (مرة باليوم لكل جهاز)، تقييم المحل، وزر الإبلاغ
+    var trust = document.querySelector('[data-trust]');
+    if (trust) {
+      var tid = Number(trust.getAttribute('data-id')), biz = trust.getAttribute('data-kind') === 'business';
+      var today = new Date().toISOString().slice(0, 10), seenKey = 'almamel-seen-' + tid;
+      if (ls.get(seenKey) !== today) { ls.set(seenKey, today); sbRpc('hit', { p_id: tid }).catch(function () {}); }
+      var fill = function (sum, reviews) {
+        trust.textContent = '';
+        if (biz) {
+          trust.appendChild(el('h2', '', 'التقييم'));
+          trust.appendChild(ratingWidget('post', tid, sum));
+          if (reviews.length) {
+            var ul = el('ul', 'reviews');
+            reviews.forEach(function (r) { var li = el('li'); li.appendChild(el('span', 'stars-view', starsText(r.stars))); li.appendChild(el('p', '', r.comment)); li.appendChild(el('span', 'muted', new Date(r.created_at).toLocaleDateString('ar-IQ'))); ul.appendChild(li); });
+            trust.appendChild(ul);
+          }
+        }
+        trust.appendChild(complaintForm('post', tid, biz ? 'عندك مشكلة وية هذا المحل؟ بلّغنا' : 'إبلاغ عن هذا الإعلان'));
+        trust.hidden = false;
+      };
+      if (biz) Promise.all([summaries('post', [tid]), sbGet('public_reviews?select=stars,comment,created_at&target_type=eq.post&target_id=eq.' + tid + '&order=created_at.desc&limit=20').catch(function () { return []; })])
+        .then(function (r) { fill(r[0][tid], r[1]); });
+      else fill(null, []);
+    }
+  }
 })();
