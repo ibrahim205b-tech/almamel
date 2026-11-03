@@ -35,7 +35,7 @@ const published = [
 ];
 
 const riders = [
-  { id: 1, name: 'حسين الدراج', phone: '07712345678', whatsapp: true, vehicle: 'دراجة نارية', areas: 'المعامل والحسينية', hours: 'من ٩ للـ ١٢ بالليل', note: null, min_fare: 1500, decided_at: new Date().toISOString(),
+  { id: 1, name: 'حسين الدراج', phone: '07712345678', whatsapp: true, vehicle: 'دراجة نارية', areas: 'المعامل والحسينية', hours: 'من ٩ للـ ١٢ بالليل', note: null, min_fare: 3500, decided_at: new Date().toISOString(),
     address: 'محلة ٧٠٣ زقاق ٥ دار ١٢', id_front: 'rider/' + 'd'.repeat(32) + '.webp', id_back: 'rider/' + 'e'.repeat(32) + '.webp', status: 'approved', created_at: new Date().toISOString() },
   { id: 2, name: 'عباس الستوتة', phone: '07798765432', whatsapp: false, vehicle: 'ستوتة', areas: 'الزوراء', hours: null, note: 'أغراض ثقيلة', min_fare: null, decided_at: null,
     address: 'قرب السيطرة', id_front: 'rider/' + 'f'.repeat(32) + '.webp', id_back: 'rider/' + '1'.repeat(32) + '.webp', status: 'pending', created_at: new Date().toISOString() },
@@ -490,7 +490,7 @@ test('«دلفري حر»: approved riders only, search by area, call and WhatsA
   await p.waitForSelector('[data-fares]:not([hidden]) [data-fares-zone] div:has-text("داخل نفس المحلة")');
   assert.ok((await p.textContent('[data-fares-zone]'))!.includes('اتفاق'), 'empty price reads «اتفاق»');
   assert.ok((await p.textContent('[data-fares-extra]'))!.includes('+ ١٬٠٠٠ د.ع'));
-  assert.ok((await p.textContent('.rider-fare'))!.includes('١٬٥٠٠'), 'rider own fare on the card');
+  assert.ok((await p.textContent('.rider-fare'))!.includes('٣٬٥٠٠'), 'rider own fare on the card');
   if (process.env.SHOTS) { await p.evaluate(() => document.querySelectorAll('[data-anim]').forEach((e) => e.removeAttribute('data-anim'))); await p.screenshot({ path: process.env.SHOTS + '/delivery-full.png', fullPage: true }); }
   const html = await p.content();
   assert.ok(!html.includes('محلة ٧٠٣') && !html.includes('rider/'), 'no private data');
@@ -516,13 +516,16 @@ test('rider sign-up uploads both ID photos to the private bucket and sends the e
   await p.check('#f-agree');
   await p.fill('#f-min_fare', '١٬٥٠٠');
   await p.click('[data-rider-form] button[type=submit]');
+  await p.waitForSelector('.live-msg.flash-error:has-text("3,000")');
+  await p.fill('#f-min_fare', '٣٬٥٠٠');
+  await p.click('[data-rider-form] button[type=submit]');
   await p.waitForSelector('.live-msg.flash-ok:has-text("وصل تسجيلك")');
   const ups = log.filter((r) => r.method === 'POST' && /^\/storage\/v1\/object\/proofs\/rider\/[0-9a-f]{32}\.webp$/.test(r.path));
   assert.equal(ups.length, 2, 'two ID photos to proofs/rider/');
   const row = JSON.parse(log.filter((r) => r.path === '/rest/v1/riders' && r.method === 'POST').at(-1)!.body.toString());
   assert.equal(row.phone, '07701230000'); assert.equal(row.address, 'المعامل، محلة ٧٠١، زقاق ٣'); assert.equal(row.vehicle, 'دراجة نارية');
   assert.equal(row.status, undefined, 'status is set by the database');
-  assert.equal(row.min_fare, 1500);
+  assert.equal(row.min_fare, 3500);
   assert.deepEqual([row.id_front, row.id_back], ups.map((u) => u.path.replace('/storage/v1/object/proofs/', '')));
   await p.context().close();
 });

@@ -296,7 +296,7 @@ export function deliveryPage(): SafeHtml {
     <p class="note">${icon('shield', 'i i-sm')}كل واحد بالقائمة سلّم هويته الوطنية وعنوانه للإدارة قبل ما ينشر، حتى تتعامل وياه وانت مطمّن.</p>
     ${msg}${noJs}
     <section class="fares" data-fares aria-labelledby="h-fares" hidden><h2 id="h-fares">الكروة المعتمدة</h2>
-      <p class="muted">هاي التسعيرة الي يلتزم بيها كل دلفري بالقائمة. إذا واحد كاتب كروة أقل على بطاقته، تاخذ الأقل.</p>
+      <p class="muted">أقل كروة <b>3,000 د.ع</b>. المسافات القريبة جداً يتفق عليها الزبون والسائق. هاي التسعيرة يلتزم بيها كل دلفري بالقائمة.</p>
       <div class="fares-grid"><div><h3>حسب المسافة</h3><dl data-fares-zone></dl></div><div><h3>إضافات</h3><dl data-fares-extra></dl></div></div></section>
     <div class="field rider-filter"><label for="rider-q" class="sr">ابحث بالمنطقة أو الاسم</label>
       <input id="rider-q" type="search" placeholder="ابحث بالمنطقة أو الاسم" data-rider-q autocomplete="off"></div>
@@ -322,10 +322,10 @@ export function riderJoinPage(areas: string[]): SafeHtml {
         ${textarea({ name: 'note', label: 'ملاحظة للزبائن', max: 300, rows: 2, hint: 'مثلاً: أوصل أكل وأدوية وأغراض' })}
       </fieldset>
       <section class="fares" data-fares aria-labelledby="h-fares" hidden><h2 id="h-fares">الكروة المعتمدة</h2>
-      <p class="muted">بالتسجيل تلتزم بهاي التسعيرة. إذا تريد تشتغل بأقل منها اكتب كروتك تحت وتطلع على بطاقتك.</p>
+      <p class="muted">أقل كروة <b>3,000 د.ع</b>، والمسافات القريبة جداً تتفق عليها وية الزبون. بالتسجيل تلتزم بهاي التسعيرة.</p>
       <div class="fares-grid"><div><h3>حسب المسافة</h3><dl data-fares-zone></dl></div><div><h3>إضافات</h3><dl data-fares-extra></dl></div></div></section>
       <fieldset class="group"><legend>كروتك</legend>
-        ${field({ name: 'min_fare', label: 'أقل كروة تاخذها (د.ع)', max: 6, attrs: 'inputmode="numeric"', hint: 'اختياري: إذا تريد تشتغل بأقل من التسعيرة، مثلاً 1500. تطلع على بطاقتك للزبائن.' })}
+        ${field({ name: 'min_fare', label: 'كروتك تبدي من (د.ع)', max: 6, attrs: 'inputmode="numeric"', hint: 'اختياري: إذا كروتك تبدي بأكثر من 3,000 اكتبها هنا، مثلاً 3500. تطلع على بطاقتك للزبائن.' })}
       </fieldset>
       <fieldset class="group"><legend>للإدارة فقط (ما تطلع لأي أحد)</legend>
         <p class="note">${icon('shield', 'i i-sm')}هويتك وعنوانك تنحفظ عند الإدارة بمكان خاص للأمان فقط، وما تنعرض بالموقع ولا تنطي لأي زبون.</p>
@@ -337,7 +337,7 @@ export function riderJoinPage(areas: string[]): SafeHtml {
           <label class="btn btn-pick">${icon('image')}اختار صورة الظهر<input type="file" name="id_back" accept="image/*" required aria-label="صورة الهوية الوطنية من الظهر" data-preview-into="idb-preview"></label>
           <ul class="thumbs picked" id="idb-preview" aria-live="polite"></ul></div>
       </fieldset>
-      ${checkbox({ name: 'agree', label: 'أتعهد إن المعلومات صحيحة، وألتزم بالكروة المعتمدة (أو كروتي إذا أقل)، وأوافق إن الإدارة تحتفظ بهويتي وعنواني للأمان وتلغي تسجيلي إذا وصلت شكوى' })}
+      ${checkbox({ name: 'agree', label: 'أتعهد إن المعلومات صحيحة، وألتزم بالكروة المعتمدة (أقل كروة 3,000 د.ع)، وأوافق إن الإدارة تحتفظ بهويتي وعنواني للأمان وتلغي تسجيلي إذا وصلت شكوى' })}
       <div class="hp" aria-hidden="true"><label for="f-website">اتركه فارغاً</label><input id="f-website" name="website" tabindex="-1" autocomplete="off"></div>
       <button class="btn btn-primary btn-lg" type="submit">${icon('check')}إرسال التسجيل</button>
     </form>

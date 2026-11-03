@@ -1001,7 +1001,7 @@
       if (address.length < 5) errs.push('اكتب عنوانك بالضبط.');
       if (!f.id_front.files[0] || !f.id_back.files[0]) errs.push('أضف صورة الهوية من الوجه ومن الظهر.');
       var minFare = f.min_fare.value.trim() ? money(f.min_fare.value) : null;
-      if (f.min_fare.value.trim() && (minFare == null || minFare < 250 || minFare > 50000)) errs.push('الكروة: رقم بين 250 و 50,000.');
+      if (f.min_fare.value.trim() && (minFare == null || minFare < 3000 || minFare > 50000)) errs.push('كروتك: أقل كروة 3,000 د.ع (وأكثر شي 50,000).');
       if (!f.agree.checked) errs.push('وافق على التعهد.');
       if (errs.length) return say(errs.join(' '), 'error');
       busy(form, true); say('جارِ رفع الهوية والإرسال...', 'ok');

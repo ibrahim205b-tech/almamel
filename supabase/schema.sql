@@ -837,8 +837,8 @@ create policy fares_read on public.delivery_fares for select using (true);
 -- التسعيرة المقترحة أول مرة فقط
 insert into public.delivery_fares (kind, label, price, sort)
 select * from (values
-  ('zone', 'داخل نفس المحلة', 1000, 1), ('zone', 'بين محلات المعامل', 2000, 2),
-  ('zone', 'من المعامل للحسينية أو الزوراء القريبة', 3000, 3), ('zone', 'أبعد من هيج', 5000, 4),
+  ('zone', 'مسافة قريبة جداً (نفس المحلة)', null, 1), ('zone', 'أقل كروة: داخل المعامل', 3000, 2),
+  ('zone', 'من المعامل للحسينية أو الزوراء القريبة', 4000, 3), ('zone', 'أبعد من هيج', 5000, 4),
   ('extra', 'بالليل بعد الساعة ١٢', 1000, 1), ('extra', 'غرض ثقيل أو ستوتة', 1500, 2),
   ('extra', 'إذا الدلفري يشتري الغرض من فلوسه', 500, 3)) v(kind, label, price, sort)
 where not exists (select 1 from public.delivery_fares);
