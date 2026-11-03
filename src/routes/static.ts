@@ -69,8 +69,8 @@ export async function staticRoutes(app: FastifyInstance) {
 
   if (live) {
     // النماذج والحسابات عبر Supabase: الإرسال مباشر، والنشر بعد موافقة الإدارة
-    app.get('/delivery', (req, reply) => reply.page(req, { title: 'دلفري حر: توصيل بالمعامل', description: 'أصحاب دراجات وستوتات يوصلون أكل وأدوية وأغراض داخل المعامل وقضاء الزوراء. كلهم مسجلين بهويتهم عند الإدارة.', head: head(req) }, deliveryPage()));
-    app.get('/delivery/join', (req, reply) => reply.page(req, { title: 'سجّل كدلفري حر', head: head(req) }, riderJoinPage(areaNames())));
+    app.get('/delivery', (req, reply) => reply.page(req, { title: 'دلفري حر: توصيل بالمعامل', description: 'أصحاب دراجات وستوتات يوصلون أكل وأدوية وأغراض داخل المعامل (قضاء الزوراء). كلهم مسجلين بهويتهم عند الإدارة.', head: head(req) }, deliveryPage()));
+    app.get('/delivery/join', (req, reply) => reply.page(req, { title: 'سجّل كدلفري حر', head: head(req) }, riderJoinPage()));
     app.get('/submit', (req, reply) => reply.page(req, { title: 'أضف إعلانك', head: head() }, liveSubmitPage('', catsBySection(), areaNames(), addShopLink(req.settings.whatsapp_phone ?? ''))));
     app.get('/submit/:type', (req, reply) => {
       const type = (req.params as { type: string }).type;

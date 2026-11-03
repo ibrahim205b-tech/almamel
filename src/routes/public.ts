@@ -59,7 +59,7 @@ export async function publicRoutes(app: FastifyInstance) {
       { '@context': 'https://schema.org', '@type': 'Organization', name: s.site_name, url: base + '/', logo: `${base}/static/img/icon-512.png`, areaServed: 'المعامل، قضاء الزوراء، بغداد' },
     ]).replace(/</g, '\\u003c');
     return reply.page(req, { title: `${s.site_name} | مطاعم ومحلات ووظائف وخدمات المعامل - بغداد`, canonical: '/',
-      description: `${s.site_name}: دليل منطقة المعامل وقضاء الزوراء في بغداد. مطاعم وقوائم طعام واطلب لباب البيت، محلات وأسواق، وظائف، خدمات ومهن، عقارات، بيع وشراء، وأخبار المنطقة.`,
+      description: `${s.site_name}: دليل منطقة المعامل (قضاء الزوراء) في بغداد. مطاعم وقوائم طعام واطلب لباب البيت، محلات وأسواق، وظائف، خدمات ومهن، عقارات، بيع وشراء، وأخبار المنطقة.`,
       head: raw(`<script type="application/ld+json">${site}</script>`) }, homePage({
       counts, featured: listFeatured(db, 'home'), latest: pick(TYPE_KEYS.filter((t) => t !== 'business'), {}, 8), offers: pick(['offer']), jobs: pick(['job']),
       properties: pick(['property']), food: pick(['business'], { foodOnly: true }, 11), shops: pick(['business'], { shopsOnly: true }, 11), services: pick(['service']), market: pick(['market']),
@@ -117,7 +117,7 @@ export async function publicRoutes(app: FastifyInstance) {
     const cats = db.prepare(`SELECT id, name FROM categories WHERE section = 'community' AND active = 1 AND name IN (${NEWS_CATEGORIES.map(() => '?').join(',')}) ORDER BY sort`)
       .all(...NEWS_CATEGORIES).map((r) => [(r as { id: number }).id, (r as { name: string }).name] as [number, string]);
     return reply.page(req, { title: 'أخبار المعامل', description: 'آخر أخبار منطقة المعامل في قضاء الزوراء ببغداد: الخدمات والمشاريع والتنبيهات، مع رابط كل خبر لمصدره.' }, listPage({
-      title: 'أخبار المعامل', intro: 'آخر ما يُنشر عن منطقة المعامل وقضاء الزوراء: الخدمات والمشاريع والتنبيهات. كل خبر منقول يحمل رابط مصدره الأصلي.', path: '/news', type: 'community',
+      title: 'أخبار المعامل', intro: 'آخر ما يُنشر عن منطقة المعامل (قضاء الزوراء): الخدمات والمشاريع والتنبيهات. كل خبر منقول يحمل رابط مصدره الأصلي.', path: '/news', type: 'community',
       result, query: params, featured: [], categories: cats, areas: areas(), extra: html``, canSubmit: sectionEnabled(req.settings, 'community'), submitType: 'community', staticMode: app.cfg.staticMode,
     }));
   });

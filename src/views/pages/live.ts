@@ -305,7 +305,7 @@ export function deliveryPage(): SafeHtml {
 }
 
 /** تسجيل صاحب دراجة: البيانات العامة + العنوان والهوية (للإدارة فقط). */
-export function riderJoinPage(areas: string[]): SafeHtml {
+export function riderJoinPage(): SafeHtml {
   return html`<div class="wrap narrow" data-page="rider-join">
     <nav class="crumbs" aria-label="مسار التنقل"><a href="/delivery">دلفري حر</a><span aria-hidden="true">/</span><span aria-current="page">التسجيل</span></nav>
     <h1>سجّل كدلفري حر</h1>
@@ -317,7 +317,7 @@ export function riderJoinPage(areas: string[]): SafeHtml {
         ${field({ name: 'phone', label: 'رقمك', type: 'tel', dir: 'ltr', required: true, attrs: 'inputmode="tel"', hint: 'يطلع للزبائن حتى يتصلون بيك' })}
         ${checkbox({ name: 'whatsapp', label: 'رقمي عليه واتساب', checked: true })}
         ${select({ name: 'vehicle', label: 'شنو تستخدم للتوصيل', required: true, placeholder: 'اختر', options: VEHICLES.map((v) => [v, v]) })}
-        ${field({ name: 'areas', label: 'وين تكدر توصل', required: true, max: 200, hint: `مثلاً: ${areas.slice(0, 3).join('، ') || 'المعامل'} وكل قضاء الزوراء` })}
+        ${field({ name: 'areas', label: 'وين تكدر توصل', required: true, max: 200, hint: 'مثلاً: كل المعامل، أو محلات معينة، أو للحسينية والمناطق المجاورة' })}
         ${field({ name: 'hours', label: 'أوقات الشغل', max: 80, hint: 'مثلاً: من ٩ الصبح لـ ١٢ بالليل' })}
         ${textarea({ name: 'note', label: 'ملاحظة للزبائن', max: 300, rows: 2, hint: 'مثلاً: أوصل أكل وأدوية وأغراض' })}
       </fieldset>
