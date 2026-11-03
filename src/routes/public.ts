@@ -1,6 +1,8 @@
+import { loadEngineers } from '../domain/engineers.ts';
+import { engineerPage, engineersPage } from '../views/pages/engineers.ts';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { html, raw } from '../lib/html.ts';
-import { addShopLink, toFtsQuery } from '../lib/arabic.ts';
+import { addShopLink, toFtsQuery, waLink } from '../lib/arabic.ts';
 import { TYPES, TYPE_KEYS, isPostType, type PostType } from '../domain/types.ts';
 import { canPreview, getPostView, isPostOwner, listFeatured, listPublic, NEWS_CATEGORIES, postImages, postItems, PUBLIC_WHERE, type ListQuery } from '../domain/posts.ts';
 import { addClaim, addReport, addReview, EngagementError, publicReviews, reviewSummary } from '../domain/engagement.ts';
@@ -108,6 +110,18 @@ export async function publicRoutes(app: FastifyInstance) {
       result, query: params, featured: [], categories: food, areas: areas(), extra: filterExtras('food', params), canSubmit: sectionEnabled(req.settings, 'business'), submitType: 'business', staticMode: app.cfg.staticMode,
       submitHref: app.cfg.staticMode ? addShopLink(req.settings.whatsapp_phone ?? '') : undefined,
     }));
+  });
+
+  // دليل المهندسين (من content/engineers.json)
+  const engineerJoin = (phone: string) => `${waLink(phone)}?text=${encodeURIComponent('مرحباً، أنا مهندس وأريد أضيف اسمي واختصاصي وخدماتي بدليل المهندسين على دليل المعامل.')}`;
+  app.get('/engineers', (req, reply) => reply.page(req, {
+    title: 'دليل المهندسين', description: 'مهندسين مدنيين ومعماريين وكهربائيين وميكانيكيين في بغداد والمعامل: اختصاصاتهم وخدماتهم وطريقة التواصل وياهم.',
+  }, engineersPage(loadEngineers(), engineerJoin(req.settings.whatsapp_phone ?? ''))));
+  app.get('/engineers/:slug', (req, reply) => {
+    const e = loadEngineers().find((x) => x.slug === (req.params as { slug: string }).slug);
+    if (!e) return reply.code(404).page(req, { title: 'المهندس غير موجود', noindex: true }, html`<div class="wrap narrow"><div class="empty"><p class="empty-title">المهندس غير موجود</p><p><a href="/engineers">كل المهندسين</a></p></div></div>`);
+    return reply.page(req, { title: `${e.name}: ${e.specialty}`, description: `${e.name}، ${e.specialty}${e.location ? ` في ${e.location}` : ''}. ${e.services.join('، ')}.`.slice(0, 300) },
+      engineerPage(e, engineerJoin(req.settings.whatsapp_phone ?? '')));
   });
 
   app.get('/news', (req, reply) => {
@@ -230,7 +244,7 @@ export async function publicRoutes(app: FastifyInstance) {
   app.get('/sitemap.xml', (_req, reply) => {
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const base = app.cfg.baseUrl;
-    const urls = ['/', '/about', '/contact', '/restaurants', '/news', ...(app.cfg.staticMode && app.cfg.supabaseUrl ? ['/delivery'] : []), ...TYPE_KEYS.map((t) => TYPES[t].path), ...Object.keys(POLICIES).map((k) => `/policies/${k}`)]
+    const urls = ['/', '/about', '/contact', '/restaurants', '/news', '/engineers', ...loadEngineers().map((e) => `/engineers/${e.slug}`), ...(app.cfg.staticMode && app.cfg.supabaseUrl ? ['/delivery'] : []), ...TYPE_KEYS.map((t) => TYPES[t].path), ...Object.keys(POLICIES).map((k) => `/policies/${k}`)]
       .map((u) => `<url><loc>${esc(base + u)}</loc></url>`);
     const posts = db.prepare(`SELECT p.id, p.type, p.updated_at FROM posts p WHERE ${PUBLIC_WHERE} ORDER BY p.updated_at DESC LIMIT 45000`).all() as { id: number; type: PostType; updated_at: number }[];
     for (const p of posts) urls.push(`<url><loc>${esc(`${base}${TYPES[p.type].path}/${p.id}`)}</loc><lastmod>${new Date(p.updated_at * 1000).toISOString().slice(0, 10)}</lastmod></url>`);

@@ -94,6 +94,7 @@ const SHORT: Record<string, string> = { business: 'المحلات', job: 'الو
 export const SECTION_LINKS: { href: string; label: string; short: string; icon: string }[] = [
   { href: '/restaurants', label: 'المطاعم والتوصيل', short: 'المطاعم', icon: 'utensils' },
   ...(['business', 'job', 'service', 'property', 'market', 'offer'] as const).map((t) => ({ href: TYPES[t].path, label: TYPES[t].label, short: SHORT[t], icon: TYPES[t].icon })),
+  { href: '/engineers', label: 'دليل المهندسين', short: 'المهندسين', icon: 'helmet' },
   { href: '/delivery', label: 'دلفري حر', short: 'دلفري', icon: 'bike' },
   { href: '/news', label: 'أخبار المعامل', short: 'الأخبار', icon: 'bell' },
   { href: TYPES.community.path, label: TYPES.community.label, short: 'مبادرات', icon: TYPES.community.icon },

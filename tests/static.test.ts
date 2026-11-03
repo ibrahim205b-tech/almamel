@@ -163,3 +163,35 @@ test('invalid listing files stop the build with clear messages', async () => {
     return true;
   });
 });
+
+test('engineers directory: cards with specialty, services, location; details page; no invented phone', async () => {
+  const dir = fixture();
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'almamel-eng-'));
+  await buildStatic({ siteUrl: 'https://user.github.io/almamel', contentDir: dir, outDir: out, repo: 'user/almamel', quiet: true });
+  const list = fs.readFileSync(path.join(out, 'engineers', 'index.html'), 'utf8');
+  assert.ok(list.includes('<h1>دليل المهندسين</h1>'));
+  assert.ok(list.includes('حسين المهندس') && list.includes('مهندس مدني') && list.includes('تصميم مخططات المنازل') && list.includes('بغداد'));
+  assert.ok(list.includes('href="/almamel/engineers/hussein/"'), 'details link');
+  assert.ok(list.includes('رقم التواصل يُضاف قريباً') && !/wa\.me\/964\d+\?text=[^"]*%D8%AD%D8%B3%D9%8A%D9%86/.test(list), 'no phone yet, no fake WhatsApp');
+  const detail = fs.readFileSync(path.join(out, 'engineers', 'hussein', 'index.html'), 'utf8');
+  assert.ok(detail.includes('<h1 class="eng-name">حسين المهندس</h1>') && detail.includes('<dt>الموقع</dt><dd>بغداد</dd>'));
+  const home = fs.readFileSync(path.join(out, 'index.html'), 'utf8');
+  assert.ok(home.includes('href="/almamel/engineers/"'), 'section reachable from the home page and menu');
+  assert.ok(fs.readFileSync(path.join(out, 'sitemap.xml'), 'utf8').includes('/engineers/hussein'));
+});
+
+test('engineers file: bad entries skipped, phone normalised, WhatsApp only with a real number', async () => {
+  const { loadEngineers, engineerWhatsApp } = await import('../src/domain/engineers.ts');
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'eng-')), 'e.json');
+  fs.writeFileSync(f, JSON.stringify({ engineers: [
+    { slug: 'ali', name: 'علي', specialty: 'مهندس كهربائي', services: ['تأسيس كهرباء'], location: 'المعامل', phone: '٠٧٧٠١٢٣٤٥٦٧' },
+    { slug: 'ali', name: 'مكرر', specialty: 'x' }, { slug: 'Bad Slug', name: 'غلط', specialty: 'x' }, { slug: 'noname', specialty: 'x' },
+    { slug: 'mona', name: 'منى', specialty: 'مهندسة معمارية', phone: '123' },
+  ] }));
+  const list = loadEngineers(f);
+  assert.deepEqual(list.map((e) => e.slug), ['ali', 'mona']);
+  assert.equal(list[0].phone, '07701234567');
+  assert.match(engineerWhatsApp(list[0])!, /^https:\/\/wa\.me\/9647701234567\?text=/);
+  assert.equal(list[1].phone, null); assert.equal(engineerWhatsApp(list[1]), null);
+  assert.deepEqual(loadEngineers(f + '.missing'), []);
+});

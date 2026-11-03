@@ -21,6 +21,17 @@
     });
   }
 
+  // دليل المهندسين: تصفية البطاقات حسب الاختصاص
+  var engFilter = document.querySelector('[data-eng-filter]');
+  if (engFilter) {
+    engFilter.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-value]'); if (!b) return;
+      var v = b.getAttribute('data-value');
+      Array.prototype.forEach.call(engFilter.querySelectorAll('button'), function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      Array.prototype.forEach.call(document.querySelectorAll('.eng-card'), function (c) { c.hidden = !!v && c.getAttribute('data-specialty') !== v; });
+    });
+  }
+
   // نقل التركيز إلى ملخص الأخطاء حتى يسمعه قارئ الشاشة
   var errors = document.getElementById('form-errors');
   if (errors) errors.focus();

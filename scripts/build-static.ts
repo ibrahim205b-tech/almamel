@@ -1,3 +1,4 @@
+import { loadEngineers } from '../src/domain/engineers.ts';
 // يبني نسخة GitHub Pages الثابتة في مجلد dist/ من نفس صفحات الموقع ومن إعلانات content/.
 //   SITE_URL=https://user.github.io/almamel node scripts/build-static.ts
 // إذا لم يُحدد SITE_URL يُستنتج من GITHUB_REPOSITORY، وإلا http://localhost:8080 للمعاينة المحلية.
@@ -52,7 +53,7 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
 
     const settings = loadSettings(db);
     // الموقع العام لا يحتوي تسجيل المحلات ولا لوحات التحكم؛ هذه في موقع الإدارة المنفصل فقط.
-    const urls = opts.register ? ['/owner/register'] : opts.kitchen ? ['/login', '/owner/dashboard', '/owner/menu', '/kitchen'] : opts.admin ? ['/login', '/admin', '/admin/business', '/admin/menu'] : ['/', '/restaurants', '/news', '/about', '/contact', '/search', '/submit', '/publish',
+    const urls = opts.register ? ['/owner/register'] : opts.kitchen ? ['/login', '/owner/dashboard', '/owner/menu', '/kitchen'] : opts.admin ? ['/login', '/admin', '/admin/business', '/admin/menu'] : ['/', '/restaurants', '/news', '/engineers', ...loadEngineers().map((e) => `/engineers/${e.slug}`), '/about', '/contact', '/search', '/submit', '/publish',
       ...TYPE_KEYS.map((t) => TYPES[t].path),
       ...TYPE_KEYS.filter((t) => t !== 'business' && sectionEnabled(settings, t)).map((t) => `/submit/${t}`),
       ...Object.keys(POLICIES).map((k) => `/policies/${k}`),
