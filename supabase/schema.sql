@@ -813,11 +813,6 @@ create policy riders_admin_update on public.riders for update to authenticated u
 drop policy if exists riders_admin_delete on public.riders;
 create policy riders_admin_delete on public.riders for delete to authenticated using (public.is_admin());
 
--- الصفحة العامة: المعتمدين فقط وبدون العنوان والهوية
-create or replace view public.public_riders with (security_barrier = true) as
-  select id, name, phone, whatsapp, vehicle, areas, hours, note, decided_at
-  from public.riders where status = 'approved';
-grant select on public.public_riders to anon, authenticated;
 
 -- صور الهوية: الزائر يرفع لمجلد rider/ باسم عشوائي، وما يكدر يقرأها. الإدارة فقط تشوفها وتحذفها.
 drop policy if exists rider_id_upload on storage.objects;
@@ -826,3 +821,46 @@ create policy rider_id_upload on storage.objects for insert to anon, authenticat
 drop policy if exists proofs_admin_delete on storage.objects;
 create policy proofs_admin_delete on storage.objects for delete to authenticated
   using (bucket_id = 'proofs' and public.is_admin());
+
+-- ---------- تسعيرة الدلفري (الكروة) ----------
+-- جدول تسعيرة واحد يشوفه الكل، والإدارة تعدّله من لوحتها. kind: zone = حسب المسافة، extra = إضافات.
+create table if not exists public.delivery_fares (
+  id     bigint generated always as identity primary key,
+  kind   text not null check (kind in ('zone', 'extra')),
+  label  text not null check (char_length(label) between 2 and 80),
+  price  integer check (price between 0 and 100000),
+  sort   integer not null default 0
+);
+alter table public.delivery_fares enable row level security;
+drop policy if exists fares_read on public.delivery_fares;
+create policy fares_read on public.delivery_fares for select using (true);
+-- التسعيرة المقترحة أول مرة فقط
+insert into public.delivery_fares (kind, label, price, sort)
+select * from (values
+  ('zone', 'داخل نفس المحلة', 1000, 1), ('zone', 'بين محلات المعامل', 2000, 2),
+  ('zone', 'من المعامل للحسينية أو الزوراء القريبة', 3000, 3), ('zone', 'أبعد من هيج', 5000, 4),
+  ('extra', 'بالليل بعد الساعة ١٢', 1000, 1), ('extra', 'غرض ثقيل أو ستوتة', 1500, 2),
+  ('extra', 'إذا الدلفري يشتري الغرض من فلوسه', 500, 3)) v(kind, label, price, sort)
+where not exists (select 1 from public.delivery_fares);
+
+-- الإدارة: تستبدل التسعيرة كلها دفعة وحدة
+create or replace function public.set_delivery_fares(p_rows jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'غير مسموح'; end if;
+  if jsonb_typeof(p_rows) <> 'array' or jsonb_array_length(p_rows) > 30 then raise exception 'تسعيرة غير صالحة'; end if;
+  delete from delivery_fares where true;
+  insert into delivery_fares (kind, label, price, sort)
+  select r->>'kind', trim(r->>'label'), nullif(r->>'price', '')::integer, (ord)::integer
+  from jsonb_array_elements(p_rows) with ordinality as t(r, ord);
+end $$;
+revoke all on function public.set_delivery_fares(jsonb) from public, anon;
+grant execute on function public.set_delivery_fares(jsonb) to authenticated;
+
+-- كروة الدلفري الأقل (اختياري، تطلع على بطاقته)
+-- الصفحة العامة: المعتمدين فقط وبدون العنوان والهوية
+alter table public.riders add column if not exists min_fare integer check (min_fare between 250 and 50000);
+create or replace view public.public_riders with (security_barrier = true) as
+  select id, name, phone, whatsapp, vehicle, areas, hours, note, decided_at, min_fare
+  from public.riders where status = 'approved';
+grant select on public.public_riders to anon, authenticated;

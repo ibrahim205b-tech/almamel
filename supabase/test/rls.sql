@@ -367,6 +367,19 @@ select pg_temp.expect_error($q$select address from public_riders$q$, 'anon reads
 select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
 delete from storage.objects where name like 'rider/%';
 delete from riders;
+-- التسعيرة: الكل يقرأ، والإدارة بس تعدّل
+select pg_temp.as_user(null);
+do $$ begin if (select count(*) from delivery_fares) < 4 then raise exception 'default fares missing for public'; end if; end $$;
+select pg_temp.expect_error($q$select public.set_delivery_fares('[]'::jsonb)$q$, 'anon sets fares');
+delete from delivery_fares where true;
+do $$ begin if (select count(*) from delivery_fares) < 4 then raise exception 'anon deleted fares'; end if; end $$;
+select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+select pg_temp.expect_error($q$select public.set_delivery_fares('[]'::jsonb)$q$, 'user sets fares');
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+select public.set_delivery_fares('[{"kind":"zone","label":"داخل المحلة","price":1250},{"kind":"extra","label":"بالليل","price":""}]'::jsonb);
+reset role;
+do $$ begin if (select count(*) from delivery_fares) <> 2 or (select price from delivery_fares where label = 'داخل المحلة') <> 1250
+  or (select price from delivery_fares where label = 'بالليل') is not null then raise exception 'admin fares not saved'; end if; end $$;
 reset role;
 do $$ begin if exists (select 1 from riders) or exists (select 1 from storage.objects where name like 'rider/%') then raise exception 'admin cannot delete rider and IDs'; end if; end $$;
 

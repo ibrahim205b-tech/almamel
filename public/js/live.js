@@ -935,12 +935,28 @@
     }
     load();
     ridersAdmin($('[data-riders-admin]'));
+    faresAdmin($('[data-fares-admin]'));
     commissionBox($('[data-commission]'), true);
   }
 
   // ---------- دلفري حر: القائمة العامة ----------
   function waNum(ph) { return 'https://wa.me/964' + String(ph).replace(/^0/, ''); }
+  function money2(n) { return n == null ? 'اتفاق' : nf.format(n) + ' د.ع'; }
+  async function loadFares() {
+    var box = $('[data-fares]'); if (!box) return [];
+    var r = await sb.from('delivery_fares').select('kind, label, price, sort').order('sort');
+    var rows = r.data || [];
+    ['zone', 'extra'].forEach(function (k) {
+      var dl = $('[data-fares-' + k + ']', box); dl.textContent = '';
+      rows.filter(function (x) { return x.kind === k; }).forEach(function (x) {
+        dl.appendChild(el('div', {}, [el('dt', { text: x.label }), el('dd', { class: 'num', text: (k === 'extra' && x.price != null ? '+ ' : '') + money2(x.price) })]));
+      });
+    });
+    box.hidden = !rows.length;
+    return rows;
+  }
   async function initDelivery() {
+    loadFares();
     var ul = $('[data-riders]'), q = $('[data-rider-q]');
     var r = await sb.from('public_riders').select('*').order('decided_at', { ascending: false }).limit(500);
     if (r.error) { ul.textContent = ''; return say(errText(r.error), 'error'); }
@@ -957,6 +973,7 @@
               el('span', { class: 'badge badge-ok', text: 'هويته عند الإدارة' })])]),
           el('p', { class: 'rider-areas' }, [el('b', { text: 'يوصل إلى: ' }), x.areas]),
           x.hours ? el('p', { class: 'muted', text: 'الأوقات: ' + x.hours }) : null,
+          x.min_fare ? el('p', { class: 'rider-fare' }, ['كروته تبدي من ', el('b', { class: 'num', text: money2(x.min_fare) })]) : null,
           x.note ? el('p', { class: 'rider-note', text: x.note }) : null,
           el('div', { class: 'btn-row' }, [
             el('a', { class: 'btn btn-primary', href: 'tel:' + x.phone }, ['اتصال ', el('span', { dir: 'ltr', text: x.phone })]),
@@ -971,6 +988,7 @@
   // ---------- دلفري حر: التسجيل ----------
   async function initRiderJoin() {
     var form = $('[data-rider-form]');
+    loadFares();
     form.addEventListener('submit', async function (e) {
       e.preventDefault(); delete form.dataset.submitting;
       var f = form.elements, errs = [];
@@ -982,6 +1000,8 @@
       if (areas.length < 2) errs.push('اكتب وين تكدر توصل.');
       if (address.length < 5) errs.push('اكتب عنوانك بالضبط.');
       if (!f.id_front.files[0] || !f.id_back.files[0]) errs.push('أضف صورة الهوية من الوجه ومن الظهر.');
+      var minFare = f.min_fare.value.trim() ? money(f.min_fare.value) : null;
+      if (f.min_fare.value.trim() && (minFare == null || minFare < 250 || minFare > 50000)) errs.push('الكروة: رقم بين 250 و 50,000.');
       if (!f.agree.checked) errs.push('وافق على التعهد.');
       if (errs.length) return say(errs.join(' '), 'error');
       busy(form, true); say('جارِ رفع الهوية والإرسال...', 'ok');
@@ -989,7 +1009,7 @@
         var front = await upload('proofs', 'rider/' + hex() + '.webp', await toWebp(f.id_front.files[0], 1600));
         var back = await upload('proofs', 'rider/' + hex() + '.webp', await toWebp(f.id_back.files[0], 1600));
         var r = await sb.from('riders').insert({ name: name, phone: ph, whatsapp: f.whatsapp.checked, vehicle: f.vehicle.value, areas: areas,
-          hours: f.hours.value.trim() || null, note: f.note.value.trim() || null, address: address, id_front: front, id_back: back });
+          hours: f.hours.value.trim() || null, note: f.note.value.trim() || null, min_fare: minFare, address: address, id_front: front, id_back: back });
         if (r.error) throw (r.error.code === '23505' ? new Error('هذا الرقم مسجل من قبل. إذا تريد تعدّل معلوماتك راسل الإدارة.') : r.error);
         form.hidden = true;
         say('وصل تسجيلك ✅ الإدارة راح تتصل بيك للتأكد، وبعدها يطلع اسمك ورقمك بصفحة «دلفري حر».', 'ok');
@@ -1020,7 +1040,7 @@
       (function (x, ids) {
         var facts = el('dl', { class: 'facts' });
         [['الرقم', x.phone + (x.whatsapp ? ' (واتساب)' : '')], ['المركبة', x.vehicle], ['يوصل إلى', x.areas], ['الأوقات', x.hours], ['ملاحظة', x.note],
-          ['العنوان (خاص)', x.address], ['تاريخ التسجيل', new Date(x.created_at).toLocaleString('ar-IQ')]]
+          ['أقل كروة', x.min_fare ? money2(x.min_fare) : ''], ['العنوان (خاص)', x.address], ['تاريخ التسجيل', new Date(x.created_at).toLocaleString('ar-IQ')]]
           .forEach(function (kv) { if (kv[1]) facts.appendChild(el('div', {}, [el('dt', { text: kv[0] }), el('dd', { text: kv[1] })])); });
         ul.appendChild(el('li', { class: 'panel' }, [
           el('h3', {}, [x.name + ' ', badge(x.status === 'approved' ? 'published' : x.status === 'pending' ? 'pending' : 'rejected', LABEL[x.status])]),
@@ -1039,6 +1059,40 @@
             } })])]));
       })(x, ids);
     }
+  }
+
+  async function faresAdmin(box) {
+    var r = await sb.from('delivery_fares').select('kind, label, price, sort').order('sort');
+    box.textContent = '';
+    if (r.error) return;
+    var rows = el('div', { class: 'fares-edit' });
+    function row(x) {
+      var li = el('div', { class: 'fare-row' }, [
+        el('select', { 'aria-label': 'النوع' }, [el('option', { value: 'zone', text: 'مسافة' }), el('option', { value: 'extra', text: 'إضافة' })]),
+        el('input', { type: 'text', value: x.label || '', maxlength: 80, 'aria-label': 'الوصف', placeholder: 'مثلاً: بين محلات المعامل' }),
+        el('input', { type: 'text', value: x.price == null ? '' : String(x.price), inputmode: 'numeric', 'aria-label': 'السعر بالدينار', placeholder: 'اتفاق', dir: 'ltr' }),
+        el('button', { class: 'btn btn-sm', type: 'button', text: 'حذف', onclick: function () { li.remove(); } })]);
+      li.firstChild.value = x.kind || 'zone';
+      rows.appendChild(li);
+    }
+    (r.data || []).forEach(row);
+    box.appendChild(rows);
+    box.appendChild(el('div', { class: 'btn-row' }, [
+      el('button', { class: 'btn', type: 'button', text: '+ سطر جديد', onclick: function () { row({}); } }),
+      el('button', { class: 'btn btn-primary', type: 'button', text: 'حفظ التسعيرة', onclick: async function () {
+        var out = [], bad = false;
+        $$('.fare-row', rows).forEach(function (li) {
+          var f = li.querySelectorAll('select, input'), label = f[1].value.trim(), pv = f[2].value.trim();
+          if (!label && !pv) return;
+          var price = pv ? money(pv) : null;
+          if (label.length < 2 || (pv && (price == null || price > 100000))) bad = true;
+          out.push({ kind: f[0].value, label: label, price: price });
+        });
+        if (bad) return say('كل سطر يحتاج وصف (حرفين أو أكثر)، والسعر رقم أو فارغ.', 'error');
+        var s2 = await sb.rpc('set_delivery_fares', { p_rows: out });
+        if (s2.error) return say(errText(s2.error), 'error');
+        say('تم حفظ التسعيرة ✅ تطلع هسه بصفحة «دلفري حر».', 'ok'); faresAdmin(box);
+      } })]));
   }
 
   // ---------- موقع الإدارة: إضافة مطعم أو محل كاملاً ----------

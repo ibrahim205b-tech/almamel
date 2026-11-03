@@ -205,7 +205,8 @@ export function adminLivePage(): SafeHtml {
     <section id="pending" class="block"><h2>بانتظار المراجعة</h2><div data-pending><div class="skeleton" aria-label="جارِ التحميل"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div></div></section>
     <section id="claims" class="block"><h2>طلبات أصحاب المحلات</h2><div data-claims></div></section>
     <section id="products" class="block"><h2>منتجات جديدة بانتظار الموافقة</h2><p class="muted">منتجات أضافها أصحاب المحلات بصورها. السعر والتوفر يتعدلون بدون موافقة.</p><div data-products></div></section>
-    <section id="riders" class="block"><h2>دلفري حر</h2><p class="muted">قبل الموافقة: اتصل بيه، وطابق الاسم وية الهوية. الهوية والعنوان يظهرون هنا فقط.</p><div data-riders-admin></div></section>
+    <section id="riders" class="block"><h2>دلفري حر</h2><p class="muted">قبل الموافقة: اتصل بيه، وطابق الاسم وية الهوية. الهوية والعنوان يظهرون هنا فقط.</p><div data-riders-admin></div>
+      <h3>تسعيرة الكروة</h3><p class="muted">تطلع للكل بصفحة «دلفري حر». خلي السعر فارغ إذا «اتفاق».</p><div data-fares-admin></div></section>
     <section id="published" class="block"><h2>المنشور حالياً</h2><div data-published></div></section>
     <section id="commission" class="block"><h2>نسبة الطلبات (٥٪)</h2>
       <p class="muted">كل طلب يُرسل من سلة الموقع إلى واتساب المطعم يُسجَّل هنا. استلم النسبة من كل مطعم آخر الشهر واضغط «تم الدفع».</p>
@@ -290,10 +291,13 @@ export function deliveryPage(): SafeHtml {
   return html`<div class="wrap" data-page="delivery">
     <nav class="crumbs" aria-label="مسار التنقل"><a href="/">الرئيسية</a><span aria-hidden="true">/</span><span aria-current="page">دلفري حر</span></nav>
     <div class="page-head"><div><h1>دلفري حر</h1>
-      <p class="lede">تحتاج أحد يوصلك غرض؟ أكل، أدوية، أغراض من السوق، أو تسلم وتستلم. اتصل مباشرة بصاحب الدراجة القريب منك واتفق وياه على السعر.</p></div>
+      <p class="lede">تحتاج أحد يوصلك غرض؟ أكل، أدوية، أغراض من السوق، أو تسلم وتستلم. اتصل مباشرة بصاحب الدراجة القريب منك، والكروة حسب التسعيرة المعتمدة جوة.</p></div>
       <a class="btn btn-sign" href="/delivery/join">${icon('plus')}سجّل كدلفري</a></div>
-    <p class="note">${icon('shield', 'i i-sm')}كل واحد بالقائمة سلّم هويته الوطنية وعنوانه للإدارة قبل ما ينشر، حتى تتعامل وياه وانت مطمّن. السعر تتفق عليه انت وياه مباشرة.</p>
+    <p class="note">${icon('shield', 'i i-sm')}كل واحد بالقائمة سلّم هويته الوطنية وعنوانه للإدارة قبل ما ينشر، حتى تتعامل وياه وانت مطمّن.</p>
     ${msg}${noJs}
+    <section class="fares" data-fares aria-labelledby="h-fares" hidden><h2 id="h-fares">الكروة المعتمدة</h2>
+      <p class="muted">هاي التسعيرة الي يلتزم بيها كل دلفري بالقائمة. إذا واحد كاتب كروة أقل على بطاقته، تاخذ الأقل.</p>
+      <div class="fares-grid"><div><h3>حسب المسافة</h3><dl data-fares-zone></dl></div><div><h3>إضافات</h3><dl data-fares-extra></dl></div></div></section>
     <div class="field rider-filter"><label for="rider-q" class="sr">ابحث بالمنطقة أو الاسم</label>
       <input id="rider-q" type="search" placeholder="ابحث بالمنطقة أو الاسم" data-rider-q autocomplete="off"></div>
     <ul class="rider-list" data-riders aria-live="polite"><li class="skeleton" aria-label="جارِ التحميل"><span class="sk"></span><span class="sk"></span></li></ul>
@@ -315,7 +319,13 @@ export function riderJoinPage(areas: string[]): SafeHtml {
         ${select({ name: 'vehicle', label: 'شنو تستخدم للتوصيل', required: true, placeholder: 'اختر', options: VEHICLES.map((v) => [v, v]) })}
         ${field({ name: 'areas', label: 'وين تكدر توصل', required: true, max: 200, hint: `مثلاً: ${areas.slice(0, 3).join('، ') || 'المعامل'} وكل قضاء الزوراء` })}
         ${field({ name: 'hours', label: 'أوقات الشغل', max: 80, hint: 'مثلاً: من ٩ الصبح لـ ١٢ بالليل' })}
-        ${textarea({ name: 'note', label: 'ملاحظة للزبائن', max: 300, rows: 2, hint: 'مثلاً: أوصل أكل وأدوية وأغراض، والسعر حسب المسافة' })}
+        ${textarea({ name: 'note', label: 'ملاحظة للزبائن', max: 300, rows: 2, hint: 'مثلاً: أوصل أكل وأدوية وأغراض' })}
+      </fieldset>
+      <section class="fares" data-fares aria-labelledby="h-fares" hidden><h2 id="h-fares">الكروة المعتمدة</h2>
+      <p class="muted">بالتسجيل تلتزم بهاي التسعيرة. إذا تريد تشتغل بأقل منها اكتب كروتك تحت وتطلع على بطاقتك.</p>
+      <div class="fares-grid"><div><h3>حسب المسافة</h3><dl data-fares-zone></dl></div><div><h3>إضافات</h3><dl data-fares-extra></dl></div></div></section>
+      <fieldset class="group"><legend>كروتك</legend>
+        ${field({ name: 'min_fare', label: 'أقل كروة تاخذها (د.ع)', max: 6, attrs: 'inputmode="numeric"', hint: 'اختياري: إذا تريد تشتغل بأقل من التسعيرة، مثلاً 1500. تطلع على بطاقتك للزبائن.' })}
       </fieldset>
       <fieldset class="group"><legend>للإدارة فقط (ما تطلع لأي أحد)</legend>
         <p class="note">${icon('shield', 'i i-sm')}هويتك وعنوانك تنحفظ عند الإدارة بمكان خاص للأمان فقط، وما تنعرض بالموقع ولا تنطي لأي زبون.</p>
@@ -327,7 +337,7 @@ export function riderJoinPage(areas: string[]): SafeHtml {
           <label class="btn btn-pick">${icon('image')}اختار صورة الظهر<input type="file" name="id_back" accept="image/*" required aria-label="صورة الهوية الوطنية من الظهر" data-preview-into="idb-preview"></label>
           <ul class="thumbs picked" id="idb-preview" aria-live="polite"></ul></div>
       </fieldset>
-      ${checkbox({ name: 'agree', label: 'أتعهد إن المعلومات صحيحة، وأوافق إن الإدارة تحتفظ بهويتي وعنواني للأمان وتلغي تسجيلي إذا وصلت شكوى' })}
+      ${checkbox({ name: 'agree', label: 'أتعهد إن المعلومات صحيحة، وألتزم بالكروة المعتمدة (أو كروتي إذا أقل)، وأوافق إن الإدارة تحتفظ بهويتي وعنواني للأمان وتلغي تسجيلي إذا وصلت شكوى' })}
       <div class="hp" aria-hidden="true"><label for="f-website">اتركه فارغاً</label><input id="f-website" name="website" tabindex="-1" autocomplete="off"></div>
       <button class="btn btn-primary btn-lg" type="submit">${icon('check')}إرسال التسجيل</button>
     </form>
