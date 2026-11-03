@@ -375,6 +375,13 @@ begin
   insert into moderation_log (post_id, actor_id, action) values (p_id, auth.uid(), 'owner_edit');
 end $$;
 
+-- المخطط الخاص لحفظ الرموز السرية (إذا ما انشغّل تحديث النشر الفوري قبل)
+do $$ begin create extension if not exists pg_net; exception when others then raise notice 'pg_net غير متوفر: التنبيهات معطّلة'; end $$;
+create schema if not exists private;
+create table if not exists private.secrets (name text primary key, value text not null);
+revoke all on schema private from public, anon, authenticated;
+revoke all on all tables in schema private from public, anon, authenticated;
+
 -- ---------- تنبيهات تيليغرام للإدارة ----------
 -- كل إعلان جديد، تسجيل دلفري، شكوى، أو واحد وصل حد الدين: رسالة فورية لموبايلك.
 -- التفعيل (مرة وحدة، من SQL Editor): ضع رمز البوت ورقم المحادثة مالتك:
