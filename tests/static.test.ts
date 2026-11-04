@@ -204,3 +204,15 @@ test('ordering from a shop that is not a restaurant says «المحل», not «�
   const js = fs.readFileSync(path.join(out, 'static', 'js', 'static.js'), 'utf8');
   assert.ok(!js.includes("' أرسل الطلب للمطعم'"), 'no hard-coded restaurant wording in the cart');
 });
+
+test('news page is a feed: full posts with source, time, share and original link, no click needed', async () => {
+  const dir = fixture();
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'almamel-feed-'));
+  write(dir, 'n1.md', `---\nid: 601\ntype: community\ntitle: "الأمطار تعود بقوة الجمعة"\ncategory: "أخبار المنطقة"\ndate: ${today}\nsource_name: "السومرية نيوز"\nsource_url: "https://www.alsumaria.tv/news/1/"\n---\nتوقعت الأنواء عودة الأمطار.\n\nوالتفاصيل بالخبر الأصلي.\n`);
+  await buildStatic({ siteUrl: 'https://user.github.io/almamel', contentDir: dir, outDir: out, repo: 'user/almamel', quiet: true });
+  const page = fs.readFileSync(path.join(out, 'news', 'index.html'), 'utf8');
+  assert.ok(page.includes('class="feed-card" id="n601"'), 'news shown as a full card');
+  assert.ok(page.includes('<h2 class="fc-title">الأمطار تعود بقوة الجمعة</h2>') && page.includes('<p>والتفاصيل بالخبر الأصلي.</p>'), 'title and whole body inline');
+  assert.ok(page.includes('<b>السومرية نيوز</b>') && page.includes('href="https://www.alsumaria.tv/news/1/"'), 'source name and original link');
+  assert.ok(page.includes('data-share-news="/community/601"'));
+});

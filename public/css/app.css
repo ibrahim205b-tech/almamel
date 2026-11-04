@@ -965,3 +965,31 @@ body.no-scroll{overflow:hidden}
 .eng-ver{display:inline-flex;align-items:center;gap:4px;vertical-align:middle;background:#E7F6EC;color:#0E6B3A;border:1px solid #9FD9B5;border-radius:999px;padding:1px 10px;font:700 var(--t-xs)/1.5 var(--font-body)}
 .eng-ver::before{content:"✓";font-weight:900}
 .badge-gold{background:var(--gold-soft);border-color:var(--gold);color:var(--gold-ink)}
+
+/* ---------- أخبار المعامل: صفحة مثل الفيسبوك ---------- */
+.feed-wrap{max-width:720px}
+.feed-top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.feed-top .lede{margin:4px 0 0}
+.feed{display:grid;gap:18px;margin-bottom:56px}
+.feed-card{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--sh-1);overflow:hidden}
+.fc-head{display:flex;align-items:center;gap:12px;padding:16px 18px 6px}
+.fc-avatar{flex:none;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(150deg,var(--navy-3),var(--navy));color:var(--gold);font:800 22px/1 var(--font-display);overflow:hidden}
+.fc-avatar.fc-site{background:var(--navy);padding:8px}
+.fc-avatar img{width:100%;height:100%}
+.fc-who{display:grid;gap:2px;min-width:0}
+.fc-who b{color:var(--navy);font-size:var(--t-base)}
+.fc-who span{color:var(--ink-2);font-size:var(--t-xs)}
+.fc-badge{margin-inline-start:auto}
+.fc-title{font-size:var(--t-md);line-height:1.5;margin:6px 18px 8px;color:var(--navy)}
+.fc-body{margin:0 18px;max-height:9.6em;overflow:hidden;position:relative;line-height:1.75}
+.fc-body p{margin:0 0 .6em}
+.fc-body.clamped:not(.open)::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2.2em;background:linear-gradient(transparent,var(--surface))}
+.fc-body.open{max-height:none}
+.fc-body.open::after{display:none}
+.fc-more{display:block;margin:4px 18px 0;padding:6px 0;border:0;background:none;color:var(--blue);font:700 var(--t-sm) var(--font-body);cursor:pointer}
+.fc-more[hidden]{display:none}
+.fc-img{display:block;width:100%;max-height:520px;object-fit:cover;margin-top:12px;background:var(--ivory-2)}
+.fc-actions{display:flex;border-top:1px solid var(--line);margin-top:12px}
+.fc-act{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;border:0;background:none;color:var(--ink-2);font:700 var(--t-sm) var(--font-body);text-decoration:none;cursor:pointer}
+.fc-act:hover{background:var(--ivory);color:var(--navy)}
+.fc-act+.fc-act{border-inline-start:1px solid var(--line)}

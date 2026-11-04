@@ -746,6 +746,39 @@
         while (ul.children.length > 8) ul.removeChild(ul.lastElementChild);
       }).catch(function () { /* لا شيء */ });
     }
+    // أخبار المعامل: الأخبار الي انتشرت بعد آخر تحديث للموقع تطلع فوك مباشرة
+    var nfeed = document.querySelector('[data-news-feed][data-cats]');
+    if (nfeed) {
+      var ncats = JSON.parse(nfeed.getAttribute('data-cats'));
+      sbGet('public_posts?select=id,title,body,category,images,published_at,details,is_official&type=eq.community&published_at=gte.' + since + '&order=published_at.desc&limit=30').then(function (rows) {
+        var fresh = rows.filter(function (p) { return ncats.indexOf(p.category) !== -1 && !document.getElementById('n' + p.id); }).reverse();
+        fresh.forEach(function (p) {
+          var d = p.details || {}, src = p.is_official ? '' : (d.source_name || '');
+          var art = el('article', 'feed-card'); art.id = 'n' + p.id;
+          var head = el('header', 'fc-head'), av = el('span', 'fc-avatar' + (src ? '' : ' fc-site')); av.setAttribute('aria-hidden', 'true');
+          if (src) av.textContent = src.replace(/^ال/, '').charAt(0); else { var lg = el('img'); lg.src = BASE + '/static/img/logo.svg'; lg.alt = ''; av.appendChild(lg); }
+          var who = el('div', 'fc-who'); who.appendChild(el('b', '', p.is_official ? 'إدارة دليل المعامل' : src || 'من أهل المنطقة'));
+          var meta = el('span'), tm = el('time'); tm.setAttribute('datetime', p.published_at); tm.setAttribute('data-ago', ''); tm.textContent = new Date(p.published_at).toLocaleDateString('ar-IQ');
+          meta.appendChild(tm); meta.appendChild(document.createTextNode(' · ' + p.category)); who.appendChild(meta);
+          head.appendChild(av); head.appendChild(who); art.appendChild(head);
+          art.appendChild(el('h2', 'fc-title', p.title));
+          if (p.body) {
+            var body = el('div', 'fc-body prose'); body.setAttribute('data-clamp', '');
+            String(p.body).split(/\n\s*\n/).forEach(function (para) { body.appendChild(el('p', '', para)); });
+            art.appendChild(body); var mr = el('button', 'fc-more', 'عرض المزيد'); mr.type = 'button'; mr.hidden = true; art.appendChild(mr);
+          }
+          var src1 = imgUrl((p.images || [])[0]); if (src1) { var im = el('img', 'fc-img'); im.src = src1; im.alt = ''; im.loading = 'lazy'; art.appendChild(im); }
+          var foot = el('footer', 'fc-actions'), sh = el('button', 'fc-act'); sh.type = 'button'; sh.setAttribute('data-share-news', '/community/' + p.id);
+          sh.appendChild(iconEl('share', 'i i-sm')); sh.appendChild(document.createTextNode('مشاركة')); foot.appendChild(sh);
+          var go = el('a', 'fc-act'); go.appendChild(iconEl('chevron', 'i i-sm'));
+          if (d.source_url && /^https?:\/\//.test(d.source_url)) { go.href = d.source_url; go.target = '_blank'; go.rel = 'noopener nofollow'; go.appendChild(document.createTextNode('الخبر الأصلي')); }
+          else { go.href = BASE + '/p/?id=' + p.id; go.appendChild(document.createTextNode('صفحة الخبر')); }
+          foot.appendChild(go); art.appendChild(foot);
+          nfeed.insertBefore(art, nfeed.firstChild);
+        });
+        if (fresh.length) { var em = nfeed.querySelector('[data-feed-empty]'); if (em) em.remove(); if (window.almamelFeed) window.almamelFeed.prep(nfeed); }
+      }).catch(function () { /* تبقى الصفحة كما هي */ });
+    }
     // صفحة إعلان جديد (/p/?id=)
     var lp = document.querySelector('[data-live-post]');
     if (lp) {

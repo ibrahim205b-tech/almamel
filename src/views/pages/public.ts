@@ -151,6 +151,48 @@ export function listPage(d: ListPageData): SafeHtml {
   </div>`;
 }
 
+// ---------- أخبار المعامل: صفحة أخبار تتصفحها مثل الفيسبوك ----------
+export interface NewsFeedData {
+  items: ListItem[]; images: Map<number, string>; canSubmit: boolean; staticMode?: boolean; newsCats: string[];
+  page: number; pages: number; query: URLSearchParams;
+}
+/** بطاقة خبر كاملة: المصدر والوقت، العنوان، النص (يتطوى إذا طويل)، الصورة، والمشاركة والمصدر. */
+function newsCard(p: ListItem, img: string | undefined): SafeHtml {
+  const d = parseDetails(p);
+  const src = String(d.source_name || '');
+  const who = p.is_official ? 'إدارة دليل المعامل' : src || 'من أهل المنطقة';
+  const iso = new Date(Number(p.published_at ?? p.created_at) * 1000).toISOString();
+  return html`<article class="feed-card" id="n${p.id}">
+    <header class="fc-head">
+      <span class="fc-avatar${src && !p.is_official ? '' : ' fc-site'}" aria-hidden="true">${src && !p.is_official ? src.replace(/^ال/, '').charAt(0) : raw('<img src="/static/img/logo.svg" alt="">')}</span>
+      <div class="fc-who"><b>${who}</b><span><time datetime="${iso}" data-ago>${fmtDate(Number(p.published_at ?? p.created_at))}</time> · ${p.category_name}</span></div>
+      ${p.is_official ? html`<span class="badge badge-ok fc-badge">${icon('check', 'i i-xs')}مؤكد</span>` : ''}
+    </header>
+    <h2 class="fc-title">${p.title}</h2>
+    ${p.body ? html`<div class="fc-body prose" data-clamp>${paragraphs(p.body)}</div><button class="fc-more" type="button" hidden>عرض المزيد</button>` : ''}
+    ${img ? html`<img class="fc-img" src="${mediaUrl(img)}" alt="" loading="lazy" decoding="async">` : ''}
+    <footer class="fc-actions">
+      <button class="fc-act" type="button" data-share-news="/community/${p.id}">${icon('share', 'i i-sm')}مشاركة</button>
+      ${d.source_url ? html`<a class="fc-act" href="${String(d.source_url)}" target="_blank" rel="noopener nofollow">${icon('chevron', 'i i-sm')}الخبر الأصلي</a>` : html`<a class="fc-act" href="/community/${p.id}">${icon('chevron', 'i i-sm')}صفحة الخبر</a>`}
+    </footer>
+  </article>`;
+}
+
+export function newsFeedPage(d: NewsFeedData): SafeHtml {
+  return html`<div class="wrap feed-wrap">
+    <nav class="crumbs" aria-label="مسار التنقل"><a href="/">الرئيسية</a><span aria-hidden="true">/</span><span aria-current="page">أخبار المعامل</span></nav>
+    <div class="feed-top">
+      <div><h1>أخبار المعامل</h1><p class="lede">آخر أخبار المنطقة وخدمات بغداد. الخبر المنقول يحمل اسم مصدره ورابطه الأصلي.</p></div>
+      ${d.canSubmit ? html`<a class="btn btn-primary" href="/submit/community">${icon('plus')}أضف خبر</a>` : ''}
+    </div>
+    <div class="feed" data-news-feed ${d.staticMode ? raw(`data-cats="${escAttr(JSON.stringify(d.newsCats))}"`) : ''}>
+      ${d.items.map((p) => newsCard(p, d.images.get(p.id)))}
+      ${d.items.length ? '' : html`<div class="empty" data-feed-empty><p class="empty-title">ما كو أخبار بعد</p><p>أول ما ينتشر خبر عن المنطقة يطلع هنا.</p></div>`}
+    </div>
+    ${d.staticMode ? '' : pagination(d.page, d.pages, d.query, '/news')}
+  </div>`;
+}
+
 /** بيانات الأقسام للمتصفح: المسار والاسم والأيقونة (للإعلانات الجديدة اللي تنجلب مباشرة). */
 export const typesJson = (): string => JSON.stringify(Object.fromEntries(TYPE_KEYS.map((t) => [t, { p: TYPES[t].path, l: TYPES[t].label, s: TYPES[t].single, i: TYPES[t].icon }])));
 

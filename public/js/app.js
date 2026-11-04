@@ -32,6 +32,42 @@
     });
   }
 
+  // ---------- أخبار المعامل (مثل الفيسبوك) ----------
+  var AR = function (n) { return String(n).replace(/\d/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'[d]; }); };
+  function ago(iso) {
+    var m = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    if (m < 60) return 'قبل ' + AR(m) + ' دقيقة';
+    var h = Math.round(m / 60); if (h < 24) return 'قبل ' + AR(h) + ' ساعة';
+    var d = Math.round(h / 24); if (d < 30) return d === 1 ? 'أمس' : 'قبل ' + AR(d) + ' يوم';
+    return null;
+  }
+  function feedPrep(root) {
+    Array.prototype.forEach.call(root.querySelectorAll('time[data-ago]'), function (t) { var a = ago(t.getAttribute('datetime')); if (a) t.textContent = a; });
+    Array.prototype.forEach.call(root.querySelectorAll('[data-clamp]'), function (b) {
+      var more = b.nextElementSibling; if (!more || !more.classList.contains('fc-more')) return;
+      var long = b.scrollHeight > b.clientHeight + 4; more.hidden = !long; b.classList.toggle('clamped', long);
+    });
+  }
+  window.almamelFeed = { prep: feedPrep };
+  var feed = document.querySelector('[data-news-feed]');
+  if (feed) {
+    feedPrep(feed);
+    feed.addEventListener('click', function (e) {
+      var more = e.target.closest('.fc-more');
+      if (more) { var b = more.previousElementSibling; var open = b.classList.toggle('open'); more.textContent = open ? 'عرض أقل' : 'عرض المزيد'; return; }
+      var sh = e.target.closest('[data-share-news]');
+      if (sh) {
+        var url = location.origin + (document.documentElement.getAttribute('data-base') || '') + sh.getAttribute('data-share-news') + '/';
+        var title = (sh.closest('.feed-card').querySelector('.fc-title') || {}).textContent || document.title;
+        if (navigator.share) { navigator.share({ title: title, url: url }).catch(function () {}); return; }
+        var label = sh.lastChild, old = label.textContent;
+        var done = function () { label.textContent = 'تم نسخ الرابط'; setTimeout(function () { label.textContent = old; }, 2000); };
+        if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, function () { window.open('https://wa.me/?text=' + encodeURIComponent(url), '_blank', 'noopener'); });
+        else window.open('https://wa.me/?text=' + encodeURIComponent(url), '_blank', 'noopener');
+      }
+    });
+  }
+
   // نقل التركيز إلى ملخص الأخطاء حتى يسمعه قارئ الشاشة
   var errors = document.getElementById('form-errors');
   if (errors) errors.focus();

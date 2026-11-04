@@ -8,7 +8,7 @@ import { canPreview, getPostView, isPostOwner, listFeatured, listPublic, NEWS_CA
 import { addClaim, addReport, addReview, EngagementError, publicReviews, reviewSummary } from '../domain/engagement.ts';
 import { POLICIES, sectionEnabled } from '../domain/settings.ts';
 import { availableActions, ACTIONS } from '../domain/workflow.ts';
-import { aboutPage, contactPage, detailPage, homePage, listPage, policyPage, searchPage } from '../views/pages/public.ts';
+import { aboutPage, contactPage, detailPage, homePage, listPage, policyPage, searchPage, newsFeedPage } from '../views/pages/public.ts';
 import { select } from '../views/components.ts';
 import { icon } from '../views/layout.ts';
 import { csrfInput } from './form.ts';
@@ -131,9 +131,12 @@ export async function publicRoutes(app: FastifyInstance) {
     const result = listPublic(db, lq, fts);
     const cats = db.prepare(`SELECT id, name FROM categories WHERE section = 'community' AND active = 1 AND name IN (${NEWS_CATEGORIES.map(() => '?').join(',')}) ORDER BY sort`)
       .all(...NEWS_CATEGORIES).map((r) => [(r as { id: number }).id, (r as { name: string }).name] as [number, string]);
-    return reply.page(req, { title: 'أخبار المعامل', description: 'آخر أخبار منطقة المعامل في قضاء الزوراء ببغداد: الخدمات والمشاريع والتنبيهات، مع رابط كل خبر لمصدره.' }, listPage({
-      title: 'أخبار المعامل', intro: 'آخر ما يُنشر عن منطقة المعامل (قضاء الزوراء): الخدمات والمشاريع والتنبيهات. كل خبر منقول يحمل رابط مصدره الأصلي.', path: '/news', type: 'community',
-      result, query: params, featured: [], categories: cats, areas: areas(), extra: html``, canSubmit: sectionEnabled(req.settings, 'community'), submitType: 'community', staticMode: app.cfg.staticMode,
+    void cats;
+    const img = db.prepare('SELECT file FROM post_images WHERE post_id = ? ORDER BY sort, id LIMIT 1').pluck();
+    const images = new Map(result.items.map((p) => [p.id, img.get(p.id) as string | undefined]).filter((x): x is [number, string] => !!x[1]));
+    return reply.page(req, { title: 'أخبار المعامل', description: 'آخر أخبار منطقة المعامل في قضاء الزوراء ببغداد: الخدمات والمشاريع والتنبيهات، مع رابط كل خبر لمصدره.' }, newsFeedPage({
+      items: result.items, images, canSubmit: sectionEnabled(req.settings, 'community'), staticMode: app.cfg.staticMode, newsCats: NEWS_CATEGORIES,
+      page: result.page, pages: result.pages, query: params,
     }));
   });
 
