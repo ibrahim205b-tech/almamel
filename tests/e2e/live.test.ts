@@ -36,6 +36,8 @@ const published = [
     published_at: new Date().toISOString(), expires_at: null, updated_at: new Date().toISOString() },
   { id: 1000002, type: 'job', title: 'وظيفة بتصنيف خاطئ', body: '', category: 'غير موجود', area: 'المعامل', price: null, contact_phone: null, show_phone: false, whatsapp: false,
     details: {}, images: [], business_id: null, open_state: 'unknown', verified: false, is_official: false, published_at: new Date().toISOString(), expires_at: null, updated_at: new Date().toISOString() },
+  { id: 1000003, type: 'community', title: 'خبر محلي جديد', body: 'نص الخبر', category: 'أخبار المنطقة', area: 'المعامل', price: null, contact_phone: null, show_phone: false, whatsapp: false,
+    details: { source_name: 'السومرية', source_url: 'https://example.com/n' }, images: [], business_id: null, open_state: 'unknown', verified: false, is_official: false, published_at: new Date().toISOString(), expires_at: null, updated_at: new Date().toISOString() },
 ];
 
 const riders = [
@@ -77,7 +79,9 @@ function mock(req: http.IncomingMessage, res: http.ServerResponse, body: Buffer)
   if (p === '/rest/v1/riders' && req.method === 'GET') return send(200, auth.includes(ADMIN) ? riders : []);
   if (p === '/rest/v1/public_posts') {
     const eq = (k: string) => u.searchParams.get(k);
-    const rows = published.filter((r) => (!eq('type') || (eq('type')!.startsWith('eq.') ? r.type === eq('type')!.slice(3) : r.type !== eq('type')!.slice(4)))
+    const typeOk = (t: string) => { const f = eq('type'); if (!f) return true; if (f.startsWith('eq.')) return t === f.slice(3); if (f.startsWith('neq.')) return t !== f.slice(4);
+      const m = f.match(/^not\.in\.\((.*)\)$/); return m ? !m[1].split(',').includes(t) : true; };
+    const rows = published.filter((r) => typeOk(r.type)
       && (!eq('id') || String(r.id) === eq('id')!.slice(3)));
     return send(200, rows);
   }
@@ -321,6 +325,9 @@ test('a listing approved after the last build shows up at once on its section an
   assert.ok((await page.textContent('[data-post-box] .facts'))!.includes('الوظائف'));
   const home = await open('/');
   await home.waitForSelector('[data-live-latest] .row-link:has-text("وظيفة بتصنيف خاطئ")');
+  // الخبر يطلع بقسم الأخبار، مو ويا أحدث الإعلانات
+  await home.waitForSelector('[data-live-news] .row-link:has-text("خبر محلي جديد")');
+  assert.equal(await home.locator('[data-live-latest] .row-link:has-text("خبر محلي جديد")').count(), 0, 'news is not an ad');
   await page.context().close(); await home.context().close();
 });
 
@@ -844,4 +851,33 @@ test('admin reviews and approves a pending ad', async () => {
   const rpc = log.filter((r) => r.path === '/rest/v1/rpc/moderate_post').at(-1)!;
   assert.deepEqual(JSON.parse(rpc.body.toString()), { p_id: 1000009, p_action: 'approve', p_reason: null });
   await p.context().close();
+});
+
+test('every public page: no script errors, no broken internal links, nothing wider than a phone screen', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, locale: 'ar-IQ' });
+  const page = await ctx.newPage();
+  const problems: string[] = [];
+  let at = '';
+  page.on('pageerror', (e) => problems.push(at + ' pageerror: ' + e.message));
+  page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) problems.push(at + ' console: ' + m.text()); });
+  const seen = new Set<string>(), queue = ['/almamel/'];
+  while (queue.length && seen.size < 150) {
+    const u = queue.shift()!;
+    if (seen.has(u)) continue; seen.add(u); at = u;
+    const res = await page.goto(siteUrl + u);
+    if (!res || res.status() >= 400) { problems.push(u + ' HTTP ' + res?.status()); continue; }
+    await page.waitForTimeout(150);
+    const wide = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    if (wide > 1) problems.push(u + ' overflows the phone screen by ' + wide + 'px');
+    for (const href of await page.$$eval('a[href]', (as) => as.map((a) => (a as HTMLAnchorElement).href))) {
+      const l = new URL(href);
+      if (l.origin !== new URL(siteUrl).origin || !l.pathname.startsWith('/almamel/')) continue;
+      if (/\.(webp|png|jpg|svg|xml|txt|json|webmanifest)$/.test(l.pathname) || /^\/almamel\/(static|mat3am|idara|tasjeel)\//.test(l.pathname)) continue; // المواقع الجانبية تنبني لوحدها
+      const k = l.pathname + l.search;
+      if (!seen.has(k) && !queue.includes(k)) queue.push(k);
+    }
+  }
+  await ctx.close();
+  assert.ok(seen.size > 20, 'crawled ' + seen.size);
+  assert.deepEqual(problems, []);
 });

@@ -732,4 +732,13 @@ select public.push_unsubscribe('https://fcm.googleapis.com/fcm/send/abc');
 reset role;
 do $$ begin if exists (select 1 from push_subscriptions) then raise exception 'unsubscribe'; end if; end $$;
 
+-- الإدارة (والأخبار من البوت) ما عليها رسوم ولا حد يومي
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+insert into posts (type, title, category, contact_phone) select 'community', 'خبر إداري ' || g, 'أخبار المنطقة', null from generate_series(1, 17) g;
+reset role;
+do $$ begin
+  if (select count(*) from posts where title like 'خبر إداري %') <> 17 then raise exception 'staff hit the daily limit'; end if;
+  if exists (select 1 from posts where title like 'خبر إداري %' and fee_due > 0) then raise exception 'staff charged ad fees'; end if;
+end $$;
+
 select 'ALL RLS TESTS PASSED';

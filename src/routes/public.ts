@@ -51,6 +51,7 @@ export async function publicRoutes(app: FastifyInstance) {
     const pick = (types: PostType[], extra: Partial<ListQuery> = {}, n = 4) => listPublic(db, { types, perPage: n, ...extra }).items;
     const counts: Record<string, number> = {};
     for (const r of db.prepare(`SELECT p.type, count(*) AS n FROM posts p WHERE ${PUBLIC_WHERE} GROUP BY p.type`).all() as { type: string; n: number }[]) counts[r.type] = r.n;
+    counts.news = db.prepare(`SELECT count(*) FROM posts p JOIN categories c ON c.id = p.category_id WHERE ${PUBLIC_WHERE} AND p.type = 'community' AND c.name IN (${NEWS_CATEGORIES.map(() => '?').join(',')})`).pluck().get(...NEWS_CATEGORIES) as number;
     counts.food = db.prepare(`SELECT count(*) FROM posts p JOIN categories c ON c.id = p.category_id WHERE ${PUBLIC_WHERE} AND p.type = 'business' AND c.is_food = 1`).pluck().get() as number;
     const s = req.settings;
     // ما يظهر بنتائج البحث: الاسم، والكلمات اللي يبحث بيها الناس، وبيانات الموقع (اسم الموقع ومربع البحث)
@@ -63,7 +64,7 @@ export async function publicRoutes(app: FastifyInstance) {
     return reply.page(req, { title: `${s.site_name} | مطاعم ومحلات ووظائف وخدمات المعامل - بغداد`, canonical: '/',
       description: `${s.site_name}: دليل منطقة المعامل (قضاء الزوراء) في بغداد. مطاعم وقوائم طعام واطلب لباب البيت، محلات وأسواق، وظائف، خدمات ومهن، عقارات، بيع وشراء، وأخبار المنطقة.`,
       head: raw(`<script type="application/ld+json">${site}</script>`) }, homePage({
-      counts, featured: listFeatured(db, 'home'), latest: pick(TYPE_KEYS.filter((t) => t !== 'business'), {}, 8), offers: pick(['offer']), jobs: pick(['job']),
+      counts, featured: listFeatured(db, 'home'), latest: pick(TYPE_KEYS.filter((t) => t !== 'business' && t !== 'community'), {}, 8), offers: pick(['offer']), jobs: pick(['job']),
       properties: pick(['property']), food: pick(['business'], { foodOnly: true }, 11), shops: pick(['business'], { shopsOnly: true }, 11), services: pick(['service']), market: pick(['market']),
       community: pick(['community']), help: pick(['help'], {}, 3), news: pick(['community'], { newsOnly: true }),
       // النسخة الثابتة: إضافة المحلات عن طريق خدمة العملاء على واتساب فقط

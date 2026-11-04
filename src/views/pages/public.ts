@@ -3,11 +3,11 @@ import { html, paragraphs, raw, jsonScript, type SafeHtml } from '../../lib/html
 import { fmtDate, fmtNumber, fmtPrice } from '../../lib/format.ts';
 import { telLink, waLink } from '../../lib/arabic.ts';
 import { TYPES, TYPE_KEYS, type PostType, type User } from '../../domain/types.ts';
-import { parseDetails, type ImageRow, type ItemRow, type ListItem } from '../../domain/posts.ts';
+import { NEWS_CATEGORIES, parseDetails, type ImageRow, type ItemRow, type ListItem } from '../../domain/posts.ts';
 import { REPORT_REASONS } from '../../domain/engagement.ts';
 import { OWNERSHIP_STATEMENT, type Settings } from '../../domain/settings.ts';
 import { icon, sectionLinks, sectionTitle } from '../layout.ts';
-import { EMPLOYMENT, OPEN_STATE, emptyState, mediaUrl, pagination, postUrl, rowList, select, stars, statusBadge } from '../components.ts';
+import { EMPLOYMENT, OPEN_STATE, emptyState, listRow, mediaUrl, pagination, postUrl, rowList, select, stars, statusBadge } from '../components.ts';
 
 type Opt = [string | number, string][];
 
@@ -59,7 +59,7 @@ function showcase(kind: 'food' | 'shops', items: ListItem[], addShop: string): S
 }
 
 export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml {
-  const count = (href: string) => href === '/restaurants' ? d.counts.food : href === '/news' ? d.news.length : d.counts[TYPE_KEYS.find((t) => TYPES[t].path === href) ?? ''];
+  const count = (href: string) => href === '/restaurants' ? d.counts.food : href === '/news' ? d.counts.news : d.counts[TYPE_KEYS.find((t) => TYPES[t].path === href) ?? ''];
   return html`
   <section class="hero">
     <div class="hero-bg" aria-hidden="true"><span class="hero-grid"></span><span class="orb orb-1"></span><span class="orb orb-2"></span></div>
@@ -70,7 +70,7 @@ export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml 
       ${searchBox('', '', true)}
       <dl class="hero-stats">
         <div><dt>مطعم ومحل أكل</dt><dd data-count-up>${fmtNumber(d.counts.food ?? 0)}</dd></div>
-        <div><dt>إعلان منشور</dt><dd data-count-up>${fmtNumber(TYPE_KEYS.reduce((n, t) => n + (d.counts[t] ?? 0), 0))}</dd></div>
+        <div><dt>إعلان منشور</dt><dd data-count-up>${fmtNumber(TYPE_KEYS.filter((t) => t !== 'business' && t !== 'community').reduce((n, t) => n + (d.counts[t] ?? 0), 0))}</dd></div>
         <div><dt>قسم في الدليل</dt><dd data-count-up>${fmtNumber(sectionLinks(!!d.delivery).length)}</dd></div>
       </dl>
     </div>
@@ -93,7 +93,7 @@ export function homePage(d: HomeData, s: Settings, user: User | null): SafeHtml 
       ${rowList(d.latest.filter((p) => !d.featured.some((f) => f.id === p.id)).slice(0, 6), emptyState('ما كو إعلانات هنا بعد', 'أول ما توافق الإدارة على إعلانات جديدة راح تظهر هنا.'))}
     </section>
 
-    ${d.news.length ? html`<section class="block" aria-labelledby="h-news">${sectionTitle('آخر أخبار المعامل', '/news', 'كل الأخبار', 'h-news')}${rowList(d.news, html``)}</section>` : ''}
+    <section class="block" aria-labelledby="h-news" data-live-news data-cats="${JSON.stringify(NEWS_CATEGORIES)}" data-types="${typesJson()}"${d.news.length ? '' : raw(' hidden')}>${sectionTitle('آخر أخبار المعامل', '/news', 'كل الأخبار', 'h-news')}<ul class="rows">${d.news.map(listRow)}</ul></section>
 
     <section class="cta" aria-labelledby="h-cta">
       <div>

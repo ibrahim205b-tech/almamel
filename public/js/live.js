@@ -562,13 +562,13 @@
         });
         card.appendChild(el('div', { class: 'owner-block' }, [el('h4', { text: 'شعار المحل' }), logoRow]));
 
-        // التمييز المدفوع: أول الصفحة الرئيسية وأول قسم المطاعم
+        // التمييز المدفوع: أول الصفحة الرئيسية وأول قسم المحل
         var featured = b.featured_until && new Date(b.featured_until) > new Date();
         var fx = [el('h4', { text: 'التمييز' })];
         if (featured) fx.push(el('p', {}, [el('span', { class: 'badge badge-ok', text: 'مميز' }), ' حتى ' + dayText(b.featured_until)]));
         fx.push(el('p', { class: 'muted', text: 'محلك يظهر بأول الصفحة الرئيسية وأول قسمه لمدة ' + FEATURE_DAYS + ' أيام بـ ' + nf.format(FEE) + ' د.ع.' }));
         var wa = waTo('أريد تمييز «' + b.title + '» لمدة ' + FEATURE_DAYS + ' أيام بـ ' + nf.format(FEE) + ' د.ع. (رقم المحل في الدليل: ' + b.id + ')');
-        if (wa) fx.push(el('a', { class: 'btn btn-sign', href: wa, target: '_blank', rel: 'noopener', text: featured ? 'تمديد التمييز ' + FEATURE_DAYS + ' أيام' : 'ميّز مطعمك ' + FEATURE_DAYS + ' أيام' }));
+        if (wa) fx.push(el('a', { class: 'btn btn-sign', href: wa, target: '_blank', rel: 'noopener', text: featured ? 'تمديد التمييز ' + FEATURE_DAYS + ' أيام' : 'ميّز محلك ' + FEATURE_DAYS + ' أيام' }));
         card.appendChild(el('div', { class: 'owner-block' }, fx));
       }
       list.appendChild(card);

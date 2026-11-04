@@ -737,13 +737,26 @@
     var latest = document.querySelector('[data-live-latest]');
     if (latest) {
       var types2 = JSON.parse(latest.getAttribute('data-types'));
-      sbGet('public_posts?select=' + FIELDS + '&type=neq.business&published_at=gte.' + since + '&order=published_at.desc&limit=12').then(function (rows) {
+      sbGet('public_posts?select=' + FIELDS + '&type=not.in.(business,community)&published_at=gte.' + since + '&order=published_at.desc&limit=12').then(function (rows) {
         var have = shownIds(), fresh = rows.filter(function (p) { return !have[p.id]; }).slice(0, 6);
         if (!fresh.length) return;
         var ul = latest.querySelector('ul.rows');
         if (!ul) { ul = el('ul', 'rows'); var emp = latest.querySelector('.empty'); if (emp) emp.replaceWith(ul); else latest.appendChild(ul); }
         fresh.reverse().forEach(function (p) { ul.insertBefore(liveRow(p, types2), ul.firstChild); });
         while (ul.children.length > 8) ul.removeChild(ul.lastElementChild);
+      }).catch(function () { /* لا شيء */ });
+    }
+    // الصفحة الرئيسية: آخر أخبار المعامل (الأخبار بقسمها، مو ويا الإعلانات)
+    var hnews = document.querySelector('[data-live-news]');
+    if (hnews) {
+      var hcats = JSON.parse(hnews.getAttribute('data-cats')), types4 = JSON.parse(hnews.getAttribute('data-types'));
+      sbGet('public_posts?select=' + FIELDS + '&type=eq.community&published_at=gte.' + since + '&order=published_at.desc&limit=12').then(function (rows) {
+        var have = shownIds(), fresh = rows.filter(function (p) { return hcats.indexOf(p.category) !== -1 && !have[p.id]; }).slice(0, 4);
+        if (!fresh.length) return;
+        var ul = hnews.querySelector('ul.rows');
+        fresh.reverse().forEach(function (p) { ul.insertBefore(liveRow(p, types4), ul.firstChild); });
+        while (ul.children.length > 4) ul.removeChild(ul.lastElementChild);
+        hnews.hidden = false;
       }).catch(function () { /* لا شيء */ });
     }
     // أخبار المعامل: الأخبار الي انتشرت بعد آخر تحديث للموقع تطلع فوك مباشرة

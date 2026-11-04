@@ -173,7 +173,8 @@ begin
   new.client_ip := public.request_ip();
   if new.edit_hash is not null and new.edit_hash !~ '^[0-9a-f]{64}$' then new.edit_hash := null; end if;
   new.fee_due := 0;
-  if new.type <> 'business' then
+  -- الإدارة (والأخبار الي توافق عليها من البوت) ما عليها رسوم ولا حد يومي
+  if new.type <> 'business' and not public.is_staff() then
     if public.ad_debt(uid, new.contact_phone, new.client_ip) >= public.ad_debt_limit() then
       raise exception 'عليك % د.ع رسوم إعلانات سابقة. سدّدها للإدارة على الواتساب وبعدها تكدر تنشر.', to_char(public.ad_debt(uid, new.contact_phone, new.client_ip), 'FM999,999');
     end if;
@@ -189,7 +190,7 @@ begin
       raise exception 'وصلت إعلانات كثيرة الآن. حاول بعد ساعة.'; end if;
   else
     new.guest_name := null;
-    if (select count(*) from posts where author_id = uid and created_at > now() - interval '1 day') >= 15 then
+    if not public.is_staff() and (select count(*) from posts where author_id = uid and created_at > now() - interval '1 day') >= 15 then
       raise exception 'وصلت للحد اليومي للمنشورات.'; end if;
   end if;
   foreach p in array new.images loop
