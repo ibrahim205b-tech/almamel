@@ -233,6 +233,7 @@ test('customer orders in-site with phone, landmark and GPS location, then tracks
   await page.locator('.add-btn[data-name="تكة لحم"]').click();
   await page.locator('.add-btn[data-name="تكة لحم"]').click();
   await page.locator('.cart-bar').click();
+  assert.ok((await page.textContent('.cart-order'))!.includes('أرسل الطلب للمطعم'), 'restaurant wording for a restaurant');
   await page.locator('.cart-order').click();
   await page.waitForSelector('.cart-err:has-text("رقم هاتفك")');
   await page.fill('[aria-label="رقم هاتفك"]', '٠٧٧٠١٢٣٤٥٦٧');
@@ -249,7 +250,7 @@ test('customer orders in-site with phone, landmark and GPS location, then tracks
   assert.equal(body.p_landmark, 'قرب جامع الرحمن');
   assert.equal(body.p_lat, 33.41); assert.equal(body.p_lng, 44.32);
   assert.ok(!('p_total' in body), 'price is computed by the server, not sent by the browser');
-  await page.waitForSelector('[data-order-box] h2:has-text("بانتظار رد المطعم")');
+  await page.waitForSelector('[data-order-box] h2:has-text("بانتظار رد صاحب المحل")');
   assert.ok((await page.textContent('[data-order-box]'))!.includes('تكة لحم'));
   await shot(page, 'order-status');
   await ctx.close();
@@ -260,7 +261,7 @@ test('restaurant site: login, start receiving, see the new order with phone and 
   await p.fill('#f-email', 'owner@x.iq'); await p.fill('#f-password', 'owner-pass-1234');
   await p.click('[data-login] button[type=submit]');
   await p.waitForURL(/\/almamel-mat3am\/owner\/dashboard\//);
-  await p.click('.site-header a:has-text("طلبات المطعم")');
+  await p.click('.site-header a:has-text("الطلبات")');
   await p.waitForURL(/\/almamel-mat3am\/kitchen\//);
   await p.waitForSelector('[data-list="new"] .order-new');
   const card = (await p.textContent('[data-list="new"]'))!;

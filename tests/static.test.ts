@@ -191,3 +191,16 @@ test('engineers file: bad entries skipped, phone normalised, WhatsApp only with 
   assert.equal(list[1].phone, null); assert.equal(engineerWhatsApp(list[1]), null);
   assert.deepEqual(loadEngineers(f + '.missing'), []);
 });
+
+test('ordering from a shop that is not a restaurant says «المحل», not «المطعم»', async () => {
+  const dir = fixture();
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'almamel-shopkind-'));
+  write(dir, 'ph.md', `---\nid: 88\ntype: business\ntitle: "صيدلية الاختبار"\ncategory: "صيدليات"\ndate: ${today}\nphone: "07701234567"\nwhatsapp: true\naddress: "الشارع العام"\nmenu:\n  - "فيتامين سي | 6000"\n---\nصيدلية\n`);
+  write(dir, 'fd.md', `---\nid: 89\ntype: business\ntitle: "مطعم الاختبار"\ncategory: "مطاعم"\ndate: ${today}\nphone: "07701234568"\nwhatsapp: true\naddress: "الشارع العام"\nmenu:\n  - "تكة | 6000"\n---\nمطعم\n`);
+  await buildStatic({ siteUrl: 'https://user.github.io/almamel', contentDir: dir, outDir: out, repo: 'user/almamel', quiet: true });
+  const shop = fs.readFileSync(path.join(out, 'businesses', '88', 'index.html'), 'utf8');
+  const food = fs.readFileSync(path.join(out, 'businesses', '89', 'index.html'), 'utf8');
+  assert.ok(shop.includes('data-kind="shop"') && food.includes('data-kind="food"'));
+  const js = fs.readFileSync(path.join(out, 'static', 'js', 'static.js'), 'utf8');
+  assert.ok(!js.includes("' أرسل الطلب للمطعم'"), 'no hard-coded restaurant wording in the cart');
+});

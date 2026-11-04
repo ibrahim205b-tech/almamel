@@ -381,8 +381,8 @@
       }
       await sb.auth.signOut();
       if (KITCHEN_SITE) {
-        var w = waTo('سويت حساب لمطعمي بموقع الطلبات. البريد: ' + f.su_email.value.trim() + '\nاسم المطعم: ');
-        say('تم إنشاء الحساب ✅ أرسل بريدك (' + f.su_email.value.trim() + ') لخدمة العملاء حتى نربطه بمطعمك، وبعدها سجّل الدخول.', 'ok');
+        var w = waTo('سويت حساب لمحلي بدليل المعامل. البريد: ' + f.su_email.value.trim() + '\nاسم المحل: ');
+        say('تم إنشاء الحساب ✅ أرسل بريدك (' + f.su_email.value.trim() + ') لخدمة العملاء حتى نربطه بمحلك، وبعدها سجّل الدخول.', 'ok');
         if (w) $('[data-msg]').appendChild(el('a', { class: 'btn btn-wa btn-sm', href: w, target: '_blank', rel: 'noopener', text: ' أرسل لخدمة العملاء' }));
         return;
       }
@@ -566,7 +566,7 @@
         var featured = b.featured_until && new Date(b.featured_until) > new Date();
         var fx = [el('h4', { text: 'التمييز' })];
         if (featured) fx.push(el('p', {}, [el('span', { class: 'badge badge-ok', text: 'مميز' }), ' حتى ' + dayText(b.featured_until)]));
-        fx.push(el('p', { class: 'muted', text: 'مطعمك يظهر بأول الصفحة الرئيسية وأول قسم المطاعم لمدة ' + FEATURE_DAYS + ' أيام بـ ' + nf.format(FEE) + ' د.ع.' }));
+        fx.push(el('p', { class: 'muted', text: 'محلك يظهر بأول الصفحة الرئيسية وأول قسمه لمدة ' + FEATURE_DAYS + ' أيام بـ ' + nf.format(FEE) + ' د.ع.' }));
         var wa = waTo('أريد تمييز «' + b.title + '» لمدة ' + FEATURE_DAYS + ' أيام بـ ' + nf.format(FEE) + ' د.ع. (رقم المحل في الدليل: ' + b.id + ')');
         if (wa) fx.push(el('a', { class: 'btn btn-sign', href: wa, target: '_blank', rel: 'noopener', text: featured ? 'تمديد التمييز ' + FEATURE_DAYS + ' أيام' : 'ميّز مطعمك ' + FEATURE_DAYS + ' أيام' }));
         card.appendChild(el('div', { class: 'owner-block' }, fx));
@@ -739,8 +739,8 @@
     var shops = (mine.data || []).filter(function (b) { return b.status === 'published'; });
     var isAdmin = p && p.role === 'admin';
     if (!shops.length && !isAdmin) {
-      say('حسابك مو مربوط بأي مطعم بعد. راسل خدمة العملاء وأرسل بريدك حتى نربطه بمطعمك.', 'error');
-      var w = waTo('أريد ربط حسابي بمطعمي في موقع الطلبات. البريد: ' + (s.user.email || ''));
+      say('حسابك مو مربوط بأي محل بعد. راسل خدمة العملاء وأرسل بريدك حتى نربطه بمحلك.', 'error');
+      var w = waTo('أريد ربط حسابي بمحلي في دليل المعامل. البريد: ' + (s.user.email || ''));
       if (w) $('[data-msg]').appendChild(el('a', { class: 'btn btn-wa btn-sm', href: w, target: '_blank', rel: 'noopener', text: ' راسل خدمة العملاء' }));
       $$('section, details').forEach(function (x) { x.hidden = true; });
       return;
@@ -788,7 +788,7 @@
     function ago(t) { var m = Math.round((Date.now() - new Date(t).getTime()) / 60000); return m < 1 ? 'هسه' : m < 60 ? 'قبل ' + m + ' دقيقة' : 'قبل ' + Math.round(m / 60) + ' ساعة'; }
     async function decide(o, status) {
       var reason = null, eta = null;
-      if (status === 'rejected') { reason = prompt('سبب الرفض (يشوفه الزبون):', 'المطعم مشغول حالياً'); if (!reason || reason.trim().length < 2) return; }
+      if (status === 'rejected') { reason = prompt('سبب الرفض (يشوفه الزبون):', 'مشغولين حالياً'); if (!reason || reason.trim().length < 2) return; }
       if (status === 'accepted') { eta = Number(o._eta || 30); }
       var r = await sb.rpc('decide_order', { p_id: o.id, p_status: status, p_reason: reason, p_eta: eta });
       if (r.error) return say(errText(r.error), 'error');
@@ -835,7 +835,7 @@
         if (!groups[k].length) ul.appendChild(el('li', { class: 'muted', text: k === 'new' ? 'ماكو طلبات جديدة.' : 'ماكو.' }));
         $('[data-n="' + k + '"]').textContent = nf.format(groups[k].length);
       });
-      document.title = (groups.new.length ? '(' + groups.new.length + ') ' : '') + 'طلبات المطعم';
+      document.title = (groups.new.length ? '(' + groups.new.length + ') ' : '') + 'الطلبات';
       return groups.new.length;
     }
     var etaMemo = {};
@@ -1001,12 +1001,12 @@
                   } })])]));
               box.scrollIntoView({ block: 'nearest' });
             } }) : null,
-            IS_ADMIN && x.type === 'business' ? el('button', { class: 'btn btn-sm', type: 'button', text: x.owner_id ? 'تغيير حساب المطعم' : 'ربط حساب المطعم', onclick: async function () {
-              var email = prompt('بريد حساب صاحب المطعم (يسويه من موقع المطعم /mat3am):');
+            IS_ADMIN && x.type === 'business' ? el('button', { class: 'btn btn-sm', type: 'button', text: x.owner_id ? 'تغيير حساب صاحب المحل' : 'ربط حساب صاحب المحل', onclick: async function () {
+              var email = prompt('بريد حساب صاحب المحل (يسويه من /mat3am):');
               if (!email || email.indexOf('@') < 1) return;
               var r = await sb.rpc('assign_owner', { p_business: x.id, p_email: email.trim() });
               if (r.error) return say(errText(r.error), 'error');
-              say('تم ربط الحساب بـ «' + x.title + '». صاحب المطعم يكدر يستلم الطلبات هسه.', 'ok'); load();
+              say('تم ربط الحساب بـ «' + x.title + '». صاحب المحل يكدر يستلم الطلبات هسه.', 'ok'); load();
             } }) : null,
             el('button', { class: 'btn btn-sm', type: 'button', text: 'إخفاء', onclick: function () { act(x.id, 'hide', true); } }),
             el('button', { class: 'btn btn-sm btn-danger', type: 'button', text: 'حذف', onclick: function () { act(x.id, 'remove', true); } }),

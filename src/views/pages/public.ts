@@ -351,7 +351,7 @@ function menuSection(x: DetailData, phone: string | null): SafeHtml {
     : cart ? html`<button class="add-btn" type="button" data-add data-name="${it.name}" data-price="${it.price ?? ''}" aria-label="أضف ${it.name} إلى السلة">+</button>`
     : html`<a class="btn btn-sm btn-wa" href="${waLink(phone!)}?text=${encodeURIComponent(`مرحبا، أريد أطلب: ${it.name}${it.price !== null ? ` (${fmtPrice(it.price)})` : ''} — من دليل المعامل`)}" target="_blank" rel="noopener" aria-label="اطلب ${it.name} عبر واتساب">${icon('whatsapp', 'i i-sm')}اطلب</a>`;
   const cartAttrs = cart
-    ? raw(` data-cart data-wa="${waLink(phone!)}" data-shop="${escAttr(x.post.title)}" data-shop-id="${x.post.id}"`) : raw('');
+    ? raw(` data-cart data-wa="${waLink(phone!)}" data-shop="${escAttr(x.post.title)}" data-shop-id="${x.post.id}" data-kind="${food ? 'food' : 'shop'}"`) : raw('');
   const showHeads = sections.length > 1 || sections[0][0] !== (food ? 'الأصناف' : 'المنتجات');
   return html`<section class="menu-block" aria-labelledby="h-menu" data-menu${cartAttrs}>
     <h2 id="h-menu">${itemsLabel(x.post.category_name, food)} <span class="menu-total">${fmtNumber(x.items.length)} صنف</span></h2>

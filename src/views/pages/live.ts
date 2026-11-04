@@ -224,7 +224,7 @@ export function adminLivePage(): SafeHtml {
     <section id="expiring" class="block"><h2>إعلانات تنتهي خلال ٣ أيام</h2><p class="muted">ذكّر صاحبها بالواتساب. التجديد يحسب ${'1,000'} د.ع مثل إعلان جديد.</p><div data-expiring></div></section>
     <section id="published" class="block"><h2>المنشور حالياً</h2><div data-published></div></section>
     <section id="commission" class="block" data-admin-only><h2>نسبة الطلبات (٥٪)</h2>
-      <p class="muted">كل طلب يُرسل من سلة الموقع إلى واتساب المطعم يُسجَّل هنا. استلم النسبة من كل مطعم آخر الشهر واضغط «تم الدفع».</p>
+      <p class="muted">كل طلب يُرسل من سلة الموقع لأي مطعم أو محل يُسجَّل هنا. استلم النسبة من كل واحد آخر الشهر واضغط «تم الدفع».</p>
       <div data-commission></div></section>
     <section id="staff" class="block" data-admin-only><h2>المشرفين</h2>
       <p class="muted">المشرف يراجع الإعلانات والمنتجات وينشرها بس. ما يشوف هويات الدلفري ولا الديون ولا نسبة المطاعم. يسوي حساب من «دخول أصحاب المحلات» أول، وبعدين تضيفه هنا ببريده.</p>

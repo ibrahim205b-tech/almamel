@@ -467,19 +467,21 @@
     var nameF = el('input'); nameF.placeholder = 'اسمك (اختياري)'; nameF.autocomplete = 'name'; nameF.setAttribute('aria-label', 'اسمك');
     var addrF = el('textarea'); addrF.rows = 2; addrF.placeholder = 'العنوان أو أقرب نقطة دالة (للتوصيل)'; addrF.setAttribute('aria-label', 'العنوان');
     var noteF = el('textarea'); noteF.rows = 2; noteF.placeholder = 'ملاحظات (اختياري)'; noteF.setAttribute('aria-label', 'ملاحظات');
+    // مطعم لو محل ثاني (صيدلية، موبايلات...): الكلام بالسلة يتغير حسبه
+    var WHO = shop.getAttribute('data-kind') === 'food' ? 'المطعم' : 'المحل';
     var send = el('a', 'btn btn-wa btn-block cart-send'); send.target = '_blank'; send.rel = 'noopener';
     send.appendChild(iconEl('whatsapp', 'i')); send.appendChild(document.createTextNode('أرسل الطلب عبر واتساب'));
     var clear = el('button', 'btn btn-sm cart-clear', 'إفراغ السلة'); clear.type = 'button';
-    // الطلب من داخل الموقع (إذا كان مفعّلاً): يوصل للمطعم مباشرة بإشعار وصوت
+    // الطلب من داخل الموقع (إذا كان مفعّلاً): يوصل لصاحب المحل مباشرة بإشعار وصوت
     var LOG = document.querySelector('meta[name="order-log"]');
     var phoneF = el('input'); phoneF.type = 'tel'; phoneF.dir = 'ltr'; phoneF.inputMode = 'tel'; phoneF.autocomplete = 'tel';
     phoneF.placeholder = 'رقم هاتفك 07xxxxxxxxx'; phoneF.setAttribute('aria-label', 'رقم هاتفك');
     var locBtn = el('button', 'btn btn-block loc-btn'); locBtn.type = 'button';
     var locTxt = document.createTextNode(' استخدم موقعي الحالي'); locBtn.appendChild(iconEl('pin', 'i')); locBtn.appendChild(locTxt);
-    var locNote = el('p', 'hint loc-note', 'يساعد المطعم يوصلك بسرعة. موقعك يشوفه المطعم فقط.');
+    var locNote = el('p', 'hint loc-note', 'يساعد ' + WHO + ' يوصلك بسرعة. موقعك يشوفه ' + WHO + ' فقط.');
     var loc = null;
     var order = el('button', 'btn btn-primary btn-block btn-lg cart-order'); order.type = 'button';
-    var orderTxt = document.createTextNode(' أرسل الطلب للمطعم'); order.appendChild(iconEl('check', 'i')); order.appendChild(orderTxt);
+    var orderTxt = document.createTextNode(' أرسل الطلب لل' + WHO.slice(2)); order.appendChild(iconEl('check', 'i')); order.appendChild(orderTxt);
     var err = el('p', 'cart-err'); err.setAttribute('role', 'alert'); err.hidden = true;
     if (LOG) {
       addrF.placeholder = 'أقرب نقطة دالة (مطلوب): مثلاً قرب جامع ...، الزقاق الثاني';
@@ -618,9 +620,9 @@
           window.location.href = BASE + '/order/?t=' + encodeURIComponent(token);
         })
         .catch(function (e) {
-          order.disabled = false; orderTxt.textContent = ' أرسل الطلب للمطعم';
+          order.disabled = false; orderTxt.textContent = ' أرسل الطلب لل' + WHO.slice(2);
           var m = e.message || '';
-          showErr(/fetch|network|Failed/i.test(m) ? 'ما كدرنا نوصل للمطعم. تأكد من الإنترنت وحاول مرة ثانية، أو أرسل الطلب عبر واتساب.'
+          showErr(/fetch|network|Failed/i.test(m) ? 'ما كدرنا نوصل لل' + WHO.slice(2) + '. تأكد من الإنترنت وحاول مرة ثانية، أو أرسل الطلب عبر واتساب.'
             : /[\u0600-\u06FF]/.test(m) ? m // رسائل قاعدة البيانات العربية (رقم غير صحيح، صنف غير متوفر...)
             : 'الطلب من الموقع متوقف مؤقتاً. أرسل طلبك عبر واتساب من الزر تحت.');
         });
@@ -637,8 +639,8 @@
     try { token = token || localStorage.getItem('last-order'); } catch { /* لا شيء */ }
     var key2 = LOG2.getAttribute('data-key'), lastStatus = null, timer = null;
     var fmt2 = function (n) { return Number(n).toLocaleString('en-US') + ' د.ع'; };
-    var STEPS = { new: ['بانتظار رد المطعم', 'وصل طلبك للمطعم. راح يوصلك الرد خلال دقائق.'], accepted: ['تم قبول طلبك ✅', 'المطعم يجهز طلبك هسه.'],
-      rejected: ['اعتذر المطعم عن الطلب', ''], done: ['تم التوصيل', 'بالعافية! شكراً لطلبك من دليل المعامل.'] };
+    var STEPS = { new: ['بانتظار رد صاحب المحل', 'وصل طلبك. راح يوصلك الرد خلال دقائق.'], accepted: ['تم قبول طلبك ✅', 'يجهزون طلبك هسه.'],
+      rejected: ['اعتذروا عن الطلب', ''], done: ['تم التوصيل', 'بالعافية! شكراً لطلبك من دليل المعامل.'] };
     var beep = function () {
       try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch { /* لا شيء */ }
       try {
@@ -663,14 +665,14 @@
       var mins = (Date.now() - new Date(o.created_at).getTime()) / 60000;
       var row = el('div', 'btn-row');
       if (o.status === 'new' && mins > 4 && o.business_phone) {
-        // المطعم ما رد: نعطي الزبون طريق ثاني
+        // صاحب المحل ما رد: نعطي الزبون طريق ثاني
         var txt = 'مرحبا، أرسلت طلب من دليل المعامل رقم ' + o.id + ' وما وصلني رد:\n' + (o.lines || []).map(function (l) { return '• ' + l.q + ' × ' + l.name; }).join('\n');
         var wa = el('a', 'btn btn-wa'); wa.href = 'https://wa.me/964' + o.business_phone.slice(1) + '?text=' + encodeURIComponent(txt); wa.target = '_blank'; wa.rel = 'noopener';
-        wa.appendChild(iconEl('whatsapp', 'i')); wa.appendChild(document.createTextNode(' المطعم ما رد؟ راسله على واتساب'));
+        wa.appendChild(iconEl('whatsapp', 'i')); wa.appendChild(document.createTextNode(' ما ردّوا؟ راسلهم على واتساب'));
         row.appendChild(wa);
       }
-      if (o.business_phone) { var call = el('a', 'btn'); call.href = 'tel:' + o.business_phone; call.appendChild(iconEl('phone', 'i')); call.appendChild(document.createTextNode(' اتصل بالمطعم')); row.appendChild(call); }
-      var back = el('a', 'btn'); back.href = BASE + '/businesses/' + o.business_id + '/'; back.textContent = o.status === 'rejected' || o.status === 'done' ? 'طلب جديد' : 'رجوع للمطعم'; row.appendChild(back);
+      if (o.business_phone) { var call = el('a', 'btn'); call.href = 'tel:' + o.business_phone; call.appendChild(iconEl('phone', 'i')); call.appendChild(document.createTextNode(' اتصل بيهم')); row.appendChild(call); }
+      var back = el('a', 'btn'); back.href = BASE + '/businesses/' + o.business_id + '/'; back.textContent = o.status === 'rejected' || o.status === 'done' ? 'طلب جديد' : 'رجوع للصفحة'; row.appendChild(back);
       box.appendChild(row);
       box.appendChild(el('p', 'hint', 'رقم الطلب: ' + o.id + ' · هذه الصفحة تتحدث تلقائياً.'));
       if (lastStatus && lastStatus !== o.status) beep();

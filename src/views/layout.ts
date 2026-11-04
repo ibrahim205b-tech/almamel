@@ -64,9 +64,9 @@ function kitchenHeader(ctx: ViewCtx): SafeHtml {
       <span class="brand-text"><span class="brand-name">لوحة صاحب المحل</span><span class="brand-sub">دليل المعامل</span></span>
     </a>
   </div>
-  <nav class="site-menu admin-menu" aria-label="المطعم"><div class="wrap menu-inner"><ul class="nav-list">
+  <nav class="site-menu admin-menu" aria-label="صاحب المحل"><div class="wrap menu-inner"><ul class="nav-list">
     <li><a href="/owner/dashboard" ${cur('/owner/dashboard')}>${icon('store')}صفحتي</a></li>
-    <li><a href="/kitchen" ${cur('/kitchen')}>${icon('bell')}طلبات المطعم</a></li>
+    <li><a href="/kitchen" ${cur('/kitchen')}>${icon('bell')}الطلبات</a></li>
     ${ctx.publicUrl ? html`<li><a href="${ctx.publicUrl}" target="_blank" rel="noopener">${icon('home')}الموقع العام</a></li>` : ''}
   </ul></div></nav>
 </header>`;
