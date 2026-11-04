@@ -899,14 +899,16 @@
       var av = el('span', 'eng-avatar', engInitial(e.name)); av.setAttribute('aria-hidden', 'true'); h.appendChild(av);
       var box = el('div'), nm = el(big ? 'h1' : 'h2', 'eng-name');
       if (big) nm.textContent = e.name; else { var a = el('a', '', e.name); a.href = BASE + '/engineers/e/?id=' + e.id; nm.appendChild(a); }
+      if (e.verified) { var vb = el('span', 'eng-ver', 'موثّق'); vb.title = 'تحققت الإدارة من بياناته'; nm.appendChild(document.createTextNode(' ')); nm.appendChild(vb); }
       box.appendChild(nm); box.appendChild(el('span', 'eng-spec', e.specialty)); h.appendChild(box);
       return h;
     };
     var engList = document.querySelector('[data-live-engineers]');
     if (engList) {
-      sbGet('public_engineers?select=*&order=decided_at.desc&limit=500').then(function (rows) {
+      sbGet('public_engineers?select=*&order=featured.desc,decided_at.desc&limit=500').then(function (rows) {
         rows.forEach(function (e) {
-          var li = el('li', 'eng-card'); li.setAttribute('data-specialty', e.specialty);
+          var li = el('li', 'eng-card' + (e.featured ? ' is-featured' : '')); li.setAttribute('data-specialty', e.specialty);
+          if (e.featured) li.appendChild(el('span', 'eng-ribbon', 'مميز'));
           li.appendChild(engHead(e, false));
           if ((e.services || []).length) { var ul = el('ul', 'eng-services'); ul.setAttribute('aria-label', 'الخدمات'); e.services.forEach(function (x) { ul.appendChild(el('li', '', x)); }); li.appendChild(ul); }
           if (e.location) { var loc = el('p', 'eng-loc'); loc.appendChild(iconEl('pin', 'i i-sm')); loc.appendChild(document.createTextNode(e.location)); li.appendChild(loc); }

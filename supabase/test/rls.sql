@@ -632,4 +632,31 @@ update engineers set status = 'hidden' where name = 'م. علي';
 reset role;
 do $$ begin if (select status from engineers where name = 'م. علي') <> 'hidden' or exists (select 1 from engineers where name = 'غشاش') then raise exception 'staff hide / bot delete'; end if; end $$;
 
+-- ===== المهندسين: التوثيق والتمييز للمدير بس =====
+reset role;
+update engineers set status = 'approved' where name = 'م. علي';
+select pg_temp.as_user('55555555-5555-5555-5555-555555555555');
+update engineers set verified = true, featured_until = now() + interval '30 days', about = 'تعديل المشرف' where name = 'م. علي';
+reset role;
+do $$ begin
+  if (select verified from engineers where name = 'م. علي') or (select featured_until from engineers where name = 'م. علي') is not null then raise exception 'moderator verified/featured an engineer'; end if;
+  if (select about from engineers where name = 'م. علي') <> 'تعديل المشرف' then raise exception 'moderator edit blocked'; end if;
+end $$;
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+update engineers set verified = true, featured_until = now() + interval '30 days' where name = 'م. علي';
+select pg_temp.as_user(null);
+do $$ begin if not (select verified and featured from public_engineers where name = 'م. علي') then raise exception 'admin verify/feature not public'; end if; end $$;
+reset role;
+update engineers set featured_until = now() - interval '1 day' where name = 'م. علي';
+select pg_temp.as_user(null);
+do $$ begin if (select featured from public_engineers where name = 'م. علي') then raise exception 'expired feature still shown'; end if; end $$;
+-- من البوت
+reset role;
+insert into engineers (name, specialty, services, location, phone) values ('مهندس البوت', 'مهندس مدني', array['إشراف'], 'بغداد', '07901239999');
+set role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', false);
+select public.bot_action('e', (select id from engineers where name = 'مهندس البوت'), 'feature');
+reset role;
+do $$ begin if (select status from engineers where name = 'مهندس البوت') <> 'approved' or (select featured_until from engineers where name = 'مهندس البوت') < now() + interval '29 days' then raise exception 'bot feature'; end if; end $$;
+
 select 'ALL RLS TESTS PASSED';

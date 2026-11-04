@@ -959,3 +959,9 @@ body.no-scroll{overflow:hidden}
 .eng-contact .btn{flex:1 1 220px}
 .eng-note{margin:0;font-size:var(--t-sm)}
 .btn-soon{background:var(--ivory-2);color:var(--ink-2);border-style:dashed;cursor:default;box-shadow:none}
+.eng-card{position:relative}
+.eng-card.is-featured{box-shadow:0 0 0 3px var(--gold),var(--sh-2)}
+.eng-ribbon{position:absolute;top:14px;left:14px;background:linear-gradient(135deg,#E8CF91,var(--gold));color:var(--navy);border-radius:999px;padding:4px 14px;font:800 var(--t-xs)/1.4 var(--font-body)}
+.eng-ver{display:inline-flex;align-items:center;gap:4px;vertical-align:middle;background:#E7F6EC;color:#0E6B3A;border:1px solid #9FD9B5;border-radius:999px;padding:1px 10px;font:700 var(--t-xs)/1.5 var(--font-body)}
+.eng-ver::before{content:"✓";font-weight:900}
+.badge-gold{background:var(--gold-soft);border-color:var(--gold);color:var(--gold-ink)}

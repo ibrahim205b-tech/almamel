@@ -1018,7 +1018,7 @@
     }
     load();
     trustAdmin();
-    engineersAdmin($('[data-engineers-admin]'));
+    engineersAdmin($('[data-engineers-admin]'), IS_ADMIN);
     if (!IS_ADMIN) return;
     debtsAdmin($('[data-debts]'), load);
     ridersAdmin($('[data-riders-admin]'));
@@ -1241,7 +1241,7 @@
   }
 
   // ---------- الإدارة: المهندسين ----------
-  async function engineersAdmin(box) {
+  async function engineersAdmin(box, isAdmin) {
     var r = await sb.from('engineers').select('*').order('status').order('created_at', { ascending: false }).limit(300);
     box.textContent = '';
     if (r.error) return box.appendChild(el('p', { class: 'muted', text: 'المهندسين يحتاجون تشغيل تحديث supabase/updates/2026-11-engineers.sql.' }));
@@ -1250,26 +1250,39 @@
     if (!rows.length) return box.appendChild(el('p', { class: 'empty-inline', text: 'ما كو مهندسين مسجلين بعد.' }));
     var LABEL = { pending: 'بانتظار المراجعة', approved: 'منشور', hidden: 'مخفي' };
     var ul = el('ul', { class: 'cards-admin' }); box.appendChild(ul);
+    async function setFlag(x, patch, msg) {
+      var u = await sb.from('engineers').update(patch).eq('id', x.id);
+      if (u.error) return say(errText(u.error), 'error'); say(msg, 'ok'); engineersAdmin(box, isAdmin);
+    }
     async function setStatus(x, st) {
       var u = await sb.from('engineers').update({ status: st, decided_at: new Date().toISOString() }).eq('id', x.id);
       if (u.error) return say(errText(u.error), 'error');
-      say(st === 'approved' ? 'انتشر «' + x.name + '» بدليل المهندسين ✅' : 'انخفى «' + x.name + '».', 'ok'); engineersAdmin(box);
+      say(st === 'approved' ? 'انتشر «' + x.name + '» بدليل المهندسين ✅' : 'انخفى «' + x.name + '».', 'ok'); engineersAdmin(box, isAdmin);
     }
     rows.forEach(function (x) {
+      var featured = x.featured_until && new Date(x.featured_until) > new Date();
       var facts = el('dl', { class: 'facts' });
       [['الاختصاص', x.specialty], ['الموقع', x.location], ['الرقم', x.phone + (x.whatsapp ? ' (واتساب)' : '')], ['الخدمات', (x.services || []).join('، ')], ['نبذة', x.about],
         ['IP', x.client_ip], ['تاريخ التسجيل', new Date(x.created_at).toLocaleString('ar-IQ')]]
         .forEach(function (kv) { if (kv[1]) facts.appendChild(el('div', {}, [el('dt', { text: kv[0] }), el('dd', { text: kv[1] })])); });
       ul.appendChild(el('li', { class: 'panel' }, [
-        el('h3', {}, [x.name + ' ', badge(x.status === 'approved' ? 'published' : x.status === 'pending' ? 'pending' : 'hidden', LABEL[x.status])]), facts,
+        el('h3', {}, [x.name + ' ', badge(x.status === 'approved' ? 'published' : x.status === 'pending' ? 'pending' : 'hidden', LABEL[x.status]),
+          x.verified ? el('span', { class: 'badge badge-ok', text: 'موثّق' }) : null,
+          featured ? el('span', { class: 'badge badge-gold', text: 'مميز حتى ' + dayText(x.featured_until) }) : null]), facts,
         el('div', { class: 'btn-row' }, [
           el('a', { class: 'btn', href: 'tel:' + x.phone, text: 'اتصال للتحقق' }),
           x.status !== 'approved' ? el('button', { class: 'btn btn-primary', type: 'button', text: 'نشر بالدليل', onclick: function () { setStatus(x, 'approved'); } }) : null,
           x.status === 'approved' ? el('button', { class: 'btn', type: 'button', text: 'إخفاء', onclick: function () { setStatus(x, 'hidden'); } }) : null,
+          isAdmin ? el('button', { class: 'btn', type: 'button', text: x.verified ? 'إلغاء التوثيق' : 'توثيق (بعد التحقق)', onclick: function () {
+            setFlag(x, { verified: !x.verified }, x.verified ? 'انلغى توثيق «' + x.name + '».' : 'صار «' + x.name + '» موثّق 🏅'); } }) : null,
+          isAdmin ? el('button', { class: 'btn btn-sign', type: 'button', text: featured ? 'تمديد التمييز شهر' : 'تمييز لمدة شهر', onclick: function () {
+            var from = featured ? new Date(x.featured_until) : new Date(); from.setDate(from.getDate() + 30);
+            setFlag(x, { featured_until: from.toISOString() }, '«' + x.name + '» مميز ويطلع أول القائمة لحد ' + dayText(from.toISOString()) + ' ⭐'); } }) : null,
+          isAdmin && featured ? el('button', { class: 'btn', type: 'button', text: 'إلغاء التمييز', onclick: function () { setFlag(x, { featured_until: null }, 'انلغى تمييز «' + x.name + '».'); } }) : null,
           el('button', { class: 'btn btn-danger', type: 'button', text: 'حذف', onclick: async function () {
             if (!confirm('حذف «' + x.name + '» نهائياً؟')) return;
             var d = await sb.from('engineers').delete().eq('id', x.id);
-            if (d.error) return say(errText(d.error), 'error'); say('انحذف.', 'ok'); engineersAdmin(box);
+            if (d.error) return say(errText(d.error), 'error'); say('انحذف.', 'ok'); engineersAdmin(box, isAdmin);
           } })])]));
     });
   }

@@ -68,8 +68,8 @@ function mock(req: http.IncomingMessage, res: http.ServerResponse, body: Buffer)
   if (p.startsWith('/storage/v1/object/')) return send(200, { Key: p.replace('/storage/v1/object/', '') });
   if (p === '/rest/v1/public_riders') return send(200, riders.filter((r) => r.status === 'approved').map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !['address', 'id_front', 'id_back', 'status', 'created_at'].includes(k)))));
   if (p === '/rest/v1/public_engineers') {
-    const all = [{ id: 4, name: 'م. علي حسن', specialty: 'مهندس مدني', services: ['تصميم مخططات المنازل', 'إشراف على البناء'], location: 'بغداد', phone: '07901234567', whatsapp: true, about: 'خبرة ١٠ سنوات', decided_at: new Date().toISOString() },
-      { id: 5, name: 'م. سارة', specialty: 'مهندس معماري', services: ['واجهات'], location: 'المعامل', phone: '07901234500', whatsapp: false, about: null, decided_at: new Date().toISOString() }];
+    const all = [{ id: 4, name: 'م. علي حسن', specialty: 'مهندس مدني', services: ['تصميم مخططات المنازل', 'إشراف على البناء'], location: 'بغداد', phone: '07901234567', whatsapp: true, about: 'خبرة ١٠ سنوات', decided_at: new Date().toISOString(), verified: true, featured: true },
+      { id: 5, name: 'م. سارة', specialty: 'مهندس معماري', services: ['واجهات'], location: 'المعامل', phone: '07901234500', whatsapp: false, about: null, decided_at: new Date().toISOString(), verified: false, featured: false }];
     const id = u.searchParams.get('id'); return send(200, id ? all.filter((e) => 'eq.' + e.id === id) : all);
   }
   if (p === '/rest/v1/engineers' && req.method === 'GET') return send(200, auth.includes(ADMIN) ? [{ id: 6, name: 'م. جديد', specialty: 'مهندس كهربائي', services: ['تأسيس كهرباء'], location: 'بغداد', phone: '07901230000', whatsapp: true, about: null, status: 'pending', client_ip: '1.2.3.4', created_at: new Date().toISOString() }] : []);
@@ -699,6 +699,10 @@ test('engineers directory: approved engineers as cards, filter by specialty, det
   await p.waitForSelector('.eng-card:has-text("م. علي حسن")');
   assert.equal(await p.locator('.eng-card').count(), 2);
   assert.equal(await p.isVisible('[data-eng-empty]'), false);
+  assert.ok(await p.isVisible('.eng-card.is-featured:has-text("م. علي حسن") .eng-ribbon'), 'featured ribbon');
+  assert.ok(await p.isVisible('.eng-card:has-text("م. علي حسن") .eng-ver'), 'verified badge');
+  assert.equal(await p.locator('.eng-card:has-text("م. سارة") .eng-ver').count(), 0);
+  assert.match(log.filter((r) => r.path === '/rest/v1/public_engineers').at(-1)!.query.get('order')!, /^featured\.desc/);
   const wa = (await p.getAttribute('.eng-card:has-text("م. علي حسن") a.btn-wa', 'href'))!;
   assert.match(wa, /^https:\/\/wa\.me\/9647901234567\?text=/);
   assert.ok(decodeURIComponent(wa).includes('تصميم مخططات المنازل'));
@@ -739,6 +743,13 @@ test('admin reviews engineers: pending with phone and IP, publish', async () => 
   await p.waitForSelector('.live-msg.flash-ok:has-text("م. جديد")');
   const call = log.filter((r) => r.path === '/rest/v1/engineers' && r.method === 'PATCH').at(-1)!;
   assert.equal(call.query.get('id'), 'eq.6'); assert.equal(JSON.parse(call.body.toString()).status, 'approved');
+  await p.click('[data-engineers-admin] button:has-text("توثيق (بعد التحقق)")');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("موثّق")');
+  assert.deepEqual(JSON.parse(log.filter((r) => r.path === '/rest/v1/engineers' && r.method === 'PATCH').at(-1)!.body.toString()), { verified: true });
+  await p.click('[data-engineers-admin] button:has-text("تمييز لمدة شهر")');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("مميز")');
+  const until = new Date(JSON.parse(log.filter((r) => r.path === '/rest/v1/engineers' && r.method === 'PATCH').at(-1)!.body.toString()).featured_until).getTime();
+  assert.ok(Math.abs(until - (Date.now() + 30 * 864e5)) < 864e5, 'featured for 30 days');
   await p.context().close();
 });
 

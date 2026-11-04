@@ -49,8 +49,23 @@ create policy engineers_insert on public.engineers for insert to anon, authentic
 drop policy if exists engineers_staff on public.engineers;
 create policy engineers_staff on public.engineers for all to authenticated using (public.is_staff()) with check (public.is_staff());
 
+-- ---------- المهندسين: توثيق وتمييز (المدير فقط يختارهن) ----------
+alter table public.engineers add column if not exists verified boolean not null default false;
+alter table public.engineers add column if not exists featured_until timestamptz;
+-- المشرف يكدر ينشر ويخفي، بس التوثيق والتمييز للمدير بس
+create or replace function public.engineers_before_update() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  -- من الموقع (anon/authenticated): المدير بس. من SQL Editor أو مفتاح الخدمة: مسموح
+  if current_user in ('anon', 'authenticated') and not public.is_admin() then new.verified := old.verified; new.featured_until := old.featured_until; end if;
+  return new;
+end $$;
+drop trigger if exists engineers_before_update on public.engineers;
+create trigger engineers_before_update before update on public.engineers for each row execute function public.engineers_before_update();
+-- المميز يطلع أول (لحد ما يخلص الشهر)
 create or replace view public.public_engineers with (security_barrier = true) as
-  select id, name, specialty, services, location, phone, whatsapp, about, decided_at
+  select id, name, specialty, services, location, phone, whatsapp, about, decided_at,
+         verified, coalesce(featured_until > now(), false) as featured
   from public.engineers where status = 'approved';
 grant select on public.public_engineers to anon, authenticated;
 
@@ -126,7 +141,8 @@ begin
       || nl || nl || 'الخدمات:' || nl || (select string_agg('• ' || x, nl) from unnest(en.services) x)
       || case when coalesce(en.about, '') <> '' then nl || nl || left(en.about, 500) else '' end;
     return jsonb_build_object('text', t, 'kb', jsonb_build_array(
-      jsonb_build_array(private.btn('✅ نشر بالدليل', 'e:' || p_id || ':approve'), private.btn('🗑 حذف', 'e:' || p_id || ':delete'))));
+      jsonb_build_array(private.btn('✅ نشر بالدليل', 'e:' || p_id || ':approve'), private.btn('🗑 حذف', 'e:' || p_id || ':delete')),
+      jsonb_build_array(private.btn('🏅 نشر وتوثيق', 'e:' || p_id || ':verify'), private.btn('⭐ نشر وتمييز شهر', 'e:' || p_id || ':feature'))));
   elsif p_kind = 'M' then
     select count(*) into n from menu_items where business_id = p_id and not approved;
     if n = 0 then return null; end if;
@@ -273,6 +289,12 @@ begin
     elsif p_action = 'delete' then
       delete from engineers where id = p_id; get diagnostics n = row_count;
       if n = 0 then raise exception 'المهندس غير موجود'; end if; return 'انحذف 🗑';
+    elsif p_action = 'verify' then
+      update engineers set status = 'approved', decided_at = coalesce(decided_at, now()), verified = true where id = p_id; get diagnostics n = row_count;
+      if n = 0 then raise exception 'المهندس غير موجود'; end if; return 'انتشر وصار موثّق 🏅';
+    elsif p_action = 'feature' then
+      update engineers set status = 'approved', decided_at = coalesce(decided_at, now()), featured_until = greatest(coalesce(featured_until, now()), now()) + interval '30 days' where id = p_id; get diagnostics n = row_count;
+      if n = 0 then raise exception 'المهندس غير موجود'; end if; return 'انتشر وصار مميز لمدة شهر ⭐';
     end if;
   elsif p_kind = 'M' and p_action = 'approve' then
     update menu_items set approved = true where business_id = p_id and not approved; get diagnostics n = row_count;
