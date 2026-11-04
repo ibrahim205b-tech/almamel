@@ -1125,7 +1125,17 @@
       if (t.error) return say(errText(t.error), 'error');
       say(t.data ? 'انرسلت رسالة تجربة ✅ إذا ما وصلتك خلال دقيقة، تأكد من رمز البوت ورقم المحادثة.' : 'التنبيهات بعدها مو مفعّلة. شوف خطوات التفعيل بملف التحديث 2026-11-trust.sql.', t.data ? 'ok' : 'error');
     } });
-    box.appendChild(el('div', { class: 'btn-row' }, [tg]));
+    var nw = el('button', { class: 'btn btn-sm', type: 'button', text: 'جيب الأخبار هسه', onclick: async function () {
+      var f = await sb.rpc('news_fetch_now');
+      if (f.error) return say(f.error.message && /news_fetch_now/.test(f.error.message) ? 'الأخبار تحتاج تشغيل تحديث supabase/updates/2026-11-news.sql.' : errText(f.error), 'error');
+      say('جارِ جلب الأخبار من المصادر...', 'ok');
+      setTimeout(async function () {
+        var c = await sb.rpc('news_collect_now');
+        if (c.error) return say(errText(c.error), 'error');
+        say(c.data ? 'انضاف ' + nf.format(c.data) + ' خبر جديد ✅ راح توصلك على تيليغرام حتى توافق عليها.' : 'ما كو أخبار جديدة تخص المنطقة هسه. النظام يفحص لحاله كل ٣ ساعات.', 'ok');
+      }, 15000);
+    } });
+    box.appendChild(el('div', { class: 'btn-row' }, [tg, nw]));
   }
 
   // ---------- دلفري حر: القائمة العامة ----------

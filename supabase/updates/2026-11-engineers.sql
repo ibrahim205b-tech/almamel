@@ -1,5 +1,4 @@
--- تحديث: دليل المهندسين (المهندس يسجّل نفسه، والإدارة توافق وتوثّق وتميّز شهر). انسخ الملف كاملاً وشغّله في Supabase ← SQL Editor ← Run (آمن لو انعاد).
--- يشمل أزرار تيليغرام كاملة، فما يحتاج تعيد ملف telegram-bot.
+-- تحديث: دليل المهندسين (المهندس يسجّل نفسه، والإدارة توافق وتوثّق وتميّز شهر) + الأخبار التلقائية. انسخ الملف كاملاً وشغّله في Supabase ← SQL Editor ← Run (آمن لو انعاد، وكل ملفات التحديث الأخيرة تكمّل بعضها بأي ترتيب).
 do $$ begin
   if to_regclass('public.complaints') is null then raise exception 'شغّل ملف 2026-11-trust.sql أول، وبعدين هذا الملف'; end if;
 end $$;
@@ -69,6 +68,114 @@ create or replace view public.public_engineers with (security_barrier = true) as
   from public.engineers where status = 'approved';
 grant select on public.public_engineers to anon, authenticated;
 
+
+-- ---------- الأخبار التلقائية ----------
+-- كل ٣ ساعات: Supabase يجيب أخبار من مصادر موثوقة (RSS)، يفلتر الي تخص المعامل والزوراء وبغداد وخدماتها،
+-- ويدز كل خبر للمدير على تيليغرام بزر «انشره» أو «لا». ما ينشر شي بدون موافقة المدير.
+create table if not exists public.news_items (
+  id           bigint generated always as identity primary key,
+  source       text not null,
+  url          text not null unique,
+  title        text not null,
+  summary      text,
+  published_at timestamptz,
+  status       text not null default 'pending' check (status in ('pending', 'published', 'rejected')),
+  post_id      bigint,
+  created_at   timestamptz not null default now()
+);
+alter table public.news_items enable row level security;
+drop policy if exists news_items_staff on public.news_items;
+create policy news_items_staff on public.news_items for select to authenticated using (public.is_staff());
+
+create table if not exists private.news_feeds (name text primary key, url text not null);
+insert into private.news_feeds (name, url) values
+  ('السومرية نيوز', 'https://www.alsumaria.tv/Rss/iraq-latest-news/ar'),
+  ('محافظة بغداد', 'https://baghdad.gov.iq/feed/index.rss')
+on conflict (name) do update set url = excluded.url;
+create table if not exists private.news_requests (id bigint primary key, source text not null, created_at timestamptz not null default now());
+
+create or replace function private.xml_text(p text) returns text language sql immutable as $$
+  -- بعض المصادر ترمّز النص مرتين (&amp;quot;)، فنفك &amp; أول
+  select trim(regexp_replace(regexp_replace(replace(replace(replace(replace(replace(replace(replace(replace(coalesce(p, ''), '<![CDATA[', ''), ']]>', ''),
+    '&amp;', '&'), '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&#39;', ''''), '&nbsp;', ' '), '<[^>]*>', ' ', 'g'), '\s+', ' ', 'g'))
+$$;
+
+-- يقرأ نص RSS ويضيف الأخبار المحلية الجديدة (آخر يومين) ويبلّغ المدير. يرجع عدد الأخبار الجديدة.
+create or replace function private.news_ingest(p_source text, p_xml text) returns integer
+language plpgsql security definer set search_path = public as $$
+declare doc xml; it xml; t text; l text; d text; pd timestamptz; n int := 0; new_id bigint;
+  -- يخص المنطقة أو خدمات بغداد اليومية
+  -- اسم منطقتنا: يكفي يجي بالعنوان أو التفاصيل. خدمات بغداد العامة: لازم بالعنوان
+  local text := 'المعامل|الزوراء|الحسينية';
+  want text := 'الرصافة|بغداد|العاصمة|أمانة|الأنواء|الأمطار|الطقس|درجات الحرارة|عطلة|تعطيل|الدوام الرسمي|الكهرباء|الماء|المجاري|التربية|الامتحانات|المرور|الطرق|زحام|البطاقة الوطنية|الجوازات|الرواتب|الرافدين|السلف';
+  skip text := 'الدوري|مباراة|منتخب|ريال مدريد|برشلونة|كرة القدم|هدف|ترامب|إسرائيل|أوكرانيا|روسيا|أمريكي|الأمريكية|الكونغرس';
+begin
+  begin doc := xmlparse(document regexp_replace(p_xml, '^\s*<\?xml[^>]*\?>', ''));
+  exception when others then raise notice 'خبر: تعذّر قراءة % (%)', p_source, sqlerrm; return 0; end;
+  foreach it in array xpath('//item', doc) loop
+    t := private.xml_text((xpath('/*/title/text()', it))[1]::text);
+    l := trim(coalesce((xpath('/*/link/text()', it))[1]::text, ''));
+    d := private.xml_text((xpath('/*/description/text()', it))[1]::text);
+    begin pd := ((xpath('/*/pubDate/text()', it))[1]::text)::timestamptz; exception when others then pd := now(); end;
+    l := replace(l, '&amp;', '&');
+    continue when t = '' or l !~ '^https?://' or pd < now() - interval '2 days';
+    continue when t ~ skip or not (t ~ want or (t || ' ' || d) ~ local);
+    insert into news_items (source, url, title, summary, published_at) values (p_source, l, left(t, 200), nullif(left(d, 600), ''), pd)
+      on conflict (url) do nothing returning id into new_id;
+    if new_id is not null then n := n + 1; perform private.send_card('n', new_id); new_id := null; end if;
+  end loop;
+  return n;
+end $$;
+
+-- الخطوة ١: يطلب كل المصادر (pg_net يجيبها بالخلفية)
+create or replace function private.news_fetch() returns void
+language plpgsql security definer set search_path = public as $$
+declare f record; rid bigint;
+begin
+  delete from private.news_requests where created_at < now() - interval '1 day';
+  for f in select * from private.news_feeds loop
+    begin rid := net.http_get(url := f.url, timeout_milliseconds := 20000);
+      insert into private.news_requests (id, source) values (rid, f.name) on conflict do nothing;
+    exception when others then raise notice 'خبر: تعذّر طلب %: %', f.name, sqlerrm; end;
+  end loop;
+end $$;
+
+-- الخطوة ٢ (بعد دقيقتين): يقرأ الردود ويضيف الأخبار
+create or replace function private.news_collect() returns integer
+language plpgsql security definer set search_path = public as $$
+declare r record; n int := 0;
+begin
+  for r in execute 'select q.id, q.source, x.content, x.status_code from private.news_requests q join net._http_response x on x.id = q.id' loop
+    if r.status_code = 200 and r.content is not null then n := n + private.news_ingest(r.source, r.content); end if;
+    delete from private.news_requests where id = r.id;
+  end loop;
+  return n;
+end $$;
+revoke all on function private.xml_text(text), private.news_ingest(text, text), private.news_fetch(), private.news_collect() from public, anon, authenticated;
+
+-- الجدولة: يحتاج pg_cron (Supabase ← Database ← Extensions ← pg_cron)
+do $$ begin
+  create extension if not exists pg_cron;
+  perform cron.schedule('almamel-news-fetch', '5 */3 * * *', 'select private.news_fetch()');
+  perform cron.schedule('almamel-news-collect', '8 */3 * * *', 'select private.news_collect()');
+exception when others then raise notice 'pg_cron غير مفعّل: فعّله من Database ← Extensions ← pg_cron وأعد تشغيل الملف (%)', sqlerrm;
+end $$;
+
+-- الإدارة: «جيب الأخبار هسه» بدل انتظار ٣ ساعات
+create or replace function public.news_fetch_now() returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'غير مسموح'; end if;
+  perform private.news_fetch();
+end $$;
+create or replace function public.news_collect_now() returns integer
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'غير مسموح'; end if;
+  return private.news_collect();
+end $$;
+revoke all on function public.news_fetch_now(), public.news_collect_now() from public, anon;
+grant execute on function public.news_fetch_now(), public.news_collect_now() to authenticated;
 
 -- ---------- تنبيهات تيليغرام للإدارة، مع أزرار موافقة ورفض ----------
 -- كل إعلان جديد، طلب محل، دلفري، منتجات، شكوى، تعليق، أو واحد وصل حد الدين: رسالة فورية بأزرار.
@@ -143,6 +250,11 @@ begin
     return jsonb_build_object('text', t, 'kb', jsonb_build_array(
       jsonb_build_array(private.btn('✅ نشر بالدليل', 'e:' || p_id || ':approve'), private.btn('🗑 حذف', 'e:' || p_id || ':delete')),
       jsonb_build_array(private.btn('🏅 نشر وتوثيق', 'e:' || p_id || ':verify'), private.btn('⭐ نشر وتمييز شهر', 'e:' || p_id || ':feature'))));
+  elsif p_kind = 'n' then
+    select * into m from news_items where id = p_id; if not found or m.status <> 'pending' then return null; end if;
+    t := '📰 خبر جديد من ' || m.source || nl || '«' || m.title || '»' || coalesce(nl || nl || left(m.summary, 500), '') || nl || nl || '🔗 ' || m.url;
+    return jsonb_build_object('text', t, 'kb', jsonb_build_array(
+      jsonb_build_array(private.btn('✅ انشره بالموقع', 'n:' || p_id || ':approve'), private.btn('❌ لا', 'n:' || p_id || ':reject'))));
   elsif p_kind = 'M' then
     select count(*) into n from menu_items where business_id = p_id and not approved;
     if n = 0 then return null; end if;
@@ -203,6 +315,7 @@ revoke all on function private.send_card(text, bigint) from public, anon, authen
 create or replace function private.notify_post() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
+  if coalesce(current_setting('app.bot_news', true), '') = '1' then return null; end if; -- خبر نشره المدير من البوت
   if new.type <> 'business' then perform private.send_card('p', new.id); end if;
   if new.fee_due > 0 and public.ad_debt(new.author_id, new.contact_phone, new.client_ip) >= public.ad_debt_limit() then
     perform private.send_card('d', new.id);
@@ -296,6 +409,27 @@ begin
       update engineers set status = 'approved', decided_at = coalesce(decided_at, now()), featured_until = greatest(coalesce(featured_until, now()), now()) + interval '30 days' where id = p_id; get diagnostics n = row_count;
       if n = 0 then raise exception 'المهندس غير موجود'; end if; return 'انتشر وصار مميز لمدة شهر ⭐';
     end if;
+  elsif p_kind = 'n' then
+    declare ni record; pid bigint;
+    begin
+      select * into ni from news_items where id = p_id for update;
+      if not found then raise exception 'الخبر غير موجود'; end if;
+      if ni.status <> 'pending' then raise exception 'الخبر انراجع قبل'; end if;
+      if p_action = 'reject' then update news_items set status = 'rejected' where id = p_id; return 'ما انتشر ❌'; end if;
+      if p_action <> 'approve' then raise exception 'أمر غير معروف'; end if;
+      perform set_config('app.bot_news', '1', true); -- لا نبلّغ المدير بنفس الخبر مرة ثانية
+      insert into posts (type, title, body, category, area, details)
+        values ('community', left(ni.title, 100),
+          coalesce(ni.summary, '') || E'
+
+' || 'المصدر: ' || ni.source || '. التفاصيل الكاملة بالخبر الأصلي.', 'أخبار المنطقة', 'المعامل',
+          jsonb_build_object('source_name', ni.source, 'source_url', ni.url))
+        returning id into pid;
+      update posts set fee_due = 0 where id = pid;
+      perform public.moderate_post(pid, 'approve');
+      update news_items set status = 'published', post_id = pid where id = p_id;
+      return 'انتشر بأخبار المعامل ✅';
+    end;
   elsif p_kind = 'M' and p_action = 'approve' then
     update menu_items set approved = true where business_id = p_id and not approved; get diagnostics n = row_count;
     return 'انوافق على ' || n || ' منتج ✅';
@@ -323,6 +457,7 @@ begin
     union all (select 'p', id from posts where status = 'pending' and type <> 'business' order by created_at limit 15)
     union all (select 'r', id from riders where status = 'pending' order by created_at limit 10)
     union all (select 'e', id from engineers where status = 'pending' order by created_at limit 10)
+    union all (select 'n', id from news_items where status = 'pending' and created_at > now() - interval '3 days' order by created_at limit 10)
     union all (select 'M', business_id from menu_items where not approved and public.is_public_business(business_id) group by business_id limit 10)
     union all (select 'k', id from complaints where status = 'open' order by created_at limit 10)
     union all (select 'v', id from ratings where not approved and comment is not null order by created_at limit 10)
@@ -391,3 +526,4 @@ language plpgsql security definer set search_path = public as $$
 begin perform private.send_card('e', new.id); return null; end $$;
 drop trigger if exists engineers_notify on public.engineers;
 create trigger engineers_notify after insert on public.engineers for each row execute function private.notify_engineer();
+

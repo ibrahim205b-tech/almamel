@@ -659,4 +659,40 @@ select public.bot_action('e', (select id from engineers where name = 'مهندس
 reset role;
 do $$ begin if (select status from engineers where name = 'مهندس البوت') <> 'approved' or (select featured_until from engineers where name = 'مهندس البوت') < now() + interval '29 days' then raise exception 'bot feature'; end if; end $$;
 
+-- ===== الأخبار التلقائية: فلترة RSS، بدون تكرار، والنشر بموافقة المدير من البوت =====
+reset role;
+do $$ declare x text; n int; d text := to_char(now() at time zone 'UTC', 'Dy, DD Mon YYYY HH24:MI:SS "GMT"'); begin
+  x := '<?xml version="1.0" encoding="utf-8"?><rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel>'
+    || '<item><title>أمانة بغداد تعلن غلق طريق في الرصافة &quot;مؤقتاً&quot;</title><link>https://example.com/a?x=1&amp;y=2</link><description><![CDATA[<p>تفاصيل <b>الغلق</b> لمدة يومين</p>]]></description><pubDate>' || d || '</pubDate></item>'
+    || '<item><title>ريال مدريد يفوز في الدوري</title><link>https://example.com/b</link><description>جمهور بغداد</description><pubDate>' || d || '</pubDate></item>'
+    || '<item><title>خبر قديم عن بغداد</title><link>https://example.com/c</link><pubDate>Mon, 01 Jan 2024 10:00:00 GMT</pubDate></item>'
+    || '<item><title>انتخابات في دولة بعيدة</title><link>https://example.com/d</link><pubDate>' || d || '</pubDate></item>'
+    || '</channel></rss>';
+  n := private.news_ingest('مصدر تجريبي', x);
+  if n <> 1 then raise exception 'news filter: % new items', n; end if;
+  if private.news_ingest('مصدر تجريبي', x) <> 0 then raise exception 'news duplicated'; end if;
+  if private.news_ingest('مصدر تجريبي', '<html>not rss') <> 0 then raise exception 'bad feed'; end if;
+  if (select title from news_items where url = 'https://example.com/a?x=1&y=2') <> 'أمانة بغداد تعلن غلق طريق في الرصافة "مؤقتاً"' then raise exception 'news title decode'; end if;
+  if (select summary from news_items where url = 'https://example.com/a?x=1&y=2') <> 'تفاصيل الغلق لمدة يومين' then raise exception 'news summary strip'; end if;
+end $$;
+select pg_temp.as_user(null);
+select pg_temp.expect_error($q$select private.news_ingest('x', '<rss/>')$q$, 'anon ingests news');
+select pg_temp.expect_error($q$select public.news_fetch_now()$q$, 'anon fetches news');
+do $$ begin if exists (select 1 from news_items) then raise exception 'anon reads news queue'; end if; end $$;
+reset role;
+set role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', false);
+do $$ begin if not exists (select 1 from jsonb_array_elements(public.bot_pending()) e where e->>'text' like '%غلق طريق%' and e->'kb'->0->0->>'callback_data' like 'n:%:approve') then raise exception 'news card'; end if; end $$;
+select public.bot_action('n', (select id from news_items where url like 'https://example.com/a%'), 'approve');
+select pg_temp.expect_error($q$select public.bot_action('n', (select id from news_items where url like 'https://example.com/a%'), 'approve')$q$, 'publish news twice');
+reset role;
+do $$ declare p posts; begin
+  select * into p from posts where id = (select post_id from news_items where url like 'https://example.com/a%');
+  if p.status <> 'published' or p.type <> 'community' or p.category <> 'أخبار المنطقة' then raise exception 'news post not published'; end if;
+  if p.details->>'source_url' <> 'https://example.com/a?x=1&y=2' or p.details->>'source_name' <> 'مصدر تجريبي' then raise exception 'news source'; end if;
+  if p.fee_due <> 0 then raise exception 'news charged a fee'; end if;
+end $$;
+select pg_temp.as_user(null);
+do $$ begin if not exists (select 1 from public_posts where title like 'أمانة بغداد تعلن%') then raise exception 'news not public'; end if; end $$;
+
 select 'ALL RLS TESTS PASSED';
