@@ -208,6 +208,7 @@ export function adminLivePage(): SafeHtml {
       <a href="#expiring">تنتهي قريباً <span class="count" data-count="expiring"></span></a>
       <a href="#published">المنشور حالياً</a>
       <a href="#commission" data-admin-only>نسبة الطلبات</a>
+      <a href="#push" data-admin-only>الإشعارات</a>
       <a href="#staff" data-admin-only>المشرفين</a>
     </nav>
     <section id="pending" class="block"><h2>بانتظار المراجعة</h2><div data-pending><div class="skeleton" aria-label="جارِ التحميل"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div></div></section>
@@ -226,6 +227,9 @@ export function adminLivePage(): SafeHtml {
     <section id="commission" class="block" data-admin-only><h2>نسبة الطلبات (٥٪)</h2>
       <p class="muted">كل طلب يُرسل من سلة الموقع لأي مطعم أو محل يُسجَّل هنا. استلم النسبة من كل واحد آخر الشهر واضغط «تم الدفع».</p>
       <div data-commission></div></section>
+    <section id="push" class="block" data-admin-only><h2>إشعارات الموقع</h2>
+      <p class="muted">توصل لكل الي فعّلوا الإشعارات: الأخبار تنرسل لحالها أول ما تنتشر، ورسالة تنبيهية مرتبة كل ٣ أيام. وتكدر ترسل إشعار بنفسك من هنا.</p>
+      <div data-push-admin></div></section>
     <section id="staff" class="block" data-admin-only><h2>المشرفين</h2>
       <p class="muted">المشرف يراجع الإعلانات والمنتجات وينشرها بس. ما يشوف هويات الدلفري ولا الديون ولا نسبة المطاعم. يسوي حساب من «دخول أصحاب المحلات» أول، وبعدين تضيفه هنا ببريده.</p>
       <div data-staff></div></section>

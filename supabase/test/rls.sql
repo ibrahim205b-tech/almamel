@@ -695,4 +695,41 @@ end $$;
 select pg_temp.as_user(null);
 do $$ begin if not exists (select 1 from public_posts where title like 'أمانة بغداد تعلن%') then raise exception 'news not public'; end if; end $$;
 
+-- ===== إشعارات الموقع =====
+select pg_temp.as_user(null);
+select public.push_subscribe('https://fcm.googleapis.com/fcm/send/abc', repeat('B', 87), repeat('a', 22));
+select public.push_subscribe('https://fcm.googleapis.com/fcm/send/abc', repeat('C', 87), repeat('b', 22)); -- نفس الجهاز يتحدث
+select pg_temp.expect_error($q$select public.push_subscribe('http://evil/x', repeat('B', 87), repeat('a', 22))$q$, 'non-https push endpoint');
+select pg_temp.expect_error($q$select public.push_subscribe('https://x/y', 'short', repeat('a', 22))$q$, 'bad push key');
+do $$ begin if exists (select 1 from push_subscriptions) or exists (select 1 from push_log) then raise exception 'anon reads push data'; end if; end $$;
+select pg_temp.expect_error($q$select public.push_admin_send('x', 'y')$q$, 'anon sends push');
+select pg_temp.expect_error($q$select public.push_config()$q$, 'anon reads push keys');
+select pg_temp.as_user('55555555-5555-5555-5555-555555555555');
+do $$ begin if (public.push_stats()->>'subscribers')::int <> 1 then raise exception 'push stats'; end if; end $$;
+select pg_temp.expect_error($q$select public.push_admin_send('عنوان', 'نص')$q$, 'moderator sends push');
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+select pg_temp.expect_error($q$select public.push_config()$q$, 'admin browser reads push keys');
+select pg_temp.expect_error($q$select public.push_admin_send('عنوان', 'نص', 'javascript:alert(1)')$q$, 'push with bad url');
+-- خبر ينتشر → إشعار خبر
+insert into posts (type, title, category, body) values ('community', 'خبر للإشعار', 'أخبار المنطقة', 'تفاصيل');
+select public.moderate_post(public.t_id('خبر للإشعار'), 'approve');
+reset role;
+do $$ begin if not exists (select 1 from push_log where kind = 'news' and body = 'خبر للإشعار' and url = '/news/') then raise exception 'news push not queued'; end if; end $$;
+-- الرسائل التنبيهية: وحدة، وبعدها تنتظر ٣ أيام
+select private.push_promo_tick();
+select private.push_promo_tick();
+do $$ begin
+  if (select count(*) from push_log where kind = 'promo') <> 1 then raise exception 'promo spacing'; end if;
+  if (select title from push_log where kind = 'promo') <> 'عندك بيت للإيجار أو للبيع؟' then raise exception 'promo order'; end if;
+end $$;
+update push_log set sent_at = now() - interval '4 days' where kind = 'promo';
+select private.push_promo_tick();
+do $$ begin if (select title from push_log where kind = 'promo' order by id desc limit 1) <> 'عندك محل بالمعامل؟' then raise exception 'promo rotation'; end if; end $$;
+select pg_temp.as_user('33333333-3333-3333-3333-333333333333');
+select public.push_admin_send('دليل المعامل', 'تجربة', '/');
+select pg_temp.as_user(null);
+select public.push_unsubscribe('https://fcm.googleapis.com/fcm/send/abc');
+reset role;
+do $$ begin if exists (select 1 from push_subscriptions) then raise exception 'unsubscribe'; end if; end $$;
+
 select 'ALL RLS TESTS PASSED';

@@ -17,6 +17,7 @@ export interface ViewCtx {
   staticMode?: boolean; // نسخة GitHub Pages الثابتة: بلا حسابات ولا نماذج تُرسل للخادم
   supabaseOrigin?: string; // عند تفعيل Supabase في النسخة الثابتة
   supabaseKey?: string; // المفتاح العام (لتسجيل طلبات السلة)
+  pushKey?: string; // مفتاح الإشعارات العام (VAPID) للموقع العام
   adminSite?: boolean; // موقع الإدارة المنفصل
   registerSite?: boolean; // صفحة تسجيل المحلات الخاصة
   kitchenSite?: boolean; // موقع المطعم: استلام الطلبات
@@ -154,6 +155,7 @@ ${ctx.adminSite || ctx.registerSite || ctx.kitchenSite ? '' : raw('<meta name="g
 <script src="/static/js/app.js?v=${ctx.v}" defer></script>
 ${ctx.staticMode ? html`<script src="/static/js/static.js?v=${ctx.v}" defer></script>` : ''}
 ${ctx.supabaseOrigin && ctx.supabaseKey ? html`<meta name="order-log" content="${ctx.supabaseOrigin}" data-key="${ctx.supabaseKey}">` : ''}
+${ctx.pushKey ? html`<meta name="push-key" content="${ctx.pushKey}">` : ''}
 ${meta.head ?? ''}
 </head>
 <body class="${meta.bodyClass ?? ''}">

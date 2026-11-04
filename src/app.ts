@@ -57,6 +57,17 @@ export function csrfFor(app: FastifyInstance, req: FastifyRequest) {
 }
 
 
+/** مفتاح الإشعارات العام (VAPID): من VAPID_PUBLIC_KEY أو site.config.json. علني بطبيعته. */
+let pushKeyCache: string | null | undefined;
+function pushPublicKey(): string | undefined {
+  if (pushKeyCache === undefined) {
+    pushKeyCache = process.env.VAPID_PUBLIC_KEY || null;
+    if (!pushKeyCache) { try { pushKeyCache = (JSON.parse(fs.readFileSync('site.config.json', 'utf8')) as { vapidPublicKey?: string }).vapidPublicKey ?? null; } catch { pushKeyCache = null; } }
+    if (pushKeyCache && !/^[A-Za-z0-9_-]{80,100}$/.test(pushKeyCache)) pushKeyCache = null;
+  }
+  return pushKeyCache ?? undefined;
+}
+
 export function viewCtx(app: FastifyInstance, req: FastifyRequest, reply: FastifyReply, v: string): ViewCtx {
   let flash: ViewCtx['flash'] = null;
   const raw = req.cookies.flash ? req.unsignCookie(req.cookies.flash) : null;
@@ -69,6 +80,7 @@ export function viewCtx(app: FastifyInstance, req: FastifyRequest, reply: Fastif
     v, unread: req.user ? unreadCount(app.db, req.user.id) : 0, flash, staticMode: app.cfg.staticMode,
     supabaseOrigin: app.cfg.staticMode && app.cfg.supabaseUrl ? new URL(app.cfg.supabaseUrl).origin : undefined,
     supabaseKey: app.cfg.staticMode && app.cfg.supabaseUrl ? app.cfg.supabaseAnonKey : undefined,
+    pushKey: app.cfg.staticMode && app.cfg.supabaseUrl && !app.cfg.adminSite && !app.cfg.kitchenSite && !app.cfg.registerSite ? pushPublicKey() : undefined,
     adminSite: app.cfg.adminSite, registerSite: app.cfg.registerSite, kitchenSite: app.cfg.kitchenSite, publicUrl: app.cfg.publicUrl,
   };
 }

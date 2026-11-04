@@ -121,6 +121,8 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
         relation: ['delegate_permission/common.handle_all_urls'], target: { namespace: 'android_app', package_name: pkg, sha256_cert_fingerprints: fps } })), null, 2));
     }
     fs.cpSync(path.join(import.meta.dirname, '..', 'public'), path.join(opts.outDir, 'static'), { recursive: true });
+    // عامل الخدمة بجذر الموقع حتى يستلم الإشعارات لكل الصفحات
+    if (opts.supabase) write('sw.js', fs.readFileSync(path.join(import.meta.dirname, '..', 'public', 'js', 'site-sw.js')));
     if (opts.supabase) {
       fs.mkdirSync(path.join(opts.outDir, 'static', 'vendor'), { recursive: true });
       fs.copyFileSync(path.join(import.meta.dirname, '..', 'node_modules', '@supabase', 'supabase-js', 'dist', 'umd', 'supabase.js'), path.join(opts.outDir, 'static', 'vendor', 'supabase.js'));

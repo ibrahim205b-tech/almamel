@@ -990,6 +990,53 @@
       }).catch(function () { ebox.textContent = ''; ebox.appendChild(el('p', 'muted', 'تعذّر تحميل الصفحة. حدّث الصفحة.')); });
     }
 
+    // ---------- إشعارات دليل المعامل ----------
+    // نطلب السماح بلطف (شريط صغير بزيارة ثانية، أو بصفحة الأخبار)، مو أول ما يفتح الموقع.
+    (function () {
+      var PK = document.querySelector('meta[name="push-key"]'); if (!PK || !('serviceWorker' in navigator)) return;
+      var ios = /iPhone|iPad|iPod/.test(navigator.userAgent), standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+      var supported = 'PushManager' in window && 'Notification' in window;
+      var now = Date.now(), DAY = 864e5;
+      var views = Number(ls.get('almamel-views') || 0) + 1; ls.set('almamel-views', String(views));
+      var reg = navigator.serviceWorker.register(BASE + '/sw.js', { scope: BASE + '/' }).catch(function () { return null; });
+      var b64 = function (s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); var raw = window.atob(s + '='.repeat((4 - s.length % 4) % 4)), a = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) a[i] = raw.charCodeAt(i); return a; };
+      var save = function (sub) { var j = sub.toJSON(); return sbRpc('push_subscribe', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth }).then(function () { ls.set('almamel-push-saved', String(Date.now())); }); };
+      var subscribe = function () {
+        return reg.then(function (r) { if (!r) throw new Error('sw'); return navigator.serviceWorker.ready; })
+          .then(function (r) { return r.pushManager.getSubscription().then(function (s) { return s || r.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(PK.content) }); }); })
+          .then(save);
+      };
+      // سمح قبل: نحدّث اشتراكه بهدوء كل ٣ أيام
+      if (supported && window.Notification.permission === 'granted') { if (now - Number(ls.get('almamel-push-saved') || 0) > 3 * DAY) subscribe().catch(function () {}); return; }
+      if (supported && window.Notification.permission === 'denied') return;
+      if (now - Number(ls.get('almamel-push-later') || 0) < (ios && !supported ? 14 : 7) * DAY) return;
+      var onNews = !!document.querySelector('[data-news-feed]');
+      if (!onNews && views < 2) return;
+      if (!supported && !(ios && !standalone)) return;
+      var box = el('div', 'push-ask'); box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', 'إشعارات دليل المعامل');
+      var ic = el('span', 'push-ico'); ic.appendChild(iconEl('bell', 'i')); box.appendChild(ic);
+      var txt = el('div', 'push-txt');
+      if (supported) { txt.appendChild(el('b', '', 'فعّل إشعارات دليل المعامل')); txt.appendChild(el('span', '', 'توصلك أخبار المنطقة والعروض أول بأول')); }
+      else { txt.appendChild(el('b', '', 'حتى توصلك إشعارات الأخبار')); txt.appendChild(el('span', '', 'ثبّت الموقع: زر المشاركة ثم «إضافة إلى الشاشة الرئيسية»، وافتحه من هناك')); }
+      box.appendChild(txt);
+      var row = el('div', 'push-btns');
+      if (supported) {
+        var yes = el('button', 'btn btn-primary btn-sm', 'فعّل'); yes.type = 'button';
+        yes.addEventListener('click', function () {
+          yes.disabled = true;
+          window.Notification.requestPermission().then(function (p) {
+            if (p !== 'granted') { ls.set('almamel-push-later', String(Date.now())); box.remove(); return; }
+            return subscribe().then(function () { txt.textContent = ''; txt.appendChild(el('b', '', 'تم ✓ راح توصلك أخبار المعامل')); row.remove(); setTimeout(function () { box.remove(); }, 2500); });
+          }).catch(function () { yes.disabled = false; });
+        });
+        row.appendChild(yes);
+      }
+      var no = el('button', 'btn btn-sm push-later', supported ? 'لاحقاً' : 'تمام'); no.type = 'button';
+      no.addEventListener('click', function () { ls.set('almamel-push-later', String(Date.now())); box.remove(); });
+      row.appendChild(no); box.appendChild(row);
+      setTimeout(function () { document.body.appendChild(box); window.requestAnimationFrame(function () { box.classList.add('on'); }); }, onNews ? 2500 : 6000);
+    })();
+
     window.almamelTrust = { ratingWidget: ratingWidget, complaintForm: complaintForm, summaries: summaries, summaryEl: summaryEl };
 
     // صفحة الإعلان أو المحل: مشاهدة (مرة باليوم لكل جهاز)، تقييم المحل، وزر الإبلاغ

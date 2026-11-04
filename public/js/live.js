@@ -1025,6 +1025,40 @@
     faresAdmin($('[data-fares-admin]'));
     commissionBox($('[data-commission]'), true);
     staffAdmin($('[data-staff]'));
+    pushAdmin($('[data-push-admin]'));
+  }
+
+  // ---------- الإدارة: إشعارات الموقع ----------
+  async function pushAdmin(box) {
+    var r = await sb.rpc('push_stats');
+    box.textContent = '';
+    if (r.error) return box.appendChild(el('p', { class: 'muted', text: 'الإشعارات تحتاج تشغيل تحديث supabase/updates/2026-11-push.sql.' }));
+    var st = r.data || {}, KIND = { news: 'خبر', promo: 'تنبيهية', admin: 'منك' };
+    box.appendChild(el('p', { class: 'push-count' }, [el('b', { class: 'num', text: nf.format(st.subscribers || 0) }), ' مشترك بالإشعارات']));
+    if (!st.ready) box.appendChild(el('p', { class: 'note note-warn', text: 'الإرسال متوقف: ضيف المفتاح السري (vapid_private) وارفع دالة push. الشرح بملف docs/PUSH.md.' }));
+    var f = el('form', { class: 'form push-form' });
+    var t = el('input', { type: 'text', maxlength: 80, placeholder: 'العنوان (مثلاً: دليل المعامل)', 'aria-label': 'عنوان الإشعار', value: 'دليل المعامل' });
+    var b = el('textarea', { rows: 2, maxlength: 200, placeholder: 'نص الإشعار', 'aria-label': 'نص الإشعار' });
+    var u = el('select', { 'aria-label': 'يفتح على' }, [['/', 'الصفحة الرئيسية'], ['/news/', 'أخبار المعامل'], ['/submit/property/', 'إضافة عقار'], ['/submit/', 'أضف إعلانك'], ['/jobs/', 'الوظائف'], ['/delivery/', 'دلفري حر'], ['/engineers/', 'دليل المهندسين'], ['/restaurants/', 'المطاعم'], ['/businesses/', 'المحلات']].map(function (o) { return el('option', { value: o[0], text: 'يفتح على: ' + o[1] }); }));
+    var send = el('button', { class: 'btn btn-primary', type: 'submit', text: 'إرسال لكل المشتركين' });
+    f.appendChild(t); f.appendChild(b); f.appendChild(u); f.appendChild(send);
+    f.addEventListener('submit', async function (e) {
+      e.preventDefault(); delete f.dataset.submitting;
+      if (b.value.trim().length < 2) return say('اكتب نص الإشعار.', 'error');
+      if (!confirm('ترسل هذا الإشعار لـ ' + nf.format(st.subscribers || 0) + ' مشترك؟')) return;
+      busy(f, true);
+      var s2 = await sb.rpc('push_admin_send', { p_title: t.value.trim(), p_body: b.value.trim(), p_url: u.value });
+      busy(f, false);
+      if (s2.error) return say(errText(s2.error), 'error');
+      say('انرسل الإشعار ✅ يوصل للمشتركين خلال دقيقة.', 'ok'); b.value = ''; setTimeout(function () { pushAdmin(box); }, 4000);
+    });
+    box.appendChild(f);
+    if ((st.last || []).length) {
+      box.appendChild(el('h3', { text: 'آخر الإشعارات' }));
+      var ul = el('ul', { class: 'manage-list' }); box.appendChild(ul);
+      st.last.forEach(function (x) { ul.appendChild(el('li', {}, [el('span', { class: 'badge', text: KIND[x.kind] || x.kind }), ' ', el('b', { text: x.title }), ' ', x.body, ' ',
+        el('span', { class: 'muted', text: new Date(x.sent_at).toLocaleString('ar-IQ') + (x.sent != null ? ' · وصل ' + nf.format(x.sent) : ' · بالانتظار') })])); });
+    }
   }
 
   // ---------- الإدارة: الشكاوى والتعليقات والإعلانات الي تنتهي ----------

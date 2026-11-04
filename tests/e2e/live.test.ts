@@ -93,6 +93,8 @@ function mock(req: http.IncomingMessage, res: http.ServerResponse, body: Buffer)
   if (p === '/rest/v1/rpc/expiring_posts') return send(200, [{ id: 1000002, type: 'job', title: 'وظيفة تنتهي', contact_phone: '07709990000', name: 'أبو حسن', expires_at: new Date(Date.now() + 864e5).toISOString() }]);
   if (p === '/rest/v1/rpc/views_30d') return send(200, [{ post_id: 1000001, n: 57 }, { post_id: 1000005, n: 57 }]);
   if (p === '/rest/v1/rpc/post_stats') return send(200, [{ day: '2026-11-01', n: 40 }, { day: '2026-11-02', n: 17 }]);
+  if (p === '/rest/v1/rpc/push_stats') return send(200, { subscribers: 128, ready: true, last: [{ kind: 'news', title: 'دليل المعامل: خبر جديد', body: 'الأمطار تعود', sent_at: new Date().toISOString(), sent: 120, failed: 0 }] });
+  if (p === '/rest/v1/rpc/push_admin_send') return send(200, 77);
   if (p.startsWith('/rest/v1/rpc/')) return send(200, null);
   if (p === '/rest/v1/rating_summary') return send(200, [{ target_id: u.searchParams.get('target_type') === 'eq.rider' ? 1 : 1000001, avg: 4.5, n: 12 }]);
   if (p === '/rest/v1/public_reviews') return send(200, [{ stars: 5, comment: 'أكل طيب وتوصيل سريع', created_at: new Date().toISOString() }]);
@@ -751,6 +753,36 @@ test('admin reviews engineers: pending with phone and IP, publish', async () => 
   await p.waitForSelector('.live-msg.flash-ok:has-text("مميز")');
   const until = new Date(JSON.parse(log.filter((r) => r.path === '/rest/v1/engineers' && r.method === 'PATCH').at(-1)!.body.toString()).featured_until).getTime();
   assert.ok(Math.abs(until - (Date.now() + 30 * 864e5)) < 864e5, 'featured for 30 days');
+  await p.context().close();
+});
+
+test('notifications: a gentle opt-in bar on the news page, «لاحقاً» hides it for a week; the service worker is published', async () => {
+  const p = await open('/news/');
+  // المتصفح التجريبي يرجع «مرفوض» افتراضياً؛ نحاكي متصفح عادي ما قرر بعد
+  await p.addInitScript(() => Object.defineProperty(window.Notification, 'permission', { get: () => 'default' }));
+  await p.reload();
+  assert.equal(await p.getAttribute('meta[name="push-key"]', 'content') !== null, true, 'push key on the page');
+  await p.waitForSelector('.push-ask.on', { timeout: 8000 });
+  assert.ok((await p.textContent('.push-ask'))!.includes('فعّل إشعارات دليل المعامل'));
+  await p.click('.push-ask .push-later');
+  assert.equal(await p.locator('.push-ask').count(), 0);
+  await p.reload(); await p.waitForTimeout(3500);
+  assert.equal(await p.locator('.push-ask').count(), 0, 'not shown again right away');
+  const sw = await p.evaluate(async () => (await fetch(document.documentElement.getAttribute('data-base') + '/sw.js')).text());
+  assert.ok(sw.includes("addEventListener('push'") && sw.includes('notificationclick'));
+  await p.context().close();
+});
+
+test('admin sends a notification to every subscriber and sees the latest ones', async () => {
+  const p = await adminLogin(1280);
+  await p.waitForSelector('[data-push-admin] .push-count:has-text("١٢٨")');
+  assert.ok((await p.textContent('[data-push-admin]'))!.includes('الأمطار تعود'));
+  await p.fill('.push-form textarea', 'عندك بيت للإيجار؟ اعرضه بدليل المعامل');
+  await p.selectOption('.push-form select', '/submit/property/');
+  await p.click('.push-form button[type=submit]');
+  await p.waitForSelector('.live-msg.flash-ok:has-text("انرسل الإشعار")');
+  assert.deepEqual(JSON.parse(log.filter((r) => r.path === '/rest/v1/rpc/push_admin_send').at(-1)!.body.toString()),
+    { p_title: 'دليل المعامل', p_body: 'عندك بيت للإيجار؟ اعرضه بدليل المعامل', p_url: '/submit/property/' });
   await p.context().close();
 });
 
