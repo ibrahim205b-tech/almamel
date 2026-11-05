@@ -106,6 +106,15 @@ jobs:
           ADMIN_SITE=1 SITE_URL="$CF/idara" PUBLIC_URL="$CF/" OUT_DIR=dist-cf/idara node scripts/build-static.ts
           REGISTER_SITE=1 SITE_URL="$CF/tasjeel" PUBLIC_URL="$CF/" OUT_DIR=dist-cf/tasjeel node scripts/build-static.ts
           KITCHEN_SITE=1 SITE_URL="$CF/mat3am" PUBLIC_URL="$CF/" OUT_DIR=dist-cf/mat3am node scripts/build-static.ts
+      # خريطة الموقع المنشورة قبل هذا النشر: نقارنها بالجديدة حتى نبلّغ محركات البحث بالمتغيّر بس
+      - name: Save the live sitemap (for IndexNow)
+        if: steps.check.outputs.build == 'true'
+        env:
+          CF: ${{ vars.CF_SITE_URL || 'https://almamel.pages.dev' }}
+        run: |
+          KEY=$(node -e "console.log(require('./site.config.json').indexNowKey||'')")
+          # إذا ملف المفتاح ما جان منشور، المحرك ما استلم منا شي قبل: نبلّغه بكل الصفحات
+          if [ -n "$KEY" ] && curl -sf "$CF/$KEY.txt" >/dev/null; then curl -sf "$CF/sitemap.xml" -o old-sitemap.xml || true; fi
       - name: Push Cloudflare copy to the cf-pages branch
         if: steps.check.outputs.build == 'true'
         env:
@@ -135,6 +144,14 @@ jobs:
           rm -rf dist-cf/.git
           npx --yes wrangler@3 pages project create "$PROJECT" --production-branch main 2>/dev/null || true
           npx --yes wrangler@3 pages deploy dist-cf --project-name "$PROJECT" --branch main --commit-dirty=true
+      # يبلّغ Bing و Yandex بالصفحات الجديدة حتى تطلع بالبحث خلال ساعات (ما يوقف النشر لو فشل)
+      - name: Tell search engines about new pages (IndexNow)
+        if: steps.check.outputs.build == 'true'
+        continue-on-error: true
+        timeout-minutes: 8
+        env:
+          SITE_URL: ${{ vars.CF_SITE_URL || 'https://almamel.pages.dev' }}
+        run: node scripts/indexnow.ts dist-cf/sitemap.xml old-sitemap.xml
       - if: steps.check.outputs.build == 'true'
         uses: actions/upload-pages-artifact@v3
         with:

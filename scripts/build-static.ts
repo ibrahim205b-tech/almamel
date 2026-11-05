@@ -17,6 +17,13 @@ import { loadContent } from '../src/static/content.ts';
 import { loadSupabase, siteStamp, type SupabaseCfg } from '../src/static/supabase.ts';
 import { postUrl } from '../src/views/components.ts';
 
+export function indexNowKey(): string | null {
+  try {
+    const k = (JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'site.config.json'), 'utf8')) as { indexNowKey?: string }).indexNowKey;
+    return k && /^[0-9a-f]{32}$/.test(k) ? k : null;
+  } catch { return null; }
+}
+
 export async function buildStatic(opts: { siteUrl: string; contentDir: string; outDir: string; repo: string; quiet?: boolean; supabase?: SupabaseCfg | null; cacheDir?: string;
   /** موقع الإدارة المنفصل: صفحات الإدارة فقط، بلا محتوى عام. publicUrl رابط الموقع العام. */
   admin?: { publicUrl: string };
@@ -112,6 +119,9 @@ export async function buildStatic(opts: { siteUrl: string; contentDir: string; o
     write('manifest.webmanifest', (await app.inject({ method: 'GET', url: '/manifest.webmanifest' })).body.replace(/"\/(?!\/)/g, `"${base}/`));
     write('robots.txt', `User-agent: *\nDisallow: ${base}/publish/\nDisallow: ${base}/idara/\nDisallow: ${base}/tasjeel/\nDisallow: ${base}/mat3am/\nDisallow: ${base}/order/\nDisallow: ${base}/p/\n${opts.noindex ? '' : `Sitemap: ${siteUrl}/sitemap.xml\n`}`);
     write('.nojekyll', '');
+    // مفتاح IndexNow: يثبت لـ Bing و Yandex إن الموقع مالنا حتى نبلغهم بالصفحات الجديدة (scripts/indexnow.ts)
+    const inKey = indexNowKey();
+    if (inKey && !opts.noindex) write(`${inKey}.txt`, inKey);
     write('build-stamp.txt', stamp);
     // ربط تطبيقي أندرويد بالموقع (Trusted Web Activity): التطبيق يفتح الموقع بلا شريط متصفح
     const fpFile = path.join(import.meta.dirname, '..', 'android', 'fingerprints.txt');

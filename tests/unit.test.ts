@@ -112,3 +112,14 @@ test('base URL falls back to the Render-provided public URL', async () => {
   assert.equal(loadConfig({}, env).baseUrl, 'https://dalil.onrender.com');
   assert.equal(loadConfig({}, { ...env, BASE_URL: 'https://example.iq/' }).baseUrl, 'https://example.iq');
 });
+
+test('IndexNow: reports new, edited and removed pages with their section and the home page', async () => {
+  const { changedUrls } = await import('../scripts/indexnow.ts');
+  const S = 'https://x.dev';
+  const sm = (e: [string, string?][]) => `<urlset>${e.map(([l, m]) => `<url><loc>${S}${l}</loc>${m ? `<lastmod>${m}</lastmod>` : ''}</url>`).join('')}</urlset>`;
+  const old = sm([['/'], ['/jobs/'], ['/jobs/1/', '2026-11-01'], ['/jobs/2/', '2026-11-01']]);
+  assert.equal(changedUrls(old, null, S).length, 4, 'first time: everything');
+  assert.deepEqual(changedUrls(old, old, S), [], 'nothing changed');
+  const now = sm([['/'], ['/jobs/'], ['/jobs/1/', '2026-11-05'], ['/community/9/', '2026-11-05']]);
+  assert.deepEqual(changedUrls(now, old, S).sort(), [S + '/', S + '/community/', S + '/community/9/', S + '/jobs/', S + '/jobs/1/', S + '/jobs/2/'].sort());
+});
