@@ -1,0 +1,26 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.almamel.dalil",
+      "sha256_cert_fingerprints": [
+        "09:26:E9:96:87:6A:BC:1C:CE:DD:D6:99:B4:A8:C0:43:8B:69:78:3F:07:94:11:58:77:23:02:C6:E4:61:E3:6D"
+      ]
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.almamel.restaurant",
+      "sha256_cert_fingerprints": [
+        "09:26:E9:96:87:6A:BC:1C:CE:DD:D6:99:B4:A8:C0:43:8B:69:78:3F:07:94:11:58:77:23:02:C6:E4:61:E3:6D"
+      ]
+    }
+  }
+]

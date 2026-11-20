@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /publish/
+Disallow: /idara/
+Disallow: /tasjeel/
+Disallow: /mat3am/
+Disallow: /order/
+Disallow: /p/
+Sitemap: https://almamel.pages.dev/sitemap.xml
